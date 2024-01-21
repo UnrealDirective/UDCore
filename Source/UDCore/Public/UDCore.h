@@ -1,11 +1,11 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Unreal Directive. All Rights Reserved.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FUDPluginModule : public IModuleInterface
+class FUDCoreModule : public IModuleInterface
 {
 public:
 
