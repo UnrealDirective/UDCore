@@ -24,6 +24,7 @@ public class UDCore : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"AIModule",
 			}
 		);
 
