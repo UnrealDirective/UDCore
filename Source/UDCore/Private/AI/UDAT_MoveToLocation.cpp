@@ -2,9 +2,11 @@
 
 
 #include "AI/UDAT_MoveToLocation.h"
-
 #include "UDCoreLogChannels.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
+#include "Engine/World.h"
+#include "DrawDebugHelpers.h"
+#include "TimerManager.h"
 
 
 UUDAT_MoveToLocation* UUDAT_MoveToLocation::MoveToLocation(
@@ -81,8 +83,8 @@ void UUDAT_MoveToLocation::CheckMoveToLocation()
 	
 	// Get controllers pawns world location
 	CurrentLocation = Controller->GetPawn()->GetActorLocation();
-	UE_LOG(LogUDCore, Log, TEXT("Controller is moving to location (%s)."), *CurrentLocation.ToString());
-	UE_LOG(LogUDCore, Log, TEXT("Distance to destination: %f."), FVector::Dist(CurrentLocation, Destination));
+	UE_LOG(LogUDCore, Verbose, TEXT("Controller is moving to location (%s). Current distance: %f."), *Destination.ToString(), FVector::Dist(CurrentLocation, Destination));
+	
 	if (FVector::Dist(CurrentLocation, Destination) < AcceptanceRadius)
 	{
 		// Movement has completed

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintAsyncActionBase.h"
+#include "GameFramework/Controller.h"
 #include "UDAT_MoveToLocation.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnAsyncMoveToLocation, bool, bSuccess);
@@ -31,7 +32,7 @@ public:
 	 * @param AcceptanceRadius The radius around the destination location that is considered acceptable. Be sure to set this to a reasonable value as the controller may never reach the exact destination.
 	 * @param bDebugLineTrace Display a line trace to the destination location for a short duration.
 	 */
-	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly = "true", Category = "AI|Navigation", WorldContext = "WorldContextObject", DisplayName = "Async Move To Location"))
+	UFUNCTION(BlueprintCallable, meta=(BlueprintInternalUseOnly = "true", Category = "Unreal Directive|AI|Navigation", WorldContext = "WorldContextObject", DisplayName = "Async Move To Location"))
 	static UUDAT_MoveToLocation* MoveToLocation(
 		UObject* WorldContextObject,
 		AController* Controller,
@@ -43,8 +44,9 @@ public:
 	 * Ends the async action.
 	 * This must be called manually when the task is no longer needed.
 	 */
-	UFUNCTION(BlueprintCallable)
-	void EndTask();
+	UFUNCTION(BlueprintCallable, Category = "Unreal Directive|AI|Navigation")
+	void EndTask()
+	;
 	virtual void Activate() override;
 
 	// The delegate called when the movement has completed regardless of success.
