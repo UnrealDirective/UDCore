@@ -81,7 +81,6 @@ void UUDAT_MoveToLocation::CheckMoveToLocation()
 		return;
 	}
 	
-	// Get controllers pawns world location
 	CurrentLocation = Controller->GetPawn()->GetActorLocation();
 	UE_LOG(LogUDCore, Verbose, TEXT("Controller is moving to location (%s). Current distance: %f."), *Destination.ToString(), FVector::Dist(CurrentLocation, Destination));
 	
@@ -113,21 +112,16 @@ void UUDAT_MoveToLocation::CheckStuckMovement()
 
 void UUDAT_MoveToLocation::ExecuteCompleted(const bool bSuccess)
 {
-
 	UE_LOG(LogUDCore, Log, TEXT("Movement to location completed. Success: %s."), bSuccess ? TEXT("true") : TEXT("false"));
 	
-	// Clear the timers
 	Controller->GetWorld()->GetTimerManager().ClearTimer(TimerHandle);
 	Controller->GetWorld()->GetTimerManager().ClearTimer(StuckTimerHandle);
-
-	// Broadcast the completion event
+	
 	Completed.Broadcast(bSuccess);
-
-	// Reset the controller and destination
+	
 	Controller = nullptr;
 	Destination = FVector::ZeroVector;
-
-	// Set the action to be ready to destroy
+	
 	SetReadyToDestroy();
 }
 
