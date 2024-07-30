@@ -3,7 +3,8 @@
 UDCore is an open-source Unreal Engine plugin developed by Dylan "Tezenari" Amos as part of the Unreal Directive. It provides a variety of quality-of-life functionalities to enhance the development experience.
 
 ## Requirements
-- Unreal Engine: 5.3+ (Tested on 5.3 and above, most likely compatable to lesser versions)
+- **Software**: Unreal Engine 5.3 ~ 5.4
+- **Platform**: Windows
 
 ## Features
 
