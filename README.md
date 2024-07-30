@@ -1,6 +1,6 @@
 # UDCore
 
-UDCore is an open-source Unreal Engine plugin developed by Unreal Directive. It provides a variety of quality-of-life functionalities to enhance the development experience.
+UDCore is an open-source Unreal Engine plugin developed by Dylan "Tezenari" Amos as part of the Unreal Directive. It provides a variety of quality-of-life functionalities to enhance the development experience.
 
 ## Features
 
@@ -80,6 +80,7 @@ For support, please visit our [GitHub Issues](https://github.com/UnrealDirective
 ## Authors
 
 - Unreal Directive - [Website](https://unrealdirective.com)
+- Dylan "Tezenari" Amos - [Website](https://dylanamos.com)
 
 ## Acknowledgments
 
