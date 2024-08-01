@@ -2,6 +2,8 @@
 
 UDCore is an open-source Unreal Engine plugin developed by Dylan "Tezenari" Amos as part of the Unreal Directive. It provides a variety of quality-of-life functionalities to enhance the development experience.
 
+This plugin will be updated sporadically with new functionality.
+
 ## Requirements
 - **Software**: Unreal Engine 5.3 ~ 5.4
 - **Platform**: Windows
@@ -11,7 +13,7 @@ UDCore is an open-source Unreal Engine plugin developed by Dylan "Tezenari" Amos
 - **AI Utilities**: Simplified AI task management.
 - **String Manipulation**: Functions to handle and manipulate strings.
 - **Text Utilities**: Functions to check and manipulate text.
-- **Debugging Tools**: Enhanced debugging capabilities.
+- **Editor Utilities:** Enhanced functionality for the Editor Actor Subsystem
 
 ## Installation
 
@@ -30,38 +32,88 @@ UDCore is an open-source Unreal Engine plugin developed by Dylan "Tezenari" Amos
    - Search for `UDCore` and enable it.
    - Restart the Unreal Engine editor.
 
-## Usage
+- ## Usage
 
-### AI Utilities
+  ### AI Utilities
 
-- **Move to Location:**
-  ```cpp
-  UUDAT_MoveToLocation* Action = UUDAT_MoveToLocation::MoveToLocation(WorldContextObject, Controller, Destination, AcceptanceRadius, bDebugLineTrace);
-  ```
+  - **Async Move to Location:**
 
-### String Manipulation
+    ```cpp
+    UUDAT_MoveToLocation* Action = UUDAT_MoveToLocation::MoveToLocation(WorldContextObject, Controller, Destination, AcceptanceRadius, bDebugLineTrace);
+    ```
 
-- **Contains Letters:**
-  ```cpp
-  bool bHasLetters = UUDCoreFunctionLibrary::ContainsLetters("ExampleString");
-  ```
+  ### String Manipulation
 
-- **Contains Numbers:**
-  ```cpp
-  bool bHasNumbers = UUDCoreFunctionLibrary::ContainsNumbers("Example123");
-  ```
+  - **Contains Letters:**
 
-- **Filter Characters:**
-  ```cpp
-  FString FilteredString = UUDCoreFunctionLibrary::FilterCharacters("Example123!@#", true, true, true, true);
-  ```
+    ```cpp
+    bool bHasLetters = UUDCoreFunctionLibrary::ContainsLetters("ExampleString");
+    ```
 
-### Text Utilities
+  - **Contains Numbers:**
 
-- **Is Not Empty:**
-  ```cpp
-  bool bIsNotEmpty = UUDCoreFunctionLibrary::IsNotEmpty(FText::FromString("Example"));
-  ```
+    ```cpp
+    bool bHasNumbers = UUDCoreFunctionLibrary::ContainsNumbers("Example123");
+    ```
+
+  - **Filter Characters:**
+
+    ```cpp
+    FString FilteredString = UUDCoreFunctionLibrary::FilterCharacters("Example123!@#", true, true, true, true);
+    ```
+
+  ### Text Utilities
+
+  - **Is Not Empty:**
+
+    ```cpp
+    bool bIsNotEmpty = UUDCoreFunctionLibrary::IsNotEmpty(FText::FromString("Example"));
+    ```
+
+  ### Editor Actor Subsystem
+
+  - **Focus Actors In Viewport:**
+
+    ```cpp
+    TArray<AActor*> ActorsToFocus;
+    // Populate ActorsToFocus with actors
+    UUDCoreEditorActorSubsystem::FocusActorsInViewport(ActorsToFocus, true);
+    ```
+
+  - **Get All Level Classes:**
+
+    ```cpp
+    TArray<UClass*> LevelClasses = UUDCoreEditorActorSubsystem::GetAllLevelClasses();
+    ```
+
+  - **Filter Static Mesh Actors:**
+
+    ```cpp
+    TArray<AStaticMeshActor*> StaticMeshActors;
+    TArray<AActor*> ActorsToFilter;
+    // Populate ActorsToFilter with actors
+    UUDCoreEditorActorSubsystem::FilterStaticMeshActors(StaticMeshActors, ActorsToFilter);
+    ```
+
+  - **Filter Actors By Name:**
+
+    ```cpp
+    TArray<AActor*> FilteredActors;
+    TArray<AActor*> ActorsToFilter;
+    // Populate ActorsToFilter with actors
+    UUDCoreEditorActorSubsystem::FilterActorsByName(ActorsToFilter, FilteredActors, "ExampleName", EUDInclusivity::Include);
+    ```
+
+  - **Filter Actors By Class:**
+
+    ```cpp
+    TArray<AActor*> FilteredActors;
+    TArray<AActor*> ActorsToFilter;
+    // Populate ActorsToFilter with actors
+    UUDCoreEditorActorSubsystem::FilterActorsByClass(ActorsToFilter, FilteredActors, AStaticMeshActor::StaticClass(), EUDInclusivity::Include);
+    ```
+
+
 
 ## Contributing
 
