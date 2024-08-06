@@ -6,6 +6,9 @@
 #include "InputMappingContext.h"
 #include "UDCoreLogChannels.h"
 #include "Logging/StructuredLog.h"
+#include "GameFramework/Controller.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/LocalPlayer.h"
 
 EUDSuccessStatus UUDCoreInputFunctionLibrary::AddInputMappingContexts(
 	AController* PlayerController,

@@ -18,4 +18,9 @@ struct FUDCoreEnhancedInputContextData
 	/** The priority of the input context. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	int32 Priority;
+
+	FUDCoreEnhancedInputContextData()
+		: Priority(0)
+	{
+	}
 };
