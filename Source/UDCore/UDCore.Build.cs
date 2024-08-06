@@ -25,6 +25,7 @@ public class UDCore : ModuleRules
 				"Slate",
 				"SlateCore",
 				"AIModule",
+				"EnhancedInput"
 			}
 		);
 

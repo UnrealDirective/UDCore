@@ -27,7 +27,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param bRecursive Whether to include derived classes of derived classes.
 	 * @param DerivedClasses The list of derived classes.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|Utility")
+	UFUNCTION(BlueprintPure, Category = "UDCore|Utility")
 	static void GetChildClasses(const UClass* BaseClass, bool bRecursive, TArray<UClass*>& DerivedClasses);
 
 	//-----------------------------
@@ -39,7 +39,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param String - The string to check.
 	 * @returns True if the string contains letters.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static bool ContainsLetters(FString String);
 
 	/**
@@ -47,7 +47,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param String - The string to check.
 	 * @returns True if the string contains numbers.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static bool ContainsNumbers(FString String);
 	
 	/**
@@ -55,7 +55,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param String - The string to check.
 	 * @returns True if the string contains spaces.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static bool ContainsSpaces(FString String);
 	
 	/**
@@ -63,7 +63,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param String - The string to check.
 	 * @returns True if the string contains special characters.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static bool ContainsSpecialCharacters(FString String);
 
 	/**
@@ -74,14 +74,14 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param bSpecialCharacters - If true, filter out special characters.
 	 * @param bSpaces - If true, filter out spaces.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static FString FilterCharacters(FString String, bool bLetters, bool bNumbers, bool bSpecialCharacters, bool bSpaces);
 	
 	/** 
 	* Sort a string array alphabetically.
 	* @param StringArray - The string array to sort.
     */
-    UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|String" )
+    UFUNCTION(BlueprintPure, Category = "UDCore|String" )
 	static TArray<FString> SortStringArray(TArray<FString> StringArray);
 
 	//-----------------------------
@@ -92,6 +92,6 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * Check if the provided text is not empty.
 	 * @param Text - The text to check.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Unreal Directive Toolkit|Text" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|Text" )
 	static bool IsNotEmpty(const FText& Text);
 };

@@ -17,11 +17,47 @@ This plugin will be updated sporadically with new functionality.
 
 ## Installation
 
+### Option 1: Plugin Downloader
+
+UDCore can be installed directly by using the [Plugin Downloader](https://www.unrealengine.com/marketplace/en-US/product/plugin-downloader) plugin on the marketplace.
+
+1. **Install [Plugin Downloader](https://www.unrealengine.com/marketplace/en-US/product/plugin-downloader) from the Unreal Engine Marketplace**
+
+2. **Enable the `Plugin Downloader` plugin**
+
+   1. Open your Unreal Engine project.
+   2. Go to `Edit` -> `Plugins`.
+   3. Search for `Plugin Downloader` and enable it.
+   4. Restart the Unreal Engine editor.
+
+3. **Download `UDCore`**
+
+   1. Go to `Edit` -> `Plugins` 
+   2. Click on `Download` in the upper left of the `Plugins` window
+   3. Enter the following info in the `Download Plugin` window
+      1. **User:** UnrealDirective
+      2. **Repo:** UDCore
+      3. **Branch:** main
+
+   4. Click on `Download` in the bottom right of the `Download Plugin` window
+   5. Wait for download to complete
+   6. Restart the Unreal Engine editor when prompted
+
+4. **Enable the `UDCore` plugin**
+
+   1. Open your Unreal Engine project.
+   2. Go to `Edit` -> `Plugins`.
+   3. Search for `Plugin Downloader` and enable it.
+   4. Restart the Unreal Engine editor.
+
+### Option 2: Git Clone
+
 1. **Clone the repository:**
+   
    ```sh
    git clone https://github.com/UnrealDirective/UDCore.git
    ```
-
+   
 2. **Copy the plugin to your Unreal Engine project:**
    - Navigate to your Unreal Engine project's `Plugins` directory.
    - Copy the `UDCore` folder into the `Plugins` directory.
