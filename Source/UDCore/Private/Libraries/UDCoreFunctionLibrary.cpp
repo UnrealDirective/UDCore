@@ -2,17 +2,18 @@
 
 
 #include "Libraries/UDCoreFunctionLibrary.h"
+#include "Algo/Sort.h"
 
 void UUDCoreFunctionLibrary::GetChildClasses(const UClass* BaseClass, const bool bRecursive, TArray<UClass*>& DerivedClasses)
 {
 	GetDerivedClasses(BaseClass, DerivedClasses, bRecursive);
 }
 
-bool UUDCoreFunctionLibrary::ContainsLetters(FString String)
+bool UUDCoreFunctionLibrary::ContainsLetters(const FString& String)
 {
-	for (int i = 0; i < String.Len(); i++)
+	for (const TCHAR& Char : String)
 	{
-		if (isalpha(String[i]))
+		if (FChar::IsAlpha(Char))
 		{
 			return true;
 		}
@@ -20,11 +21,11 @@ bool UUDCoreFunctionLibrary::ContainsLetters(FString String)
 	return false;
 }
 
-bool UUDCoreFunctionLibrary::ContainsNumbers(FString String)
+bool UUDCoreFunctionLibrary::ContainsNumbers(const FString& String)
 {
-	for (int i = 0; i < String.Len(); i++)
+	for (const TCHAR& Char : String)
 	{
-		if (isdigit(String[i]))
+		if (FChar::IsDigit(Char))
 		{
 			return true;
 		}
@@ -32,11 +33,11 @@ bool UUDCoreFunctionLibrary::ContainsNumbers(FString String)
 	return false;
 }
 
-bool UUDCoreFunctionLibrary::ContainsSpaces(FString String)
+bool UUDCoreFunctionLibrary::ContainsSpaces(const FString& String)
 {
-	for (int i = 0; i < String.Len(); i++)
+	for (const TCHAR& Char : String)
 	{
-		if (isspace(String[i]))
+		if (FChar::IsWhitespace(Char))
 		{
 			return true;
 		}
@@ -44,11 +45,11 @@ bool UUDCoreFunctionLibrary::ContainsSpaces(FString String)
 	return false;
 }
 
-bool UUDCoreFunctionLibrary::ContainsSpecialCharacters(FString String)
+bool UUDCoreFunctionLibrary::ContainsSpecialCharacters(const FString& String)
 {
-	for (int i = 0; i < String.Len(); i++)
+	for (const TCHAR& Char : String)
 	{
-		if (ispunct(String[i]))
+		if (FChar::IsPunct(Char))
 		{
 			return true;
 		}
@@ -57,27 +58,29 @@ bool UUDCoreFunctionLibrary::ContainsSpecialCharacters(FString String)
 }
 
 FString UUDCoreFunctionLibrary::FilterCharacters(
-	FString String,
+	const FString& String,
 	const bool bLetters,
 	const bool bNumbers,
 	const bool bSpecialCharacters,
 	const bool bSpaces)
 {
 	FString NewString;
-	for (int i = 0; i < String.Len(); i++)
+	NewString.Reserve(String.Len());
+	
+	for (const TCHAR& Char : String)
 	{
-		if (bLetters && isalpha(String[i])) continue;
-		if (bNumbers && isdigit(String[i])) continue;
-		if (bSpecialCharacters && ispunct(String[i])) continue;
-		if (bSpaces && isspace(String[i])) continue;
-		NewString.AppendChar(String[i]);
+		if (bLetters && FChar::IsAlpha(Char)) continue;
+		if (bNumbers && FChar::IsDigit(Char)) continue;
+		if (bSpecialCharacters && FChar::IsPunct(Char)) continue;
+		if (bSpaces && FChar::IsWhitespace(Char)) continue;
+		NewString.AppendChar(Char);
 	}
 	return NewString;
 }
 
 TArray<FString> UUDCoreFunctionLibrary::SortStringArray(TArray<FString> StringArray)
 {
-	StringArray.Sort();
+	Algo::Sort(StringArray);
 	return StringArray;
 }
 
