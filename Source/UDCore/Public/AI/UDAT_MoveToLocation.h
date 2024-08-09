@@ -42,9 +42,9 @@ public:
 
 	/**
 	 * Ends the async action.
-	 * This must be called manually when the task is no longer needed.
+	 * This must be called manually when the task is no longer necessary.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Unreal Directive|AI|Navigation")
+	UFUNCTION(BlueprintCallable, Category = "UDCore|AI|Navigation")
 	void EndTask()
 	;
 	virtual void Activate() override;

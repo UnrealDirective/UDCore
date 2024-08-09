@@ -40,7 +40,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @returns True if the string contains letters.
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
-	static bool ContainsLetters(FString String);
+	static bool ContainsLetters(const FString& String);
 
 	/**
 	 * Detect if the provided string contains any numbers.
@@ -48,7 +48,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @returns True if the string contains numbers.
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
-	static bool ContainsNumbers(FString String);
+	static bool ContainsNumbers(const FString& String);
 	
 	/**
 	 * Detect if the provided string contains any spaces.
@@ -56,7 +56,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @returns True if the string contains spaces.
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
-	static bool ContainsSpaces(FString String);
+	static bool ContainsSpaces(const FString& String);
 	
 	/**
 	 * Detect if the provided string contains any special characters.
@@ -64,7 +64,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @returns True if the string contains special characters.
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
-	static bool ContainsSpecialCharacters(FString String);
+	static bool ContainsSpecialCharacters(const FString& String);
 
 	/**
 	 * Filter out characters types from the string.
@@ -75,7 +75,7 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 * @param bSpaces - If true, filter out spaces.
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
-	static FString FilterCharacters(FString String, bool bLetters, bool bNumbers, bool bSpecialCharacters, bool bSpaces);
+	static FString FilterCharacters(const FString& String, const bool bLetters, const bool bNumbers, const bool bSpecialCharacters, const bool bSpaces);
 	
 	/** 
 	* Sort a string array alphabetically.
