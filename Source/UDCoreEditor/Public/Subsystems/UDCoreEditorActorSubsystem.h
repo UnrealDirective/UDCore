@@ -170,7 +170,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided bounds.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByStaticMeshBounds(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, const FVector& MinBounds, const FVector& MaxBounds, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByStaticMeshBounds(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, const FVector& MinBounds, const FVector& MaxBounds, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided world location and radius.
@@ -181,7 +181,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided world location and radius.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByWorldLocation(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, const FVector& WorldLocation, float Radius, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByWorldLocation(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, const FVector& WorldLocation, float Radius, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided LOD (Level of Detail) count.
@@ -192,7 +192,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided LOD count.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByLODCount(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, int32 MinLODs, int32 MaxLODs, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByLODCount(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, int32 MinLODs, int32 MaxLODs, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided Nanite state.
@@ -202,7 +202,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided Nanite state.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByNaniteState(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, bool bNaniteEnabled, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByNaniteState(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, bool bNaniteEnabled, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided Lightmap Resolution.
@@ -214,7 +214,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided lightmap resolution.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByLightmapResolution(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, int32 MinLightmapResolution, int32 MaxLightmapResolution, EUDSearchLocation SearchLocation, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByLightmapResolution(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, int32 MinLightmapResolution, int32 MaxLightmapResolution, EUDSearchLocation SearchLocation, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided mobility.
@@ -224,7 +224,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided mobility.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByMobility(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EComponentMobility::Type Mobility, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByMobility(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EComponentMobility::Type Mobility, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided collision channel.
@@ -234,27 +234,28 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided collision type.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByCollisionChannel(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionChannel CollisionChannel, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByCollisionChannel(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionChannel CollisionChannel, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided collision response.
 	 * @param Actors The list of actors to filter.
 	 * @param FilteredActors The list of actors that have been filtered.
+	 * @param CollisionChannel The collision channel to filter by.
 	 * @param CollisionResponse The collision response to filter by.
 	 * @param Inclusivity Whether to include or exclude actors with the provided collision response.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByCollisionResponse(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionChannel CollisionChannel, ECollisionResponse CollisionResponse, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByCollisionResponse(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionChannel CollisionChannel, ECollisionResponse CollisionResponse, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	 * Filter the provided actors based on the provided collision enabled state.
+	 * Filter the provided actors based on the provided collision-enabled state.
 	 * @param Actors The list of actors to filter.
 	 * @param FilteredActors The list of actors that have been filtered.
 	 * @param CollisionEnabled The collision state to filter by.
-	 * @param Inclusivity Whether to include or exclude actors with the provided collision enabled state.
+	 * @param Inclusivity Whether to include or exclude actors with the provided collision-enabled state.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByCollisionEnabled(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionEnabled::Type CollisionEnabled, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByCollisionEnabled(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, ECollisionEnabled::Type CollisionEnabled, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided collision profile.
@@ -264,7 +265,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided collision profile.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByCollisionProfile(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, FName CollisionProfile, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByCollisionProfile(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, FName CollisionProfile, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided Texture Name.
@@ -275,7 +276,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided texture name.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByTextureName(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, FString TextureName, EUDSearchLocation Source, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByTextureName(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, FString TextureName, EUDSearchLocation Source, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on the provided Texture Reference.
@@ -286,7 +287,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with the provided texture reference.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByTexture(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, TSoftObjectPtr<UTexture2D> TextureReference, EUDSearchLocation Source, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByTexture(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, TSoftObjectPtr<UTexture2D> TextureReference, EUDSearchLocation Source, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filters the provided actors based on if the actor is empty or not.
@@ -295,7 +296,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude empty actors.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterEmptyActors(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterEmptyActors(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on missing materials.
@@ -305,7 +306,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with missing materials.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByMissingMaterials(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDSearchLocation Location, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByMissingMaterials(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDSearchLocation Location, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on missing Static Meshes.
@@ -314,7 +315,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with missing Static Meshes.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByMissingStaticMeshes(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByMissingStaticMeshes(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
 	 * Filter the provided actors based on missing textures.
@@ -324,7 +325,7 @@ public:
 	 * @param Inclusivity Whether to include or exclude actors with missing textures.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Filters|Actor")
-	void FilterActorsByMissingTextures(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDSearchLocation Location, EUDInclusivity Inclusivity = EUDInclusivity::Include) const;
+	static void FilterActorsByMissingTextures(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDSearchLocation Location, EUDInclusivity Inclusivity = EUDInclusivity::Include);
 	
 	
 	//-----------------------------
@@ -337,7 +338,7 @@ public:
 	 * @param BoxComponent The box component to check.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit")
-	bool IsActorWithinBoxBounds(AActor* Actor, UBoxComponent* BoxComponent) const;
+	static bool IsActorWithinBoxBounds(AActor* Actor, UBoxComponent* BoxComponent);
 
 	/**
 	 * Check if an actor is within the bounds of a Sphere.
@@ -345,7 +346,7 @@ public:
 	 * @param SphereComponent The sphere component to check.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit")
-	bool IsActorWithinSphereBounds(AActor* Actor, USphereComponent* SphereComponent) const;
+	static bool IsActorWithinSphereBounds(AActor* Actor, USphereComponent* SphereComponent);
 
 	/**
 	 * Check if an actor is within the bounds of a capsule.
@@ -353,7 +354,7 @@ public:
 	 * @param CapsuleComponent The capsule component to check.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit")
-	bool IsActorWithinCapsuleBounds(AActor* Actor, UCapsuleComponent* CapsuleComponent) const;
+	static bool IsActorWithinCapsuleBounds(AActor* Actor, UCapsuleComponent* CapsuleComponent);
 
 	//-----------------------------
 	// Getters

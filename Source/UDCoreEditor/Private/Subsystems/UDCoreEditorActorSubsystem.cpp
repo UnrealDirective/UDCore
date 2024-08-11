@@ -30,7 +30,7 @@ TArray<UClass*> UUDCoreEditorActorSubsystem::GetAllLevelClasses()
 {
 	TArray<UClass*> ActorClasses;
 	TArray<AActor*> Actors = GetAllLevelActors();
-	
+
 	for (const AActor* Actor : Actors)
 	{
 		if (!Actor) { continue; }
@@ -40,11 +40,16 @@ TArray<UClass*> UUDCoreEditorActorSubsystem::GetAllLevelClasses()
 	return ActorClasses;
 }
 
-void UUDCoreEditorActorSubsystem::FilterStaticMeshActors(TArray<AStaticMeshActor*>& OutStaticMeshActors, TArray<AActor*> ActorsToFilter) const
+void UUDCoreEditorActorSubsystem::FilterStaticMeshActors(
+	TArray<AStaticMeshActor*>& OutStaticMeshActors,
+	TArray<AActor*> ActorsToFilter) const
 {
 	for (AActor* Actor : ActorsToFilter)
 	{
-		if (!Actor) continue;
+		if (!Actor)
+		{
+			continue;
+		}
 		if (Actor->IsA(AStaticMeshActor::StaticClass()))
 		{
 			OutStaticMeshActors.AddUnique(Cast<AStaticMeshActor>(Actor));
@@ -54,14 +59,17 @@ void UUDCoreEditorActorSubsystem::FilterStaticMeshActors(TArray<AStaticMeshActor
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Filtered %d static mesh actors"), OutStaticMeshActors.Num());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByName(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors,
-	const FString& ActorName, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByName(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FString& ActorName,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor || FilteredActors.Contains(Actor)) { continue; }
-		
-		if (Actor->GetActorLabel().Contains(ActorName) == (Inclusivity == EUDInclusivity::Include))
+
+		if (Actor->GetActorLabel().Contains(ActorName) == (Inclusivity == Include))
 		{
 			FilteredActors.AddUnique(Actor);
 		}
@@ -76,16 +84,19 @@ void UUDCoreEditorActorSubsystem::FilterActorsByName(const TArray<AActor*>& Acto
 		*ActorName);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByClass(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors,
-	const TSubclassOf<AActor> ActorClass, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByClass(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const TSubclassOf<AActor> ActorClass,
+	const EUDInclusivity Inclusivity)
 {
 	if (!ActorClass) { return; }
-	
+
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor || FilteredActors.Contains(Actor)) { continue; }
-		
-		if (Actor->IsA(ActorClass) == (Inclusivity == EUDInclusivity::Include))
+
+		if (Actor->IsA(ActorClass) == (Inclusivity == Include))
 		{
 			FilteredActors.AddUnique(Actor);
 		}
@@ -100,14 +111,17 @@ void UUDCoreEditorActorSubsystem::FilterActorsByClass(const TArray<AActor*>& Act
 		*ActorClass->GetName());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByTag(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors,
-	const FName Tag, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByTag(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FName Tag,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
 		if (!Actor || FilteredActors.Contains(Actor)) { continue; }
-		
-		if (Actor->ActorHasTag(Tag) == (Inclusivity == EUDInclusivity::Include))
+
+		if (Actor->ActorHasTag(Tag) == (Inclusivity == Include))
 		{
 			FilteredActors.AddUnique(Actor);
 		}
@@ -122,8 +136,11 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTag(const TArray<AActor*>& Actor
 		*Tag.ToString());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMaterialName(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FString& MaterialName, const EUDSearchLocation MaterialSource,
+void UUDCoreEditorActorSubsystem::FilterActorsByMaterialName(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FString& MaterialName,
+	const EUDSearchLocation MaterialSource,
 	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
@@ -136,28 +153,39 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMaterialName(const TArray<AActor
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			
-			if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::OverrideOnly)
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+
+			if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
 			{
 				for (int32 i = 0; i < StaticMeshComponent->GetNumMaterials(); i++)
 				{
-					if (StaticMeshComponent->GetMaterial(i) == nullptr) continue;
-					if (StaticMeshComponent->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity == EUDInclusivity::Include))
+					if (StaticMeshComponent->GetMaterial(i) == nullptr)
+					{
+						continue;
+					}
+					if (StaticMeshComponent->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity ==
+						Include))
 					{
 						FilteredActors.AddUnique(Actor);
 						break;
 					}
 				}
 			}
-			
-			if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::BaseOnly)
+
+			if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
 			{
 				if (!StaticMeshComponent->GetStaticMesh()) { return; }
 				for (int32 i = 0; i < StaticMeshComponent->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 				{
-					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i) == nullptr) continue;
-					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity == EUDInclusivity::Include))
+					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i) == nullptr)
+					{
+						continue;
+					}
+					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i)->GetName().Contains(MaterialName) == (
+						Inclusivity == Include))
 					{
 						FilteredActors.AddUnique(Actor);
 						break;
@@ -168,11 +196,14 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMaterialName(const TArray<AActor
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that does %s contain the material %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *MaterialName);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *MaterialName);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMaterial(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const TSoftObjectPtr<UMaterialInterface>& Material, const EUDSearchLocation MaterialSource,
+void UUDCoreEditorActorSubsystem::FilterActorsByMaterial(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const TSoftObjectPtr<UMaterialInterface>& Material,
+	const EUDSearchLocation MaterialSource,
 	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
@@ -185,27 +216,34 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMaterial(const TArray<AActor*>& 
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			
-			if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::OverrideOnly)
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+
+			if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
 			{
 				for (int32 i = 0; i < StaticMeshComponent->GetNumMaterials(); i++)
 				{
-					if (StaticMeshComponent->GetMaterial(i) == Material.LoadSynchronous() == (Inclusivity == EUDInclusivity::Include))
+					if (StaticMeshComponent->GetMaterial(i) == Material.LoadSynchronous() == (Inclusivity == Include))
 					{
 						FilteredActors.AddUnique(Actor);
 						break;
 					}
 				}
 			}
-			
-			if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::BaseOnly)
+
+			if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
 			{
-				if (!StaticMeshComponent->GetStaticMesh()) continue;
-				
+				if (!StaticMeshComponent->GetStaticMesh())
+				{
+					continue;
+				}
+
 				for (int32 i = 0; i < StaticMeshComponent->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 				{
-					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i) == Material.LoadSynchronous() == (Inclusivity == EUDInclusivity::Include))
+					if (StaticMeshComponent->GetStaticMesh()->GetMaterial(i) == Material.LoadSynchronous() == (
+						Inclusivity == Include))
 					{
 						FilteredActors.AddUnique(Actor);
 						break;
@@ -216,11 +254,14 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMaterial(const TArray<AActor*>& 
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that does %s contain the material %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *Material.ToString());
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *Material.ToString());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshName(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FString& StaticMeshName, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshName(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FString& StaticMeshName,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -228,21 +269,31 @@ void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshName(const TArray<AAct
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 			if (!StaticMeshComponent->GetStaticMesh())
 			{
-				// In the off chance that that the static mesh is null, and the name is empty, we'll add the actor.
+				// In the off chance that the static mesh is null and the name is empty, we'll add the actor.
 				// Otherwise, we'll skip it.
 				if (StaticMeshName.IsEmpty()) { FilteredActors.AddUnique(Actor); }
 				continue;
 			}
 
-			if (StaticMeshComponent->GetStaticMesh()->GetName().Contains(StaticMeshName) == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh()->GetName().Contains(StaticMeshName) == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -250,11 +301,14 @@ void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshName(const TArray<AAct
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that does %s contain the static mesh %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *StaticMeshName);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *StaticMeshName);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByStaticMesh(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const TSoftObjectPtr<UStaticMesh>& StaticMesh, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByStaticMesh(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const TSoftObjectPtr<UStaticMesh>& StaticMesh,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -262,19 +316,29 @@ void UUDCoreEditorActorSubsystem::FilterActorsByStaticMesh(const TArray<AActor*>
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 			if (!StaticMeshComponent->GetStaticMesh())
 			{
 				if (StaticMesh.IsNull()) { FilteredActors.AddUnique(Actor); }
 				continue;
 			}
 
-			if (StaticMeshComponent->GetStaticMesh() == StaticMesh.LoadSynchronous() == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh() == StaticMesh.LoadSynchronous() == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -282,11 +346,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByStaticMesh(const TArray<AActor*>
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that does %s contain the static mesh %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"), *StaticMesh.ToString());
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("") : TEXT("not"),
+	       *StaticMesh.ToString());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByVertCount(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const int32 MinVertCount, const int32 MaxVertCount, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByVertCount(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const int32 MinVertCount,
+	const int32 MaxVertCount,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -294,17 +363,29 @@ void UUDCoreEditorActorSubsystem::FilterActorsByVertCount(const TArray<AActor*>&
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
 			const int32 VertCount = StaticMeshComponent->GetStaticMesh()->GetNumVertices(0);
 
-			if (VertCount >= MinVertCount && VertCount <= MaxVertCount == (Inclusivity == EUDInclusivity::Include))
+			if (VertCount >= MinVertCount && VertCount <= MaxVertCount == (Inclusivity == Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -312,11 +393,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByVertCount(const TArray<AActor*>&
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s between %i and %i vertices"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), MinVertCount, MaxVertCount);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       MinVertCount, MaxVertCount);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByTriCount(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const int32 MinTriCount, const int32 MaxTriCount, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByTriCount(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const int32 MinTriCount,
+	const int32 MaxTriCount,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -324,17 +410,29 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTriCount(const TArray<AActor*>& 
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
 			const int32 TriCount = StaticMeshComponent->GetStaticMesh()->GetNumTriangles(0);
 
-			if (TriCount >= MinTriCount && TriCount <= MaxTriCount == (Inclusivity == EUDInclusivity::Include))
+			if (TriCount >= MinTriCount && TriCount <= MaxTriCount == (Inclusivity == Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -342,11 +440,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTriCount(const TArray<AActor*>& 
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s between %i and %i triangles"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), MinTriCount, MaxTriCount);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       MinTriCount, MaxTriCount);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByBounds(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors,
-	const FVector& MinBounds, const FVector& MaxBounds, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::FilterActorsByBounds(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FVector& MinBounds,
+	const FVector& MaxBounds,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -358,20 +461,25 @@ void UUDCoreEditorActorSubsystem::FilterActorsByBounds(const TArray<AActor*>& Ac
 
 		if (MinBounds.X <= ActorSize.X && ActorSize.X <= MaxBounds.X &&
 			MinBounds.Y <= ActorSize.Y && ActorSize.Y <= MaxBounds.Y &&
-			MinBounds.Z <= ActorSize.Z && ActorSize.Z <= MaxBounds.Z == (Inclusivity == EUDInclusivity::Include))
+			MinBounds.Z <= ActorSize.Z && ActorSize.Z <= MaxBounds.Z == (Inclusivity == Include))
 		{
 			FilteredActors.AddUnique(Actor);
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s within the bounds (%f, %f, %f) and (%f, %f, %f)"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), MinBounds.X, MinBounds.Y, MinBounds.Z,
-		MaxBounds.X, MaxBounds.Y, MaxBounds.Z);
+	UE_LOG(LogUDCoreEditor, Display,
+	       TEXT("Actor Filter: Found %i actors that %s within the bounds (%f, %f, %f) and (%f, %f, %f)"),
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), MinBounds.X,
+	       MinBounds.Y, MinBounds.Z,
+	       MaxBounds.X, MaxBounds.Y, MaxBounds.Z);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshBounds(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FVector& MinBounds, const FVector& MaxBounds,
-	const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshBounds(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FVector& MinBounds,
+	const FVector& MaxBounds,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -379,33 +487,52 @@ void UUDCoreEditorActorSubsystem::FilterActorsByStaticMeshBounds(const TArray<AA
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
-			
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
+
 			FBoxSphereBounds StaticMeshBounds = StaticMeshComponent->GetStaticMesh()->GetBounds();
 			const FVector StaticMeshSize = StaticMeshBounds.BoxExtent * 2;
 
 			if (MinBounds.X <= StaticMeshSize.X && StaticMeshSize.X <= MaxBounds.X &&
-			MinBounds.Y <= StaticMeshSize.Y && StaticMeshSize.Y <= MaxBounds.Y &&
-			MinBounds.Z <= StaticMeshSize.Z && StaticMeshSize.Z <= MaxBounds.Z == (Inclusivity == EUDInclusivity::Include))
+				MinBounds.Y <= StaticMeshSize.Y && StaticMeshSize.Y <= MaxBounds.Y &&
+				MinBounds.Z <= StaticMeshSize.Z && StaticMeshSize.Z <= MaxBounds.Z == (Inclusivity ==
+					Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s within the static mesh bounds (%f, %f, %f) and (%f, %f, %f)"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), MinBounds.X, MinBounds.Y, MinBounds.Z,
-		MaxBounds.X, MaxBounds.Y, MaxBounds.Z);
+	UE_LOG(LogUDCoreEditor, Display,
+	       TEXT("Actor Filter: Found %i actors that %s within the static mesh bounds (%f, %f, %f) and (%f, %f, %f)"),
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), MinBounds.X,
+	       MinBounds.Y, MinBounds.Z,
+	       MaxBounds.X, MaxBounds.Y, MaxBounds.Z);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByWorldLocation(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FVector& WorldLocation, const float Radius, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByWorldLocation(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FVector& WorldLocation,
+	const float Radius,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -413,18 +540,24 @@ void UUDCoreEditorActorSubsystem::FilterActorsByWorldLocation(const TArray<AActo
 
 		const FVector ActorLocation = Actor->GetActorLocation();
 
-		if (ActorLocation.Equals(WorldLocation, Radius) == (Inclusivity == EUDInclusivity::Include))
+		if (ActorLocation.Equals(WorldLocation, Radius) == (Inclusivity == Include))
 		{
 			FilteredActors.AddUnique(Actor);
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s within the world location (%f, %f, %f) with the radius of %f"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), WorldLocation.X, WorldLocation.Y, WorldLocation.Z, Radius);
+	UE_LOG(LogUDCoreEditor, Display,
+	       TEXT("Actor Filter: Found %i actors that %s within the world location (%f, %f, %f) with the radius of %f"),
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("is") : TEXT("is not"), WorldLocation.X,
+	       WorldLocation.Y, WorldLocation.Z, Radius);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByLODCount(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const int32 MinLODs, const int32 MaxLODs, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByLODCount(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const int32 MinLODs,
+	const int32 MaxLODs,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -435,12 +568,19 @@ void UUDCoreEditorActorSubsystem::FilterActorsByLODCount(const TArray<AActor*>& 
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
 			const UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
-			if (!StaticMesh) continue;
+			if (!StaticMesh)
+			{
+				continue;
+			}
 
-			if ((StaticMesh->GetNumLODs() >= MinLODs && StaticMesh->GetNumLODs() <= MaxLODs) == (Inclusivity == EUDInclusivity::Include))
+			if ((StaticMesh->GetNumLODs() >= MinLODs && StaticMesh->GetNumLODs() <= MaxLODs) == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -448,11 +588,15 @@ void UUDCoreEditorActorSubsystem::FilterActorsByLODCount(const TArray<AActor*>& 
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s between %i and %i LODs"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), MinLODs, MaxLODs);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), MinLODs,
+	       MaxLODs);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByNaniteState(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const bool bNaniteEnabled, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByNaniteState(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const bool bNaniteEnabled,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -463,10 +607,17 @@ void UUDCoreEditorActorSubsystem::FilterActorsByNaniteState(const TArray<AActor*
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetStaticMesh()->NaniteSettings.bEnabled == bNaniteEnabled == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh()->NaniteSettings.bEnabled == bNaniteEnabled == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -474,12 +625,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByNaniteState(const TArray<AActor*
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s Nanite enabled"),
-		FilteredActors.Num(), bNaniteEnabled ? TEXT("has") : TEXT("does not have"));
+	       FilteredActors.Num(), bNaniteEnabled ? TEXT("has") : TEXT("does not have"));
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByLightmapResolution(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const int32 MinLightmapResolution, const int32 MaxLightmapResolution,
-	EUDSearchLocation SearchLocation, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByLightmapResolution(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const int32 MinLightmapResolution,
+	const int32 MaxLightmapResolution,
+	const EUDSearchLocation SearchLocation,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -487,27 +642,36 @@ void UUDCoreEditorActorSubsystem::FilterActorsByLightmapResolution(const TArray<
 
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
-		
+
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
-			if (SearchLocation == EUDSearchLocation::BaseAndOverride || SearchLocation == EUDSearchLocation::OverrideOnly)
+			if (SearchLocation == BaseAndOverride || SearchLocation ==
+				OverrideOnly)
 			{
 				const int32 LightmapRes = StaticMeshComponent->OverriddenLightMapRes;
 
-				if ((LightmapRes >= MinLightmapResolution && LightmapRes <= MaxLightmapResolution) == (Inclusivity == EUDInclusivity::Include))
+				if ((LightmapRes >= MinLightmapResolution && LightmapRes <= MaxLightmapResolution) == (Inclusivity ==
+					Include))
 				{
 					FilteredActors.AddUnique(Actor);
 				}
 			}
 
-			if (SearchLocation == EUDSearchLocation::BaseAndOverride || SearchLocation == EUDSearchLocation::BaseOnly)
+			if (SearchLocation == BaseAndOverride || SearchLocation == BaseOnly)
 			{
 				const int32 LightmapRes = StaticMeshComponent->GetStaticMesh()->GetLightMapResolution();
 
-				if ((LightmapRes >= MinLightmapResolution && LightmapRes <= MaxLightmapResolution) == (Inclusivity == EUDInclusivity::Include))
+				if ((LightmapRes >= MinLightmapResolution && LightmapRes <= MaxLightmapResolution) == (Inclusivity ==
+					Include))
 				{
 					FilteredActors.AddUnique(Actor);
 				}
@@ -515,12 +679,17 @@ void UUDCoreEditorActorSubsystem::FilterActorsByLightmapResolution(const TArray<
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s between %i and %i lightmap resolution"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), MinLightmapResolution, MaxLightmapResolution);
+	UE_LOG(LogUDCoreEditor, Display,
+	       TEXT("Actor Filter: Found %i actors that %s between %i and %i lightmap resolution"),
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       MinLightmapResolution, MaxLightmapResolution);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMobility(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const EComponentMobility::Type Mobility, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByMobility(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const EComponentMobility::Type Mobility,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -531,9 +700,12 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMobility(const TArray<AActor*>& 
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->Mobility == Mobility == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->Mobility == Mobility == (Inclusivity == Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -541,11 +713,15 @@ void UUDCoreEditorActorSubsystem::FilterActorsByMobility(const TArray<AActor*>& 
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s mobility of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *UEnum::GetValueAsString(Mobility));
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *UEnum::GetValueAsString(Mobility));
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByCollisionChannel(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const ECollisionChannel CollisionChannel, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByCollisionChannel(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const ECollisionChannel CollisionChannel,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -556,9 +732,13 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionChannel(const TArray<AA
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetCollisionObjectType() == CollisionChannel == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetCollisionObjectType() == CollisionChannel == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -566,12 +746,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionChannel(const TArray<AA
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s collision channel of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *UEnum::GetValueAsString(CollisionChannel));
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *UEnum::GetValueAsString(CollisionChannel));
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByCollisionResponse(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, ECollisionChannel CollisionChannel, const ECollisionResponse CollisionResponse,
-	const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByCollisionResponse(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const ECollisionChannel CollisionChannel,
+	const ECollisionResponse CollisionResponse,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -582,9 +766,13 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionResponse(const TArray<A
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetCollisionResponseToChannel(CollisionChannel) == CollisionResponse == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetCollisionResponseToChannel(CollisionChannel) == CollisionResponse == (
+				Inclusivity == Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -592,11 +780,15 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionResponse(const TArray<A
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s collision response of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *UEnum::GetValueAsString(CollisionResponse));
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *UEnum::GetValueAsString(CollisionResponse));
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByCollisionEnabled(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const ECollisionEnabled::Type CollisionEnabled, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByCollisionEnabled(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const ECollisionEnabled::Type CollisionEnabled,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -607,9 +799,13 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionEnabled(const TArray<AA
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetCollisionEnabled() == CollisionEnabled == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetCollisionEnabled() == CollisionEnabled == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -617,11 +813,15 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionEnabled(const TArray<AA
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s collision enabled of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *UEnum::GetValueAsString(CollisionEnabled));
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *UEnum::GetValueAsString(CollisionEnabled));
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByCollisionProfile(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FName CollisionProfile, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByCollisionProfile(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FName CollisionProfile,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -632,9 +832,13 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionProfile(const TArray<AA
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetCollisionProfileName() == CollisionProfile == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetCollisionProfileName() == CollisionProfile == (Inclusivity ==
+				Include))
 			{
 				FilteredActors.AddUnique(Actor);
 			}
@@ -642,11 +846,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByCollisionProfile(const TArray<AA
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s collision profile of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *CollisionProfile.ToString());
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *CollisionProfile.ToString());
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const FString TextureName, const EUDSearchLocation Source, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const FString TextureName,
+	const EUDSearchLocation Source,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -657,23 +866,34 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			
-			if (Source == EUDSearchLocation::BaseAndOverride || Source == EUDSearchLocation::OverrideOnly)
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+
+			if (Source == BaseAndOverride || Source == OverrideOnly)
 			{
 				for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
 				{
-					if (!Material) continue;
+					if (!Material)
+					{
+						continue;
+					}
 
 					for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 					{
-						if (!Expression) continue;
+						if (!Expression)
+						{
+							continue;
+						}
 
 						// Check if the Material Expression is a Texture Sample Expression.
 						if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 						{
-							const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-							if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+							const UMaterialExpressionTextureSample* TextureSample = Cast<
+								UMaterialExpressionTextureSample>(Expression);
+							if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity ==
+								Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -681,10 +901,11 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*
 						}
 
 						// Check if the Material Expression is a Texture Object instead of a Texture Sample.
-						if(Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+						if (Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
 						{
 							const UMaterialExpressionTextureObject* TextureObject = Cast<UMaterialExpressionTextureObject>(Expression);
-							if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+							if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity ==
+								Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -693,23 +914,29 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*
 					}
 				}
 			}
-			
-			if (Source == EUDSearchLocation::BaseAndOverride || Source == EUDSearchLocation::BaseOnly)
+
+			if (Source == BaseAndOverride || Source == BaseOnly)
 			{
 				for (int32 i = 0; i < StaticMeshComponent->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 				{
 					UMaterialInterface* Material = StaticMeshComponent->GetStaticMesh()->GetMaterial(i);
-					if (!Material) continue;
+					if (!Material)
+					{
+						continue;
+					}
 
 					for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 					{
-						if (!Expression) continue;
+						if (!Expression)
+						{
+							continue;
+						}
 
 						// Check if the Material Expression is a Texture Sample Expression.
 						if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 						{
 							const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-							if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+							if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity == Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -717,10 +944,10 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*
 						}
 
 						// Check if the Material Expression is a Texture Object instead of a Texture Sample.
-						if(Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+						if (Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
 						{
 							const UMaterialExpressionTextureObject* TextureObject = Cast<UMaterialExpressionTextureObject>(Expression);
-							if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+							if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity == Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -733,12 +960,16 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTextureName(const TArray<AActor*
 	}
 
 	UE_LOG(LogUDCoreEditor, Display, TEXT("Actor Filter: Found %i actors that %s texture name of %s"),
-		FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"), *TextureName);
+	       FilteredActors.Num(), Inclusivity == EUDInclusivity::Include ? TEXT("has") : TEXT("does not have"),
+	       *TextureName);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByTexture(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, TSoftObjectPtr<UTexture2D> TextureReference, const EUDSearchLocation Source,
-	const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByTexture(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	TSoftObjectPtr<UTexture2D> TextureReference,
+	const EUDSearchLocation Source,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -749,23 +980,32 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTexture(const TArray<AActor*>& A
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			
-			if (Source == EUDSearchLocation::BaseAndOverride || Source == EUDSearchLocation::OverrideOnly)
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+
+			if (Source == BaseAndOverride || Source == OverrideOnly)
 			{
 				for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
 				{
-					if (!Material) continue;
+					if (!Material)
+					{
+						continue;
+					}
 
 					for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 					{
-						if (!Expression) continue;
+						if (!Expression)
+						{
+							continue;
+						}
 
 						// Check if the Material Expression is a Texture Sample Expression.
 						if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 						{
 							const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-							if (TextureSample->Texture == TextureReference == (Inclusivity == EUDInclusivity::Include))
+							if (TextureSample->Texture == TextureReference == (Inclusivity == Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -773,10 +1013,10 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTexture(const TArray<AActor*>& A
 						}
 
 						// Check if the Material Expression is a Texture Object instead of a Texture Sample.
-						if(Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+						if (Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
 						{
 							const UMaterialExpressionTextureObject* TextureObject = Cast<UMaterialExpressionTextureObject>(Expression);
-							if (TextureObject->Texture == TextureReference == (Inclusivity == EUDInclusivity::Include))
+							if (TextureObject->Texture == TextureReference == (Inclusivity == Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -785,24 +1025,33 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTexture(const TArray<AActor*>& A
 					}
 				}
 			}
-			
-			if (Source == EUDSearchLocation::BaseAndOverride || Source == EUDSearchLocation::BaseOnly)
+
+			if (Source == BaseAndOverride || Source == BaseOnly)
 			{
-				if (!StaticMeshComponent->GetStaticMesh()) continue;
+				if (!StaticMeshComponent->GetStaticMesh())
+				{
+					continue;
+				}
 				for (int32 i = 0; i < StaticMeshComponent->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 				{
 					UMaterialInterface* Material = StaticMeshComponent->GetStaticMesh()->GetMaterial(i);
-					if (!Material) continue;
+					if (!Material)
+					{
+						continue;
+					}
 
 					for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 					{
-						if (!Expression) continue;
+						if (!Expression)
+						{
+							continue;
+						}
 
 						// Check if the Material Expression
 						if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 						{
 							const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-							if (TextureSample->Texture == TextureReference == (Inclusivity == EUDInclusivity::Include))
+							if (TextureSample->Texture == TextureReference == (Inclusivity == Include))
 							{
 								FilteredActors.AddUnique(Actor);
 								break;
@@ -815,7 +1064,10 @@ void UUDCoreEditorActorSubsystem::FilterActorsByTexture(const TArray<AActor*>& A
 	}
 }
 
-void UUDCoreEditorActorSubsystem::FilterEmptyActors(const TArray<AActor*>& Actors, TArray<AActor*>& FilteredActors, EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterEmptyActors(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const EUDInclusivity Inclusivity)
 {
 	for (AActor* Actor : Actors)
 	{
@@ -823,14 +1075,14 @@ void UUDCoreEditorActorSubsystem::FilterEmptyActors(const TArray<AActor*>& Actor
 
 		TArray<UActorComponent*> ActorComponents;
 		Actor->GetComponents(ActorComponents);
-		
-		if (ActorComponents.IsEmpty() && Inclusivity == EUDInclusivity::Include)
+
+		if (ActorComponents.IsEmpty() && Inclusivity == Include)
 		{
 			FilteredActors.AddUnique(Actor);
 			continue;
 		}
 
-		if (ActorComponents.Num() == 1 && Inclusivity == EUDInclusivity::Exclude)
+		if (ActorComponents.Num() == 1 && Inclusivity == Exclude)
 		{
 			const USceneComponent* SceneComponent = Cast<USceneComponent>(ActorComponents[0]);
 			if (SceneComponent->GetNumChildrenComponents() == 0)
@@ -841,7 +1093,7 @@ void UUDCoreEditorActorSubsystem::FilterEmptyActors(const TArray<AActor*>& Actor
 		}
 
 		// If the actor has a root component, it will always have 2 components
-		if (ActorComponents.Num() == 2 && Inclusivity == EUDInclusivity::Include)
+		if (ActorComponents.Num() == 2 && Inclusivity == Include)
 		{
 			const USceneComponent* SceneComponent = Cast<USceneComponent>(ActorComponents[1]);
 			if (SceneComponent->GetNumChildrenComponents() == 0)
@@ -852,27 +1104,38 @@ void UUDCoreEditorActorSubsystem::FilterEmptyActors(const TArray<AActor*>& Actor
 	}
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMissingMaterials(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const EUDSearchLocation Location, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByMissingMaterials(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const EUDSearchLocation Location,
+	const EUDInclusivity Inclusivity)
 {
 	FilterActorsByMaterial(Actors, FilteredActors, nullptr, Location, Inclusivity);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMissingStaticMeshes(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByMissingStaticMeshes(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const EUDInclusivity Inclusivity)
 {
 	FilterActorsByStaticMesh(Actors, FilteredActors, nullptr, Inclusivity);
 }
 
-void UUDCoreEditorActorSubsystem::FilterActorsByMissingTextures(const TArray<AActor*>& Actors,
-	TArray<AActor*>& FilteredActors, const EUDSearchLocation Location, const EUDInclusivity Inclusivity) const
+void UUDCoreEditorActorSubsystem::FilterActorsByMissingTextures(
+	const TArray<AActor*>& Actors,
+	TArray<AActor*>& FilteredActors,
+	const EUDSearchLocation Location,
+	const EUDInclusivity Inclusivity)
 {
 	FilterActorsByTexture(Actors, FilteredActors, nullptr, Location, Inclusivity);
 }
 
-bool UUDCoreEditorActorSubsystem::IsActorWithinBoxBounds(AActor* Actor, UBoxComponent* BoxComponent) const
+bool UUDCoreEditorActorSubsystem::IsActorWithinBoxBounds(AActor* Actor, UBoxComponent* BoxComponent)
 {
-	if (!Actor && !BoxComponent) return false;
+	if (!Actor && !BoxComponent)
+	{
+		return false;
+	}
 
 	const FVector ActorLocation = Actor->GetActorLocation();
 	const FVector BoxComponentLocation = BoxComponent->GetComponentLocation();
@@ -889,29 +1152,43 @@ bool UUDCoreEditorActorSubsystem::IsActorWithinBoxBounds(AActor* Actor, UBoxComp
 		&& ActorLocation.Z <= BoxComponentLocation.Z + BoxComponentExtent.Z;
 }
 
-bool UUDCoreEditorActorSubsystem::IsActorWithinSphereBounds(AActor* Actor, USphereComponent* SphereComponent) const
+bool UUDCoreEditorActorSubsystem::IsActorWithinSphereBounds(AActor* Actor, USphereComponent* SphereComponent)
 {
-	if (!Actor && !SphereComponent) return false;
+	if (!Actor && !SphereComponent)
+	{
+		return false;
+	}
 	const float DeltaLoc = FVector::Dist(Actor->GetActorLocation(), SphereComponent->GetComponentLocation());
 	return DeltaLoc <= SphereComponent->GetScaledSphereRadius();
 }
 
-bool UUDCoreEditorActorSubsystem::IsActorWithinCapsuleBounds(AActor* Actor, UCapsuleComponent* CapsuleComponent) const
+bool UUDCoreEditorActorSubsystem::IsActorWithinCapsuleBounds(AActor* Actor, UCapsuleComponent* CapsuleComponent)
 {
-	if (!Actor && !CapsuleComponent) return false;
+	if (!Actor && !CapsuleComponent)
+	{
+		return false;
+	}
 	const float DeltaLoc = FVector::Dist(Actor->GetActorLocation(), CapsuleComponent->GetComponentLocation());
 	return DeltaLoc <= CapsuleComponent->GetScaledCapsuleRadius() + CapsuleComponent->GetScaledCapsuleHalfHeight();
 }
 
-void UUDCoreEditorActorSubsystem::GetActorsByClass(TArray<AActor*>& FoundActors, const TSubclassOf<AActor> ActorClass, const EUDSelectionMethod SelectionMethod, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::GetActorsByClass(
+	TArray<AActor*>& FoundActors,
+	const TSubclassOf<AActor> ActorClass,
+	const EUDSelectionMethod SelectionMethod,
+	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> ActorsToFilter = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+	const TArray<AActor*> ActorsToFilter = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
 	FilterActorsByClass(ActorsToFilter, FoundActors, ActorClass, Inclusivity);
 }
 
-void UUDCoreEditorActorSubsystem::GetActorsByName(TArray<AActor*>& FoundActors, const FString ActorName, const EUDSelectionMethod SelectionMethod, const EUDInclusivity Inclusivity)
+void UUDCoreEditorActorSubsystem::GetActorsByName(
+	TArray<AActor*>& FoundActors,
+	const FString ActorName,
+	const EUDSelectionMethod SelectionMethod,
+	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> ActorsToFilter = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+	const TArray<AActor*> ActorsToFilter = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
 	FilterActorsByName(ActorsToFilter, FoundActors, ActorName, Inclusivity);
 }
 
@@ -933,38 +1210,47 @@ void UUDCoreEditorActorSubsystem::GetActorsByMaterialSoftReference(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-	
+	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+
 	TArray<AStaticMeshActor*> StaticMeshActors;
 	FilterStaticMeshActors(StaticMeshActors, SourceActors);
-	
+
 	for (AStaticMeshActor* StaticMeshActor : StaticMeshActors)
 	{
-		if (!StaticMeshActor) continue;
-		
-		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
-		if (StaticMeshComp == nullptr) continue;
+		if (!StaticMeshActor)
+		{
+			continue;
+		}
 
-		if (!StaticMeshComp->GetStaticMesh()) continue;
-		
-		if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::OverrideOnly)
+		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
+		if (StaticMeshComp == nullptr)
+		{
+			continue;
+		}
+
+		if (!StaticMeshComp->GetStaticMesh())
+		{
+			continue;
+		}
+
+		if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
 		{
 			for (int32 i = 0; i < StaticMeshComp->GetNumMaterials(); i++)
 			{
-				if (StaticMeshComp->GetMaterial(i) == Material == (Inclusivity == EUDInclusivity::Include))
+				if (StaticMeshComp->GetMaterial(i) == Material == (Inclusivity == Include))
 				{
 					FoundActors.AddUnique(StaticMeshActor);
 					break;
 				}
 			}
 		}
-			
-		
-		if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::BaseOnly)
+
+
+		if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
 		{
 			for (int32 i = 0; i < StaticMeshComp->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 			{
-				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i) == Material == (Inclusivity == EUDInclusivity::Include))
+				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i) == Material == (Inclusivity == Include))
 				{
 					// Add only if not already added in the previous loop
 					FoundActors.AddUnique(StaticMeshActor);
@@ -985,39 +1271,56 @@ void UUDCoreEditorActorSubsystem::GetActorsByMaterialName(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-	
+	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+
 	TArray<AStaticMeshActor*> StaticMeshActors;
 	FilterStaticMeshActors(StaticMeshActors, SourceActors);
-	
+
 	for (AStaticMeshActor* StaticMeshActor : StaticMeshActors)
 	{
-		if (!StaticMeshActor) continue;
-		
-		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
-		if (!StaticMeshComp) continue;
+		if (!StaticMeshActor)
+		{
+			continue;
+		}
 
-		if (!StaticMeshComp->GetStaticMesh()) continue;
-		
-		if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::OverrideOnly)
+		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
+		if (!StaticMeshComp)
+		{
+			continue;
+		}
+
+		if (!StaticMeshComp->GetStaticMesh())
+		{
+			continue;
+		}
+
+		if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
 		{
 			for (int32 i = 0; i < StaticMeshComp->GetNumMaterials(); i++)
 			{
-				if (StaticMeshComp->GetMaterial(i) == nullptr) continue;
-				if (StaticMeshComp->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity == EUDInclusivity::Include))
+				if (StaticMeshComp->GetMaterial(i) == nullptr)
+				{
+					continue;
+				}
+				if (StaticMeshComp->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity ==
+					Include))
 				{
 					FoundActors.AddUnique(StaticMeshActor);
 					break;
 				}
 			}
 		}
-		
-		if (MaterialSource == EUDSearchLocation::BaseAndOverride || MaterialSource == EUDSearchLocation::BaseOnly)
+
+		if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
 		{
 			for (int32 i = 0; i < StaticMeshComp->GetStaticMesh()->GetStaticMaterials().Num(); i++)
 			{
-				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i) == nullptr) continue;
-				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity == EUDInclusivity::Include))
+				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i) == nullptr)
+				{
+					continue;
+				}
+				if (StaticMeshComp->GetStaticMesh()->GetMaterial(i)->GetName().Contains(MaterialName) == (Inclusivity ==
+					Include))
 				{
 					FoundActors.AddUnique(StaticMeshActor);
 					break;
@@ -1037,24 +1340,33 @@ void UUDCoreEditorActorSubsystem::GetActorsByVertexCount(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+	TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
 
 	for (AActor* Actor : SourceActors)
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
 			const UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
-			if (!StaticMesh) continue;
+			if (!StaticMesh)
+			{
+				continue;
+			}
 
 			const int32 VertexCount = StaticMesh->GetNumVertices(0);
-			if ((VertexCount >= From && VertexCount <= To) == (Inclusivity == EUDInclusivity::Include))
+			if ((VertexCount >= From && VertexCount <= To) == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1072,30 +1384,42 @@ void UUDCoreEditorActorSubsystem::GetActorsByTriCount(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
 			const int32 TriCount = StaticMeshComponent->GetStaticMesh()->GetNumTriangles(0);
 
-			if ((TriCount >= From && TriCount <= To) == (Inclusivity == EUDInclusivity::Include))
+			if ((TriCount >= From && TriCount <= To) == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display,
-	       TEXT("%i actors with triangle count between %i and %i were found."), FoundActors.Num(), From,
-	       To);
+	UE_LOG(LogUDCoreEditor,
+		Display,
+		TEXT("%i actors with triangle count between %i and %i were found."),
+		FoundActors.Num(),
+		From,
+		To);
 }
 
 void UUDCoreEditorActorSubsystem::GetActorsByBoundingBox(
@@ -1105,14 +1429,20 @@ void UUDCoreEditorActorSubsystem::GetActorsByBoundingBox(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		if (Actor->GetComponentsBoundingBox().Min == Min && Actor->GetComponentsBoundingBox().Max == Max == (Inclusivity == EUDInclusivity::Include))
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		if (Actor->GetComponentsBoundingBox().Min == Min && Actor->GetComponentsBoundingBox().Max == Max == (Inclusivity
+			== Include))
+		{
 			FoundActors.AddUnique(Actor);
+		}
 	}
-		
-	
+
+
 	UE_LOG(LogUDCoreEditor, Display, TEXT("%i actors with bounding box between %s and %s were found."),
 	       FoundActors.Num(), *Min.ToString(), *Max.ToString());
 }
@@ -1124,20 +1454,29 @@ void UUDCoreEditorActorSubsystem::GetActorsByMeshSize(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
 			const double BoundBoxSize = StaticMeshComponent->GetStaticMesh()->GetBoundingBox().GetSize().Size();
 
-			if ((BoundBoxSize >= From && BoundBoxSize <= To) == (Inclusivity == EUDInclusivity::Include))
+			if ((BoundBoxSize >= From && BoundBoxSize <= To) == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1155,15 +1494,18 @@ void UUDCoreEditorActorSubsystem::GetActorsByWorldLocation(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		if (Actor->GetActorLocation().Equals(WorldLocation, Radius) == (Inclusivity == EUDInclusivity::Include))
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		if (Actor->GetActorLocation().Equals(WorldLocation, Radius) == (Inclusivity == Include))
 		{
 			FoundActors.AddUnique(Actor);
 		}
 	}
-	
+
 	UE_LOG(LogUDCoreEditor, Display, TEXT("%i actors with world location %s and radius %f were found."),
 	       FoundActors.Num(), *WorldLocation.ToString(), Radius);
 }
@@ -1175,20 +1517,30 @@ void UUDCoreEditorActorSubsystem::GetActorsByLODCount(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
 			const UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
-			if (!StaticMesh) continue;
+			if (!StaticMesh)
+			{
+				continue;
+			}
 
-			if ((StaticMesh->GetNumLODs() >= LODCountFrom && StaticMesh->GetNumLODs() <= LODCountTo) == (Inclusivity == EUDInclusivity::Include))
+			if ((StaticMesh->GetNumLODs() >= LODCountFrom && StaticMesh->GetNumLODs() <= LODCountTo) == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1205,18 +1557,28 @@ void UUDCoreEditorActorSubsystem::GetActorsByNaniteEnabled(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetStaticMesh()->NaniteSettings.bEnabled == bNaniteEnabled == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh()->NaniteSettings.bEnabled == bNaniteEnabled == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1234,29 +1596,43 @@ void UUDCoreEditorActorSubsystem::GetActorsByLightmapResolution(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		
 		TArray<UStaticMeshComponent*> StaticMeshComponents;
 		Actor->GetComponents<UStaticMeshComponent>(StaticMeshComponents, true);
 
 		for (const UStaticMeshComponent* StaticMeshComponent : StaticMeshComponents)
 		{
-			if (!StaticMeshComponent) continue;
-			if (!StaticMeshComponent->GetStaticMesh()) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
+			if (!StaticMeshComponent->GetStaticMesh())
+			{
+				continue;
+			}
 
 			const int32 LightmapRes = StaticMeshComponent->GetStaticMesh()->GetLightMapResolution();
 
-			if ((LightmapRes >= From && LightmapRes <= To) == (Inclusivity == EUDInclusivity::Include))
+			if ((LightmapRes >= From && LightmapRes <= To) == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
 		}
 	}
 
-	UE_LOG(LogUDCoreEditor, Display,
-	       TEXT("%i actors with lightmap resolution between %i and %i were found."), FoundActors.Num(),
-	       From, To);
+	UE_LOG(
+		LogUDCoreEditor,
+		Display,
+		TEXT("%i actors with lightmap resolution between %i and %i were found."),
+		FoundActors.Num(),
+		From,
+		To);
 }
 
 void UUDCoreEditorActorSubsystem::GetActorsByMobility(
@@ -1265,12 +1641,19 @@ void UUDCoreEditorActorSubsystem::GetActorsByMobility(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	
-	for (AActor* Actor : SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors())
+	for (AActor* Actor : SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors())
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		if (!Actor->GetRootComponent()) continue;
-		if (Actor->GetRootComponent()->Mobility == Mobility == (Inclusivity == EUDInclusivity::Include))
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+		
+		if (!Actor->GetRootComponent())
+		{
+			continue;
+		}
+		
+		if (Actor->GetRootComponent()->Mobility == Mobility == (Inclusivity == Include))
 		{
 			FoundActors.AddUnique(Actor);
 		}
@@ -1295,22 +1678,35 @@ void UUDCoreEditorActorSubsystem::GetActorsByStaticMeshSoftReference(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
 
 	for (AActor* Actor : SourceActors)
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 
-			if (StaticMeshComponent->GetStaticMesh() == StaticMesh == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh() == StaticMesh == (Inclusivity == Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1326,20 +1722,33 @@ void UUDCoreEditorActorSubsystem::GetActorsByStaticMeshName(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
 
 	for (AActor* Actor : SourceActors)
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
 
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
+			if (!Component)
+			{
+				continue;
+			}
+			
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
 
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
-			if (!StaticMeshComponent) continue;
+			if (!StaticMeshComponent)
+			{
+				continue;
+			}
 			if (!StaticMeshComponent->GetStaticMesh())
 			{
 				// In the off chance that that the static mesh is null, and the name is empty, we'll add the actor.
@@ -1348,7 +1757,8 @@ void UUDCoreEditorActorSubsystem::GetActorsByStaticMeshName(
 				continue;
 			}
 
-			if (StaticMeshComponent->GetStaticMesh()->GetName() == StaticMeshName == (Inclusivity == EUDInclusivity::Include))
+			if (StaticMeshComponent->GetStaticMesh()->GetName() == StaticMeshName == (Inclusivity ==
+				Include))
 			{
 				FoundActors.AddUnique(Actor);
 			}
@@ -1373,34 +1783,49 @@ void UUDCoreEditorActorSubsystem::GetActorsByTextureSoftReference(
 	const EUDSelectionMethod SelectionMethod,
 	const EUDInclusivity Inclusivity)
 {
-	const TArray<AActor*> SourceActors = SelectionMethod == EUDSelectionMethod::Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-	
+	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
+
 	for (AActor* Actor : SourceActors)
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
+			if (!Component)
+			{
+				continue;
+			}
 
 			// Verify that the component is a static mesh component as that is the only component type that can have a texture.
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
-			
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
+
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
 			for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
 			{
-				if (!Material) continue;
+				if (!Material)
+				{
+					continue;
+				}
 
 				for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 				{
-					if (!Expression) continue;
+					if (!Expression)
+					{
+						continue;
+					}
 
 					// Check if the Material Expression is a Texture Sample Expression.
 					if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 					{
 						const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-						if (TextureSample->Texture == Texture == (Inclusivity == EUDInclusivity::Include))
+						if (TextureSample->Texture == Texture == (Inclusivity == Include))
 						{
 							FoundActors.AddUnique(Actor);
 							break;
@@ -1408,10 +1833,10 @@ void UUDCoreEditorActorSubsystem::GetActorsByTextureSoftReference(
 					}
 
 					// Check if the Material Expression is a Texture Object instead of a Texture Sample.
-					if(Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+					if (Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
 					{
 						const UMaterialExpressionTextureObject* TextureObject = Cast<UMaterialExpressionTextureObject>(Expression);
-						if (TextureObject->Texture == Texture == (Inclusivity == EUDInclusivity::Include))
+						if (TextureObject->Texture == Texture == (Inclusivity == Include))
 						{
 							FoundActors.AddUnique(Actor);
 							break;
@@ -1432,33 +1857,49 @@ void UUDCoreEditorActorSubsystem::GetActorsByTextureName(
 	const EUDInclusivity Inclusivity)
 {
 	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-	
+
 	for (AActor* Actor : SourceActors)
 	{
-		if (!Actor || FoundActors.Contains(Actor)) continue;
-		
+		if (!Actor || FoundActors.Contains(Actor))
+		{
+			continue;
+		}
+
 		for (const auto Component : Actor->GetComponents())
 		{
-			if (!Component) continue;
+			if (!Component)
+			{
+				continue;
+			}
 
 			// Verify that the component is a static mesh component as that is the only component type that can have a texture.
-			if (!Component->IsA(UStaticMeshComponent::StaticClass())) continue;
-			
+			if (!Component->IsA(UStaticMeshComponent::StaticClass()))
+			{
+				continue;
+			}
+
 			const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component);
 
 			for (UMaterialInterface* Material : StaticMeshComponent->GetMaterials())
 			{
-				if (!Material) continue;
+				if (!Material)
+				{
+					continue;
+				}
 
 				for (const auto& Expression : Material->GetMaterial()->GetExpressions())
 				{
-					if (!Expression) continue;
+					if (!Expression)
+					{
+						continue;
+					}
 
 					// Check if the Material Expression is a Texture Sample Expression.
 					if (Expression->IsA(UMaterialExpressionTextureSample::StaticClass()))
 					{
 						const UMaterialExpressionTextureSample* TextureSample = Cast<UMaterialExpressionTextureSample>(Expression);
-						if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+						if (TextureSample->Texture.GetName().Contains(TextureName) == (Inclusivity ==
+							Include))
 						{
 							FoundActors.AddUnique(Actor);
 							break;
@@ -1466,10 +1907,11 @@ void UUDCoreEditorActorSubsystem::GetActorsByTextureName(
 					}
 
 					// Check if the Material Expression is a Texture Object instead of a Texture Sample.
-					if(Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+					if (Expression->IsA(UMaterialExpressionTextureObject::StaticClass()))
 					{
 						const UMaterialExpressionTextureObject* TextureObject = Cast<UMaterialExpressionTextureObject>(Expression);
-						if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity == EUDInclusivity::Include))
+						if (TextureObject->Texture.GetName().Contains(TextureName) == (Inclusivity ==
+							Include))
 						{
 							FoundActors.AddUnique(Actor);
 							break;
@@ -1485,7 +1927,7 @@ void UUDCoreEditorActorSubsystem::GetActorsByTextureName(
 
 void UUDCoreEditorActorSubsystem::GetInvalidActors(TArray<AActor*>& FoundActors)
 {
-	for (AActor* Actor : GetAllLevelActors()) { if (!IsValid(Actor)){ FoundActors.AddUnique(Actor); } }
+	for (AActor* Actor : GetAllLevelActors()) { if (!IsValid(Actor)) { FoundActors.AddUnique(Actor); } }
 	UE_LOG(LogUDCoreEditor, Display, TEXT("%i invalid actors were found."), FoundActors.Num());
 }
 
@@ -1496,7 +1938,7 @@ void UUDCoreEditorActorSubsystem::PushOverrideMaterialsToSource(UStaticMeshCompo
 		UE_LOG(LogUDCoreEditor, Error, TEXT("Static Mesh Component is invalid."));
 		return;
 	}
-	
+
 	for (int32 i = 0; i < StaticMeshComponent->GetNumMaterials(); i++)
 	{
 		UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
