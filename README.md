@@ -95,13 +95,13 @@ Here are examples on how you can go about using some of the functions in UDCore.
   #include "GameFramework/Controller.h"
   #include "GameFramework/Actor.h"
   
-  void AExampleCharacter::MovePlayer()
+  void AExampleCharacter::MovePlayerToLocation()
   {
       UWorld* World = GetWorld();
       AController* Controller = GetController();
       const FVector Destination(100.0f, 200.0f, 300.0f);
-      constexpr float AcceptanceRadius = 50.0f;
-      constexpr bool bDebugLineTrace = true;
+      constexpr float AcceptanceRadius = 100.0f;
+      constexpr bool bDebugLineTrace = false;
   
       UUDAT_MoveToLocation* MoveToLocationTask = UUDAT_MoveToLocation::MoveToLocation(
           World,
@@ -116,7 +116,7 @@ Here are examples on how you can go about using some of the functions in UDCore.
       }
   }
   
-  void ATestChar::OnMoveToLocationCompleted(bool bSuccess)
+  void AExampleCharacter::OnMoveToLocationCompleted(bool bSuccess)
   {
       // Called when UUDAT_MoveToLocation has completed with either a success or fail.
       // Add your logic here.
