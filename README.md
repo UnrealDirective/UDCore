@@ -148,13 +148,13 @@ Here are examples on how you can go about using some of the functions in UDCore.
   bool bFilterOutSpecialCharacters = true;
   bool bFilterOutSpaces = true;
   
-  // "Example 123" !@# would become "Example123"
+  // "Example 123 !@#" would become "Example123"
   FString FilteredString = UUDCoreFunctionLibrary::FilterCharacters(
-  	StringToCheck,
-      bFilterOutLetters,
-      bFilterOutNumbers,
-      bFilterOutSpecialCharacters,
-      bFilterOutSpaces);
+  StringToCheck,
+  bFilterOutLetters,
+  bFilterOutNumbers,
+  bFilterOutSpecialCharacters,
+  bFilterOutSpaces);
   ```
 
 ### Text Utilities
