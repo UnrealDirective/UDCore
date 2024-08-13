@@ -8,7 +8,7 @@
 
 /**
  * UUDCoreArrayFunctionLibrary
- * A collection of array functions.
+ * A collection of array utility functions that improve the usability of arrays in Blueprints.
  */
 UCLASS()
 class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
@@ -16,9 +16,9 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 	/**
-	 * Returns the next index in the array.
-	 * If bLoop is enabled, the index will loop back to the beginning of the array.
-	 * If bLoop is disabled, the last index will be returned if the end of the array is reached.
+	* Returns the next index in the array.
+	* If the next index is greater than the last array index and bLoop is enabled, the index will loop back to the start of the array.
+	* Otherwise, the last index will be returned.
 	 * @param TargetArray - The array to get the next index for.
 	 * @param Index - The current index.
 	 * @param bLoop - If true, the index will loop back to the beginning of the array.
@@ -29,8 +29,8 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 
 	/**
 	 * Returns the previous index in the array.
-	 * If bLoop is enabled, the index will loop back to the end of the array.
-	 * If bLoop is disabled, the first index will be returned if the beginning of the array is reached.
+	 * If the previous index is less than 0 and bLoop is enabled, the index will loop back to the end of the array.
+	 * Otherwise, 0 will be returned.
 	 * @param TargetArray - The array to get the previous index for.
 	 * @param Index - The current index.
 	 * @param bLoop - If true, the index will loop back to the end of the array.
@@ -39,11 +39,19 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, CustomThunk, meta=(DisplayName = "Previous Index", CompactNodeTitle = "PREV INDEX", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="UDCore|Array")
 	static int32 Array_PreviousIndex(const TArray<int32>& TargetArray, const int32 Index, const bool bLoop);
 
-	// Native functions that will be called by the below custom thunk layers, which read off the property address and call the appropriate native handler.
-	// Based off UKismetArrayLibrary implementation
+	
+	/*~
+	 * Native functions that will be called by the below custom thunk layers, which read off the property address and call the appropriate native handler.
+	 * Based off UKismetArrayLibrary implementation
+	 ~*/ 
 
 	static int32 GenericArray_NextIndex(const void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index, bool bLoop);
 	static int32 GenericArray_PreviousIndex(const void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index, bool bLoop);
+
+	/*~
+	 * Custom thunk layers that read off the property address and call the appropriate native handler.
+	 * Based off UKismetArrayLibrary implementation
+	 ~*/ 
 
 	DECLARE_FUNCTION(execArray_NextIndex)
 	{
