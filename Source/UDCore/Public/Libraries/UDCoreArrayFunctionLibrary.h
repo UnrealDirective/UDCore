@@ -21,8 +21,9 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 	* Otherwise, the last index will be returned.
 	 * @param TargetArray - The array to get the next index for.
 	 * @param Index - The current index.
-	 * @param bLoop - If true, the index will loop back to the beginning of the array.
-	 * @returns The next index in the array. If at the end and bLoop is false, the last index is returned.
+	 * @param bLoop - If true, the index will loop back to the beginning of the array when the next index is greater than the last array index.
+	 * Otherwise, the last index will be returned.
+	 * @returns The next index in the array.
 	 */
 	UFUNCTION(BlueprintPure, CustomThunk, meta=(DisplayName = "Next Index", CompactNodeTitle = "NEXT INDEX", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="UDCore|Array")
 	static int32 Array_NextIndex(const TArray<int32>& TargetArray, const int32 Index, const bool bLoop);
@@ -33,8 +34,9 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 	 * Otherwise, 0 will be returned.
 	 * @param TargetArray - The array to get the previous index for.
 	 * @param Index - The current index.
-	 * @param bLoop - If true, the index will loop back to the end of the array.
-	 * @returns The previous index in the array. If at the beginning and bLoop is false, the first index is returned.
+	 * @param bLoop - If the next index is greater than the last array index and bLoop is enabled, the index will loop back to the start of the array.
+	 * Otherwise, the last index will be returned.
+	 * @returns The previous index in the array.
 	 */
 	UFUNCTION(BlueprintPure, CustomThunk, meta=(DisplayName = "Previous Index", CompactNodeTitle = "PREV INDEX", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="UDCore|Array")
 	static int32 Array_PreviousIndex(const TArray<int32>& TargetArray, const int32 Index, const bool bLoop);
