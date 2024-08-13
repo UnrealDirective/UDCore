@@ -19,7 +19,7 @@ This plugin will be updated sporadically with new functionality.
 
 ## Features
 
-- **Async Tasks** - New 
+- **Async Tasks** - New functionality to perform common tasks asynchronously.
 - **String/Text Utilities** - Functions to handle and manipulate strings and text.
 - **Editor Actor Subsystem** - A plethora of utilities and filters to that improves upon the Editor Actor Subsystem.
 - **Enhanced Input** - New functions to simplify and improve Enhanced Input system.
