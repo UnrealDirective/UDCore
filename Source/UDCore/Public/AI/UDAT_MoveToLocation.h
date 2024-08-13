@@ -45,8 +45,7 @@ public:
 	 * This must be called manually when the task is no longer necessary.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UDCore|AI|Navigation")
-	void EndTask()
-	;
+	void EndTask();
 	virtual void Activate() override;
 
 	// The delegate called when the movement has completed regardless of success.
