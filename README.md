@@ -5,9 +5,9 @@
 This plugin was started by [Dylan "Tezenari" Amos](https://dylanamos.com) as part of the [Unreal Directive](https://unrealdirective.com) initiative to empower Unreal Engine developers with knowledge and tools to better allow them to build amazing things.
 
 UDCore's philosophy revolves around the following --
-- **Best Practices** - All functionality built into UDCore should be efficient in execution, easy-to-read, and follow best development practices to allow developers to easily learn from, copy or extended.
-- **Workflow Efficiency** - Each function and tool added to UDCore is designed to improve the speed and efficiency of development workflows. This involves exposing hidden functionality from the Unreal Engine editor, adding new functionality, or simplifying existing functionality.
-- **Universal** - UDCore functionality should primarily be established use C++ and be exposed to Blueprints & Python.
+- **Adherence to Best Practices** - Every feature in UDCore is designed to be efficient, easy to read, and aligned with best development practices, making it simple for developers to learn from, replicate, or extend.
+- **Enhancing Workflow Efficiency** - UDCore is built to streamline development by exposing hidden Unreal Engine editor features, introducing new functionality, and simplifying existing tools to boost productivity.
+- **Universal Compatibility** - UDCore's core functionality is primarily developed in C++, ensuring it is accessible and usable across C++, Blueprints and Python, making it versatile for any project.
 
 This plugin will be updated sporadically with new functionality.
 
@@ -97,8 +97,8 @@ Here are examples on how you can go about using some of the functions in UDCore.
   
   void AExampleCharacter::MovePlayer()
   {
-  	UWorld* World = GetWorld();
-  	AController* Controller = GetController();
+      UWorld* World = GetWorld();
+      AController* Controller = GetController();
       const FVector Destination(100.0f, 200.0f, 300.0f);
       constexpr float AcceptanceRadius = 50.0f;
       constexpr bool bDebugLineTrace = true;
@@ -119,7 +119,7 @@ Here are examples on how you can go about using some of the functions in UDCore.
   void ATestChar::OnMoveToLocationCompleted(bool bSuccess)
   {
       // Called when UUDAT_MoveToLocation has completed with either a success or fail.
-  	// Add your logic here.
+      // Add your logic here.
   }
   ```
 
