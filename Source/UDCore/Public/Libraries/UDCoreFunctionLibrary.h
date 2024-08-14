@@ -28,14 +28,14 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 
 	/**
 	 * Copy the provided text to the clipboard.
-	 * @param Text - The text to copy.
+	 * @param Text - The text to copy to the clipboard.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UDCore|Clipboard" )
 	static void CopyTextToClipboard(const FText& Text);
 
 	/**
 	 * Copy the provided string to the clipboard.
-	 * @param String - The string to copy.
+	 * @param String - The string to copy to the clipboard.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UDCore|Clipboard" )
 	static void CopyStringToClipboard(const FString& String);
@@ -59,5 +59,12 @@ class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UDCore|Clipboard")
 	static void ClearClipboard();
+
+	/**
+	 * Get the project version as a string.
+	 * @returns The project version as a string.
+	 */
+	UFUNCTION(BlueprintPure, Category = "UDCore|Utility")
+	static FString GetProjectVersion();
 	
 };

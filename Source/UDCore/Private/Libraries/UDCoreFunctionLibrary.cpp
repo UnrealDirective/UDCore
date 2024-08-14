@@ -38,3 +38,14 @@ void UUDCoreFunctionLibrary::ClearClipboard()
 {
 	FPlatformApplicationMisc::ClipboardCopy(TEXT(""));
 }
+
+FString UUDCoreFunctionLibrary::GetProjectVersion()
+{
+	FString ProjectVersion;
+	GConfig->GetString(
+		TEXT("/Script/EngineSettings.GeneralProjectSettings"),
+		TEXT("ProjectVersion"),
+		ProjectVersion,
+		GGameIni);
+	return ProjectVersion;
+}
