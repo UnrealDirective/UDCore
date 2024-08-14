@@ -14,6 +14,8 @@ UUDAT_MoveToLocation* UUDAT_MoveToLocation::MoveToLocation(
 	AController* Controller,
 	const FVector Destination,
 	const float AcceptanceRadius,
+	const bool bCheckStuckMovement,
+	const float StuckThreshold,
 	const bool bDebugLineTrace)
 {
 	UUDAT_MoveToLocation* Action = NewObject<UUDAT_MoveToLocation>();
@@ -21,6 +23,8 @@ UUDAT_MoveToLocation* UUDAT_MoveToLocation::MoveToLocation(
 	Action->Destination = Destination;
 	Action->AcceptanceRadius = AcceptanceRadius;
 	Action->bDebugLineTrace = bDebugLineTrace;
+	Action->StuckThreshold = StuckThreshold;
+	Action->bCheckStuckMovement = bCheckStuckMovement;
 
 	Action->RegisterWithGameInstance(WorldContextObject);
 
@@ -37,23 +41,23 @@ void UUDAT_MoveToLocation::Activate()
 {
 	if(!Controller || !Controller->GetPawn())
 	{
-		// Controller or pawn has been destroyed
 		ExecuteCompleted(false);
 		UE_LOG(LogUDCore, Warning, TEXT("Controller or pawn has been destroyed while moving to location. Aborting."));
 		return;
 	}
-
-	// Cache the start location, so we can check if the controller has moved
+	
 	StartLocation = Controller->GetPawn()->GetActorLocation();
-
-	// Start a timer to check if the controller has moved to the destination
+	LastCheckedLocation = StartLocation;
+	
 	Controller->GetWorld()->GetTimerManager().SetTimer(TimerHandle, this, &UUDAT_MoveToLocation::CheckMoveToLocation, 0.1f, true);
 
-	// Start a timer to check if the controller is stuck
-	Controller->GetWorld()->GetTimerManager().SetTimer(StuckTimerHandle, this, &UUDAT_MoveToLocation::CheckStuckMovement, 3.0f, true);
+	if (bCheckStuckMovement)
+	{
+		Controller->GetWorld()->GetTimerManager().SetTimer(StuckTimerHandle, this, &UUDAT_MoveToLocation::CheckStuckMovement, 3.f, true);
+	}
 	
 	UAIBlueprintHelperLibrary::SimpleMoveToLocation(Controller, Destination);
-	UE_LOG(LogUDCore, Verbose, TEXT("Moving controller to location."));
+	UE_LOG(LogUDCore, Verbose, TEXT("Moving controller to location (%s)."), *Destination.ToString());
 
 	if (bDebugLineTrace)
 	{
@@ -75,7 +79,6 @@ void UUDAT_MoveToLocation::CheckMoveToLocation()
 
 	if(!Controller || !Controller->GetPawn())
 	{
-		// Controller or pawn has been destroyed
 		ExecuteCompleted(false);
 		UE_LOG(LogUDCore, Warning, TEXT("Controller or pawn has been destroyed while moving to location. Aborting."));
 		return;
@@ -86,7 +89,6 @@ void UUDAT_MoveToLocation::CheckMoveToLocation()
 	
 	if (FVector::Dist(CurrentLocation, Destination) < AcceptanceRadius)
 	{
-		// Movement has completed
 		UE_LOG(LogUDCore, Verbose, TEXT("Controller has moved to location."));
 		ExecuteCompleted(true);
 	}
@@ -102,12 +104,14 @@ void UUDAT_MoveToLocation::CheckStuckMovement()
 		return;
 	}
 
-	if (FVector::Dist(CurrentLocation, StartLocation) < 1.0f)
+	if (FVector::Dist(CurrentLocation, LastCheckedLocation) < StuckThreshold)
 	{
 		// Controller is stuck
 		UE_LOG(LogUDCore, Warning, TEXT("Controller is stuck while moving to location. Aborting"));
 		ExecuteCompleted(false);
 	}
+
+	LastCheckedLocation = CurrentLocation;
 }
 
 void UUDAT_MoveToLocation::ExecuteCompleted(const bool bSuccess)
