@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.2",
+	"VersionName": "1.3",
 	"FriendlyName": "UDCore",
 	"Description": "An open-source Unreal Engine plugin that provides quality-of-life functionality to developers.",
 	"Category": "Unreal Directive",
