@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Types/UDCoreTypes.h"
 #include "UDCoreStringFunctionLibrary.generated.h"
 
 /**
@@ -62,6 +63,14 @@ class UDCORE_API UUDCoreStringFunctionLibrary : public UBlueprintFunctionLibrary
 	* Sort a string array alphabetically.
 	* @param StringArray - The string array to sort.
 	*/
-	UFUNCTION(BlueprintPure, Category = "UDCore|String" )
+	UFUNCTION(BlueprintPure, Category = "UDCore|String", meta = (DeprecatedFunction, DeprecationMessage = "Use GetSortStringArray instead."))
 	static TArray<FString> SortStringArray(TArray<FString> StringArray);
+
+	/** 
+	* Returns a sorted copy of the provided string array.
+	* @param StringArray - The array of strings to sort.
+	* @returns A sorted copy of the provided string array.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "UDCore|String")
+	static TArray<FString> GetSortedStringArray(TArray<FString> StringArray);
 };

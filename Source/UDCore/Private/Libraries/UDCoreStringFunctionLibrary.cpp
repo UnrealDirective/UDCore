@@ -77,3 +77,10 @@ TArray<FString> UUDCoreStringFunctionLibrary::SortStringArray(TArray<FString> St
 	Algo::Sort(StringArray);
 	return StringArray;
 }
+
+TArray<FString> UUDCoreStringFunctionLibrary::GetSortedStringArray(const TArray<FString> StringArray)
+{
+	TArray<FString> SortedArray = StringArray;
+	Algo::Sort(SortedArray);
+	return SortedArray;
+}
