@@ -15,6 +15,8 @@ class UDCORE_API UUDCoreArrayFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
+public:
+
 	/**
 	* Returns the next index in the array.
 	* If the next index is greater than the last array index and bLoop is enabled, the index will loop back to the start of the array.

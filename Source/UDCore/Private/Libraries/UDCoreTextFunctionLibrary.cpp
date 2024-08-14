@@ -3,9 +3,6 @@
 
 #include "Libraries/UDCoreTextFunctionLibrary.h"
 
-#include "Windows/WindowsPlatformApplicationMisc.h"
-
-
 bool UUDCoreTextFunctionLibrary::IsNotEmpty(const FText& Text)
 {
 	return !Text.IsEmpty();

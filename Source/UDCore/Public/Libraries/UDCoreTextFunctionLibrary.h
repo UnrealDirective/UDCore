@@ -15,6 +15,8 @@ class UDCORE_API UUDCoreTextFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
+public:
+
 	/**
 	 * Returns true if the provided text is not empty.
 	 * @param Text - The text to check.

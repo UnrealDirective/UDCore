@@ -16,6 +16,8 @@ class UDCORE_API UUDCoreStringFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
+public:
+
 	/**
 	 * Detect if the provided string contains any letters.
 	 * @param String - The string to check.

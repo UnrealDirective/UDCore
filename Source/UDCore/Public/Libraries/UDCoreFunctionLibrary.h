@@ -15,6 +15,8 @@ UCLASS()
 class UDCORE_API UUDCoreFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
+
+public:
 	
 	/**
 	 * Returns a list of actor classes that are derived from the given base class.

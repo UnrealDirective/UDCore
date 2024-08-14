@@ -26,7 +26,7 @@ int32 UUDCoreArrayFunctionLibrary::GenericArray_NextIndex(
 	const int32 Index,
 	const bool bLoop)
 {
-	if (!TargetArray)
+	if (!TargetArray || !ArrayProperty)
 	{
 		return INDEX_NONE;
 	}
@@ -54,7 +54,7 @@ int32 UUDCoreArrayFunctionLibrary::GenericArray_NextIndex(
 		return 0;
 	}
 	
-	return ArrayHelper.Num() - 1; // If at the end and bLoop is false, the last index is returned.
+	return ArrayHelper.Num() - 1;
 }
 
 int32 UUDCoreArrayFunctionLibrary::GenericArray_PreviousIndex(
@@ -63,7 +63,7 @@ int32 UUDCoreArrayFunctionLibrary::GenericArray_PreviousIndex(
 	const int32 Index,
 	const bool bLoop)
 {
-	if (!TargetArray)
+	if (!TargetArray || !ArrayProperty)
 	{
 		return INDEX_NONE;
 	}
@@ -91,5 +91,5 @@ int32 UUDCoreArrayFunctionLibrary::GenericArray_PreviousIndex(
 		return ArrayHelper.Num() - 1;
 	}
 	
-	return 0; // If at the beginning and bLoop is false, the first index is returned.
+	return 0;
 }
