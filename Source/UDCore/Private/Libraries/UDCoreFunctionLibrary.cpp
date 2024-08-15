@@ -3,6 +3,7 @@
 
 #include "Libraries/UDCoreFunctionLibrary.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "Misc/ConfigCacheIni.h"
 
 void UUDCoreFunctionLibrary::GetChildClasses(const UClass* BaseClass, const bool bRecursive, TArray<UClass*>& DerivedClasses)
 {

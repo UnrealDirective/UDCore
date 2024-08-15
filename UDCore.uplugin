@@ -29,6 +29,14 @@
 			"Name": "UDCoreEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "UDCoreTests",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "PostEngineInit",
 			"PlatformAllowList": [
 				"Win64"
 			]

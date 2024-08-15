@@ -1,4 +1,5 @@
 #include "Libraries/UDCoreStringFunctionLibrary.h"
+#include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUDCoreStringFunctionLibraryTest, "UDCore.StringFunctionLibraryTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

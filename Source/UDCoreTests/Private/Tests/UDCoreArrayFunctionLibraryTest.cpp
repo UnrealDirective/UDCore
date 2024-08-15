@@ -1,5 +1,6 @@
 #include "Libraries/UDCoreArrayFunctionLibrary.h"
 #include "Tests/UDCoreTestObject.h"
+#include "Misc/AutomationTest.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUDCoreArrayFunctionLibraryTest, "UDCore.ArrayFunctionLibraryTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
