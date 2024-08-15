@@ -2,89 +2,51 @@
 
 
 #include "Libraries/UDCoreFunctionLibrary.h"
-#include "Algo/Sort.h"
+#include "HAL/PlatformApplicationMisc.h"
+#include "Misc/ConfigCacheIni.h"
 
 void UUDCoreFunctionLibrary::GetChildClasses(const UClass* BaseClass, const bool bRecursive, TArray<UClass*>& DerivedClasses)
 {
 	GetDerivedClasses(BaseClass, DerivedClasses, bRecursive);
 }
 
-bool UUDCoreFunctionLibrary::ContainsLetters(const FString& String)
+void UUDCoreFunctionLibrary::CopyTextToClipboard(const FText& Text)
 {
-	for (const TCHAR& Char : String)
-	{
-		if (FChar::IsAlpha(Char))
-		{
-			return true;
-		}
-	}
-	return false;
+	const FString ClipboardText = Text.ToString();
+	FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
 }
 
-bool UUDCoreFunctionLibrary::ContainsNumbers(const FString& String)
+void UUDCoreFunctionLibrary::CopyStringToClipboard(const FString& String)
 {
-	for (const TCHAR& Char : String)
-	{
-		if (FChar::IsDigit(Char))
-		{
-			return true;
-		}
-	}
-	return false;
+	FPlatformApplicationMisc::ClipboardCopy(*String);
 }
 
-bool UUDCoreFunctionLibrary::ContainsSpaces(const FString& String)
+FText UUDCoreFunctionLibrary::GetTextFromClipboard()
 {
-	for (const TCHAR& Char : String)
-	{
-		if (FChar::IsWhitespace(Char))
-		{
-			return true;
-		}
-	}
-	return false;
+	FString ClipboardText;
+	FPlatformApplicationMisc::ClipboardPaste(ClipboardText);
+	return FText::FromString(ClipboardText);
 }
 
-bool UUDCoreFunctionLibrary::ContainsSpecialCharacters(const FString& String)
+FString UUDCoreFunctionLibrary::GetStringFromClipboard()
 {
-	for (const TCHAR& Char : String)
-	{
-		if (FChar::IsPunct(Char))
-		{
-			return true;
-		}
-	}
-	return false;
+	FString ClipboardText;
+	FPlatformApplicationMisc::ClipboardPaste(ClipboardText);
+	return ClipboardText;
 }
 
-FString UUDCoreFunctionLibrary::FilterCharacters(
-	const FString& String,
-	const bool bLetters,
-	const bool bNumbers,
-	const bool bSpecialCharacters,
-	const bool bSpaces)
+void UUDCoreFunctionLibrary::ClearClipboard()
 {
-	FString NewString;
-	NewString.Reserve(String.Len());
-	
-	for (const TCHAR& Char : String)
-	{
-		if (bLetters && FChar::IsAlpha(Char)) continue;
-		if (bNumbers && FChar::IsDigit(Char)) continue;
-		if (bSpecialCharacters && FChar::IsPunct(Char)) continue;
-		if (bSpaces && FChar::IsWhitespace(Char)) continue;
-		NewString.AppendChar(Char);
-	}
-	return NewString;
+	FPlatformApplicationMisc::ClipboardCopy(TEXT(""));
 }
 
-TArray<FString> UUDCoreFunctionLibrary::SortStringArray(TArray<FString> StringArray)
+FString UUDCoreFunctionLibrary::GetProjectVersion()
 {
-	Algo::Sort(StringArray);
-	return StringArray;
-}
-
-bool UUDCoreFunctionLibrary::IsNotEmpty(const FText& Text)
-{
-	return !Text.IsEmpty();
+	FString ProjectVersion;
+	GConfig->GetString(
+		TEXT("/Script/EngineSettings.GeneralProjectSettings"),
+		TEXT("ProjectVersion"),
+		ProjectVersion,
+		GGameIni);
+	return ProjectVersion;
 }

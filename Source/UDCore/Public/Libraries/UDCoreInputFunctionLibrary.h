@@ -17,6 +17,8 @@ UCLASS()
 class UDCORE_API UUDCoreInputFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
+
+public:
 	
 	/**
 	* Apply multiple Input Mapping Contexts.
