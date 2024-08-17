@@ -33,7 +33,7 @@ public:
 	/**
 	 * Focus actors in viewport.
 	 * @param Actors The actors to focus.
-	 * @param bInstant Whether to instantly focus the actors.
+	 * @param bInstant Enable to focus the actors instantly instead of smoothly animating.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Unreal Directive Toolkit|Editor")
 	static void FocusActorsInViewport(const TArray<AActor*> Actors, bool bInstant = false);
@@ -361,7 +361,7 @@ public:
 	//-----------------------------
 
 	/**
-	 * Returns a list of actors based on the the provided class and options.
+	 * Returns a list of actors based on the provided class and options.
 	 * Get actors within the current level by their class.
 	 * @param FoundActors The list of actors that were found.
 	 * @param ActorClass The class of the actors to select.
@@ -376,7 +376,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	 * Returns a list of actors based on the the provided asset name and options.
+	 * Returns a list of actors based on the provided asset name and options.
 	 * @param FoundActors The list of actors that were found.
 	 * @param ActorName The name of the actors to select.
 	 * @param SelectionMethod The selection method to use.
@@ -390,7 +390,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	 * Returns a list of actors based on the the provided material reference and options.
+	 * Returns a list of actors based on the provided material reference and options.
 	 * Note: This will only return actors that have a static mesh component.
 	 * @param Material The reference of the material to search by.
 	 * @param FoundActors The list of actors that were found.
@@ -407,7 +407,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	 * Returns a list of actors based on the the provided material reference and options.
+	 * Returns a list of actors based on the provided material reference and options.
 	 * Note: This will only return actors that have a static mesh component.
 	 * @param Material The reference of the material to search by.
 	 * @param FoundActors The list of actors that were found.
@@ -424,7 +424,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 	
 	/**
-	 * Returns a list of actors based on the the provided material name and options.
+	 * Returns a list of actors based on the provided material name and options.
 	 * Note: This will only return actors that have a static mesh component.
 	 * @param MaterialName The name of the material to search by.
 	 * @param FoundActors The list of actors that were found.
@@ -441,7 +441,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	* Returns a list of actors based on the the provided vert count and options.
+	* Returns a list of actors based on the provided vert count and options.
 	* Note: This will only return actors that have a Static Mesh Component.
 	* @param FoundActors The list of actors that were found.
 	* @param From The minimum number of vertices to search for.
@@ -458,7 +458,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	* Returns a list of actors based on the the provided triangle count and options.
+	* Returns a list of actors based on the provided triangle count and options.
 	* Note: This will only return actors that have a Static Mesh Component.
 	* @param FoundActors The list of actors that were found.
 	* @param From The minimum number of vertices to search for.
@@ -475,7 +475,7 @@ public:
 		EUDInclusivity Inclusivity = EUDInclusivity::Include);
 
 	/**
-	 * Returns a list of actors based on the the provided bounding box and options.
+	 * Returns a list of actors based on the provided bounding box and options.
 	 * @param FoundActors The list of actors that were found.
 	 * @param Min The minimum point of the bounding box.
 	 * @param Max The maximum point of the bounding box.
