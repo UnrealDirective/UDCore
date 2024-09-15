@@ -68,5 +68,4 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "UDCore|Utility")
 	static FString GetProjectVersion();
-	
 };
