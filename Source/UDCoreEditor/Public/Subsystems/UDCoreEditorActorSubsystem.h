@@ -9,7 +9,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Subsystems/EditorActorSubsystem.h"
 #include "Engine/EngineTypes.h"
-#include "UDCoreEditorTypes.h"
+#include "Types/UDCoreEditorTypes.h"
 #include "UDCoreEditorActorSubsystem.generated.h"
 
 class UCapsuleComponent;
