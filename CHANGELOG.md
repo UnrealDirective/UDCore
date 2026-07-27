@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
+- Plugin metadata now declares its target platforms, documentation, and editor-only dependency scope.
+
 ## [2.1.0] - 2026-07-22
 
 ### Added
