@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `Remove All Occurrences`, a stable wildcard array node that removes matching values in one pass, with same-build comparisons against Unreal's `Remove Item`.
+- Added keyed runtime stopwatches for measuring elapsed real time in milliseconds from Blueprints.
+
 ### Fixed
 - Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
 - Plugin metadata now declares its target platforms, documentation, and editor-only dependency scope.

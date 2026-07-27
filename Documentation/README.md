@@ -19,7 +19,7 @@ This folder contains setup steps, compatibility details, and node documentation 
 Per-library reference for every Blueprint-exposed node. Each page lists the module, header, Blueprint category, C++ signature, parameters, outputs, and return behavior.
 
 ### Runtime
-- [Function Library](Nodes/FunctionLibrary.md) - runtime context, project, clipboard, class, and command-line helpers.
+- [Function Library](Nodes/FunctionLibrary.md) - runtime context, project, clipboard, class, command-line, and keyed profiling helpers.
 - [Array Function Library](Nodes/ArrayFunctionLibrary.md) - wildcard array helpers.
 - [Map Function Library](Nodes/MapFunctionLibrary.md) - wildcard map helpers.
 - [String Function Library](Nodes/StringFunctionLibrary.md) - validation, filtering, matching, formatting, hashing, and case conversion.

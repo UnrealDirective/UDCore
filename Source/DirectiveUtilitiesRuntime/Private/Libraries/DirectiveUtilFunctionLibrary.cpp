@@ -4,12 +4,20 @@
 #include "Libraries/DirectiveUtilFunctionLibrary.h"
 #include "Engine/World.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformTime.h"
+#include "HAL/ThreadSingleton.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 
 namespace
 {
+	class FDirectiveUtilStopwatchState : public TThreadSingleton<FDirectiveUtilStopwatchState>
+	{
+	public:
+		TMap<FName, double> StartTimesByKey;
+	};
+
 	EDirectiveUtilWorldType ToDirectiveWorldType(const EWorldType::Type WorldType)
 	{
 		switch (WorldType)
@@ -153,6 +161,41 @@ bool UDirectiveUtilFunctionLibrary::HasCommandLineSwitch(const FString& Switch)
 bool UDirectiveUtilFunctionLibrary::GetCommandLineOption(const FString& Key, FString& OutValue)
 {
 	return GetCommandLineOption(FCommandLine::Get(), Key, OutValue);
+}
+
+bool UDirectiveUtilFunctionLibrary::StartStopwatch(const FName Key, const bool bRestartIfRunning)
+{
+	if (Key.IsNone())
+	{
+		return false;
+	}
+
+	TMap<FName, double>& StartTimesByKey = FDirectiveUtilStopwatchState::Get().StartTimesByKey;
+	if (!bRestartIfRunning && StartTimesByKey.Contains(Key))
+	{
+		return false;
+	}
+
+	StartTimesByKey.Add(Key, FPlatformTime::Seconds());
+	return true;
+}
+
+bool UDirectiveUtilFunctionLibrary::StopStopwatch(const FName Key, double& ElapsedMilliseconds)
+{
+	ElapsedMilliseconds = 0.0;
+	if (Key.IsNone())
+	{
+		return false;
+	}
+
+	double StartTime = 0.0;
+	if (!FDirectiveUtilStopwatchState::Get().StartTimesByKey.RemoveAndCopyValue(Key, StartTime))
+	{
+		return false;
+	}
+
+	ElapsedMilliseconds = FMath::Max((FPlatformTime::Seconds() - StartTime) * 1000.0, 0.0);
+	return true;
 }
 
 bool UDirectiveUtilFunctionLibrary::HasCommandLineSwitch(const TCHAR* CommandLine, const FString& Switch)

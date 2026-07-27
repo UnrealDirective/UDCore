@@ -23,7 +23,8 @@ public class DirectiveUtilitiesTests : ModuleRules
                 "DirectiveUtilitiesRuntime",
                 "AutomationTest",
                 "EnhancedInput",
-                "GameplayTags"
+                "GameplayTags",
+                "Projects"
             }
         );
 

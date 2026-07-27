@@ -128,6 +128,15 @@ public:
 	static bool Array_RemoveAtSwap(UPARAM(ref) TArray<int32>& TargetArray, const int32 Index);
 
 	/**
+	 * Removes every matching item while preserving the order of the remaining elements.
+	 * @param TargetArray - The array to remove matching items from.
+	 * @param Item - The item to remove.
+	 * @returns True if one or more items were removed.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove All Occurrences", CompactNodeTitle = "REMOVE ALL", Keywords = "remove item delete matching", ArrayParm = "TargetArray", ArrayTypeDependentParams = "Item", AutoCreateRefTerm = "Item"), Category="Directive Utilities|Array")
+	static bool Array_RemoveAllOccurrences(UPARAM(ref) TArray<int32>& TargetArray, const int32& Item);
+
+	/**
 	 * Returns a copy of a contiguous range of the array. The range is clamped to the array bounds.
 	 * @param TargetArray - The array to slice.
 	 * @param StartIndex - The index to start copying from (clamped to [0, Length]).
@@ -255,6 +264,7 @@ public:
 	static bool GenericArray_Pop(void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
 	static bool GenericArray_PopFirst(void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
 	static bool GenericArray_RemoveAtSwap(void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index);
+	static bool GenericArray_RemoveAllOccurrences(void* TargetArray, const FArrayProperty* ArrayProperty, const void* Item);
 	static void GenericArray_Slice(const void* TargetArray, const FArrayProperty* TargetArrayProperty, int32 StartIndex, int32 Count, void* OutArray, const FArrayProperty* OutArrayProperty);
 	static void GenericArray_Rotate(void* TargetArray, const FArrayProperty* ArrayProperty, int32 Shift);
 	static void GenericArray_GetDistinct(const void* TargetArray, const FArrayProperty* TargetArrayProperty, void* OutArray, const FArrayProperty* OutArrayProperty);
@@ -632,6 +642,47 @@ public:
 		MARK_PROPERTY_DIRTY(Stack.Object, ArrayProperty);
 		*static_cast<bool*>(RESULT_PARAM) = GenericArray_RemoveAtSwap(ArrayAddr, ArrayProperty, Index);
 		P_NATIVE_END;
+	}
+
+	DECLARE_FUNCTION(execArray_RemoveAllOccurrences)
+	{
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		void* ArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		const FProperty* InnerProp = ArrayProperty->Inner;
+		const int32 PropertySize = InnerProp->GetElementSize() * InnerProp->ArrayDim;
+		void* StorageSpace = FMemory_Alloca(PropertySize);
+		InnerProp->InitializeValue(StorageSpace);
+
+		Stack.MostRecentPropertyAddress = nullptr;
+		Stack.MostRecentPropertyContainer = nullptr;
+		Stack.StepCompiledIn<FProperty>(StorageSpace);
+
+		P_FINISH;
+
+		if (const FBoolProperty* BoolProperty = CastField<const FBoolProperty>(InnerProp))
+		{
+			ensure(PropertySize == sizeof(uint8));
+			BoolProperty->SetPropertyValue(StorageSpace, *static_cast<uint8*>(StorageSpace) != 0);
+		}
+
+		P_NATIVE_BEGIN;
+		const bool bRemoved = GenericArray_RemoveAllOccurrences(ArrayAddr, ArrayProperty, StorageSpace);
+		if (bRemoved)
+		{
+			MARK_PROPERTY_DIRTY(Stack.Object, ArrayProperty);
+		}
+		*static_cast<bool*>(RESULT_PARAM) = bRemoved;
+		P_NATIVE_END;
+
+		InnerProp->DestroyValue(StorageSpace);
 	}
 
 	DECLARE_FUNCTION(execArray_Slice)

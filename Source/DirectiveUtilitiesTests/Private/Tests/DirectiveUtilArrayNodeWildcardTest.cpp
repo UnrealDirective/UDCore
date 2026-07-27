@@ -114,6 +114,7 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Pop), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_PopFirst), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtSwap), {}},
+		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAllOccurrences), {{TEXT("Item"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Slice), {{TEXT("OutArray"), EPinContainerType::Array}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Rotate), {}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_GetDistinct), {{TEXT("OutArray"), EPinContainerType::Array}}},
@@ -127,6 +128,7 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 	};
 
 	const TArray<FEdGraphPinType> ArrayTypes = {
+		MakeArrayType(UEdGraphSchema_K2::PC_Boolean),
 		MakeArrayType(UEdGraphSchema_K2::PC_String),
 		MakeArrayType(UEdGraphSchema_K2::PC_Object, NAME_None, UDirectiveUtilTestObject::StaticClass()),
 		MakeArrayType(UEdGraphSchema_K2::PC_Struct, NAME_None, FDirectiveUtilCollisionValue::StaticStruct())

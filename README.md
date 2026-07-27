@@ -18,7 +18,7 @@ Version 2.0 replaces UDCore 1.x. Existing Blueprint assets migrate through bundl
 | Save games | Slot enumeration, timestamps, byte serialization, validation, deletion, and renaming. |
 | Enhanced Input | Subsystem access and mapping-context operations. |
 | Async work | Timed flow, asset and class loading, traces, and navigation movement. |
-| Runtime context | Typed world, build configuration, and build target queries. |
+| Runtime context and profiling | Typed world, build configuration, build target queries, and keyed stopwatches. |
 | Editor actors | Actor filters, selection tools, viewport controls, layout operations, surface snapping, material operations, and mesh queries. |
 | Editor assets | Asset Registry queries, read-only content audits, and asset management helpers for editor scripts. |
 | Editor Blueprints | Read-only searches for compile status, inheritance, interfaces, components, and unused variables. |

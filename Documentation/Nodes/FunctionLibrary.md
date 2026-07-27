@@ -171,3 +171,46 @@ Reads a key=value option (e.g. `MyKey` matching `-MyKey=Value`) from the process
 | OutValue | `FString&` | [out] The option's value, or empty if the key is missing. |
 
 **Returns:** True if the key was present.
+
+## Start Stopwatch
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Utility|Profiling`
+
+```cpp
+static bool StartStopwatch(FName Key, bool bRestartIfRunning = false);
+```
+
+Starts a keyed stopwatch using monotonic real time. Stopwatches are stored per thread, so Start Stopwatch and Stop Stopwatch must execute on the same thread. They do not require a world and are unaffected by pause, time dilation, and level travel.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Key | `FName` | The name used to stop this stopwatch. `None` is invalid. |
+| bRestartIfRunning | `bool` | Replaces the start time when this key is already active. When false, an active stopwatch is left unchanged. |
+
+**Returns:** True when the stopwatch was started or restarted. False when the key is `None`, or when the key is already active and restart is disabled.
+
+## Stop Stopwatch
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Utility|Profiling`
+
+```cpp
+static bool StopStopwatch(FName Key, double& ElapsedMilliseconds);
+```
+
+Stops and consumes the active stopwatch for a key. Different keys can overlap and stop in any order.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Key | `FName` | The key passed to Start Stopwatch. |
+| ElapsedMilliseconds | `double` | The elapsed real time in milliseconds, or `0.0` when the key is not active. |
+
+**Returns:** True when an active stopwatch was found. False for `None`, a missing key, or a key that has already been stopped.
+
+### Measuring a before-and-after change
+
+Warm up both code paths before recording them. Start the `Baseline` key, run the original function, and stop it into `BaselineMs`. Repeat with an `Optimized` key and `OptimizedMs`. Collect several samples in the same build and compare their medians:
+
+```text
+Speedup = BaselineMs / OptimizedMs
+Time reduction (%) = (BaselineMs - OptimizedMs) / BaselineMs * 100
+```
+
+The result includes Blueprint dispatch, stopwatch-node, and scheduling overhead. Use the same machine, engine version, build configuration, and inputs for both paths. A single sample is not enough to support a performance claim; use Unreal Insights or the runtime performance runner for release evidence.

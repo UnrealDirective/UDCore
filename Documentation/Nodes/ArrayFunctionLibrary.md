@@ -183,6 +183,22 @@ Removes the element at the given index by swapping it with the last element (doe
 
 **Returns:** True if the index was valid and an element was removed.
 
+## Remove All Occurrences
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
+
+```cpp
+static bool Array_RemoveAllOccurrences(TArray<int32>& TargetArray, const int32& Item);
+```
+
+Removes every matching item in one pass while preserving the order of the remaining elements. This has the same result as Unreal's `Remove Item` array node but avoids repeatedly searching and shifting the array when the value occurs more than once.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| TargetArray | `Wildcard Array` | The array to remove matching items from. |
+| Item | `Wildcard` | The item to remove. |
+
+**Returns:** True if one or more items were removed.
+
 ## Slice
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
 

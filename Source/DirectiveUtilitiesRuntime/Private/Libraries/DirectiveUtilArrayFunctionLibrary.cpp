@@ -6,6 +6,7 @@
 #include "Algo/BinarySearch.h"
 #include "Algo/Sort.h"
 #include "Containers/ScriptArray.h"
+#include "Kismet/KismetArrayLibrary.h"
 #include "Misc/ComparisonUtility.h"
 
 namespace
@@ -317,6 +318,12 @@ bool UDirectiveUtilArrayFunctionLibrary::Array_RemoveAtSwap(TArray<int32>& Targe
 	return false;
 }
 
+bool UDirectiveUtilArrayFunctionLibrary::Array_RemoveAllOccurrences(TArray<int32>& TargetArray, const int32& Item)
+{
+	checkNoEntry();
+	return false;
+}
+
 bool UDirectiveUtilArrayFunctionLibrary::GenericArray_GetItemAtIndex(
 	const void* TargetArray,
 	const FArrayProperty* ArrayProperty,
@@ -487,6 +494,70 @@ bool UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtSwap(
 		ArrayHelper.SwapValues(Index, LastIndex);
 	}
 	ArrayHelper.RemoveValues(LastIndex, 1);
+	return true;
+}
+
+bool UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+	void* TargetArray,
+	const FArrayProperty* ArrayProperty,
+	const void* Item)
+{
+	if (!TargetArray || !ArrayProperty || !Item)
+	{
+		return false;
+	}
+
+	FScriptArrayHelper ArrayHelper(ArrayProperty, TargetArray);
+	const FProperty* InnerProperty = ArrayProperty->Inner;
+	const int32 ElementCount = ArrayHelper.Num();
+	int32 WriteIndex = UKismetArrayLibrary::GenericArray_Find(TargetArray, ArrayProperty, Item);
+	if (WriteIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	int32 ReadIndex = WriteIndex + 1;
+	const bool bCanBulkMove = InnerProperty->HasAnyPropertyFlags(CPF_IsPlainOldData);
+	const int32 ElementSize = InnerProperty->GetElementSize();
+	while (ReadIndex < ElementCount)
+	{
+		while (ReadIndex < ElementCount && InnerProperty->Identical(Item, ArrayHelper.GetRawPtr(ReadIndex)))
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunStart = ReadIndex;
+		while (ReadIndex < ElementCount && !InnerProperty->Identical(Item, ArrayHelper.GetRawPtr(ReadIndex)))
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunCount = ReadIndex - RunStart;
+		if (RunCount == 0)
+		{
+			continue;
+		}
+
+		if (bCanBulkMove)
+		{
+			FMemory::Memmove(
+				ArrayHelper.GetRawPtr(WriteIndex),
+				ArrayHelper.GetRawPtr(RunStart),
+				static_cast<SIZE_T>(RunCount) * ElementSize);
+		}
+		else
+		{
+			for (int32 RunIndex = 0; RunIndex < RunCount; ++RunIndex)
+			{
+				InnerProperty->CopySingleValue(
+					ArrayHelper.GetRawPtr(WriteIndex + RunIndex),
+					ArrayHelper.GetRawPtr(RunStart + RunIndex));
+			}
+		}
+		WriteIndex += RunCount;
+	}
+
+	ArrayHelper.RemoveValues(WriteIndex, ElementCount - WriteIndex);
 	return true;
 }
 

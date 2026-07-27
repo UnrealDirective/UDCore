@@ -71,6 +71,9 @@ public:
 	TArray<FText> TestTextArray;
 
 	UPROPERTY()
+	TArray<bool> TestBoolArray;
+
+	UPROPERTY()
 	TArray<FDirectiveUtilCollisionValue> TestCollisionArray;
 
 	UPROPERTY()

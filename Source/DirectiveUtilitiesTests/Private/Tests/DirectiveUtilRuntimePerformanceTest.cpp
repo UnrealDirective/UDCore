@@ -7,8 +7,11 @@
 
 #include "Algo/Reverse.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProperties.h"
 #include "HAL/PlatformTime.h"
+#include "Interfaces/IPluginManager.h"
+#include "Kismet/KismetArrayLibrary.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DateTime.h"
@@ -34,6 +37,22 @@ namespace DirectiveUtilRuntimePerformance
 		{
 			return FString::Printf(TEXT("%s|%d|%d"), *Name, ElementCount, Parameter);
 		}
+	};
+
+	struct FComparisonResult
+	{
+		FString ElementType;
+		FString Pattern;
+		int32 ElementCount = 0;
+		int32 MatchCount = 0;
+		double BeforeMedianMilliseconds = 0.0;
+		double BeforeMinimumMilliseconds = 0.0;
+		double BeforeMaximumMilliseconds = 0.0;
+		double AfterMedianMilliseconds = 0.0;
+		double AfterMinimumMilliseconds = 0.0;
+		double AfterMaximumMilliseconds = 0.0;
+		int32 SampleCount = 0;
+		bool bOutputsMatch = true;
 	};
 
 	template <typename PrepareType, typename OperationType>
@@ -71,6 +90,78 @@ namespace DirectiveUtilRuntimePerformance
 		return Result;
 	}
 
+	template <typename ArrayType, typename BeforeOperationType, typename AfterOperationType>
+	FComparisonResult MeasureComparison(
+		const FString& ElementType,
+		const FString& Pattern,
+		const ArrayType& Source,
+		const int32 MatchCount,
+		const int32 SampleCount,
+		BeforeOperationType&& BeforeOperation,
+		AfterOperationType&& AfterOperation)
+	{
+		ArrayType BeforeValues = Source;
+		ArrayType AfterValues = Source;
+		bool bBeforeRemoved = BeforeOperation(BeforeValues);
+		bool bAfterRemoved = AfterOperation(AfterValues);
+
+		TArray<double> BeforeSamples;
+		TArray<double> AfterSamples;
+		BeforeSamples.Reserve(SampleCount);
+		AfterSamples.Reserve(SampleCount);
+
+		bool bOutputsMatch = bBeforeRemoved == bAfterRemoved && BeforeValues == AfterValues;
+		auto TimeOperation = [](auto&& Operation)
+		{
+			const uint64 StartCycles = FPlatformTime::Cycles64();
+			const bool bRemoved = Operation();
+			const uint64 ElapsedCycles = FPlatformTime::Cycles64() - StartCycles;
+			return TPair<double, bool>(FPlatformTime::ToMilliseconds64(ElapsedCycles), bRemoved);
+		};
+
+		for (int32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
+		{
+			BeforeValues = Source;
+			AfterValues = Source;
+
+			TPair<double, bool> BeforeTiming;
+			TPair<double, bool> AfterTiming;
+			if (SampleIndex % 2 == 0)
+			{
+				BeforeTiming = TimeOperation([&]() { return BeforeOperation(BeforeValues); });
+				AfterTiming = TimeOperation([&]() { return AfterOperation(AfterValues); });
+			}
+			else
+			{
+				AfterTiming = TimeOperation([&]() { return AfterOperation(AfterValues); });
+				BeforeTiming = TimeOperation([&]() { return BeforeOperation(BeforeValues); });
+			}
+
+			BeforeSamples.Add(BeforeTiming.Key);
+			AfterSamples.Add(AfterTiming.Key);
+			bOutputsMatch = bOutputsMatch
+				&& BeforeTiming.Value == AfterTiming.Value
+				&& BeforeValues == AfterValues;
+		}
+
+		BeforeSamples.Sort();
+		AfterSamples.Sort();
+		FComparisonResult Result;
+		Result.ElementType = ElementType;
+		Result.Pattern = Pattern;
+		Result.ElementCount = Source.Num();
+		Result.MatchCount = MatchCount;
+		Result.BeforeMedianMilliseconds = BeforeSamples[BeforeSamples.Num() / 2];
+		Result.BeforeMinimumMilliseconds = BeforeSamples[0];
+		Result.BeforeMaximumMilliseconds = BeforeSamples.Last();
+		Result.AfterMedianMilliseconds = AfterSamples[AfterSamples.Num() / 2];
+		Result.AfterMinimumMilliseconds = AfterSamples[0];
+		Result.AfterMaximumMilliseconds = AfterSamples.Last();
+		Result.SampleCount = SampleCount;
+		Result.bOutputsMatch = bOutputsMatch;
+		return Result;
+	}
+
 	TArray<int32> MakeSequentialIntegers(const int32 Count)
 	{
 		TArray<int32> Values;
@@ -100,6 +191,63 @@ namespace DirectiveUtilRuntimePerformance
 		for (int32 Index = 0; Index < Count; ++Index)
 		{
 			Values.Add(Index % DistinctCount);
+		}
+		return Values;
+	}
+
+	bool IsRemovalMatch(const FString& Pattern, const int32 Index, const int32 Count)
+	{
+		if (Pattern == TEXT("single_tail"))
+		{
+			return Index == Count - 1;
+		}
+		if (Pattern == TEXT("every_64"))
+		{
+			return Index % 64 == 63;
+		}
+		if (Pattern == TEXT("clustered"))
+		{
+			return Index >= Count / 3 && Index < Count * 2 / 3;
+		}
+		if (Pattern == TEXT("alternating"))
+		{
+			return Index % 2 == 0;
+		}
+		return Pattern == TEXT("all");
+	}
+
+	TArray<int32> MakeRemovalIntegers(
+		const int32 Count,
+		const FString& Pattern,
+		const int32 ItemToRemove,
+		int32& OutMatchCount)
+	{
+		TArray<int32> Values;
+		Values.SetNumUninitialized(Count);
+		OutMatchCount = 0;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const bool bMatches = Pattern != TEXT("no_match") && IsRemovalMatch(Pattern, Index, Count);
+			Values[Index] = bMatches ? ItemToRemove : Index + 1;
+			OutMatchCount += bMatches ? 1 : 0;
+		}
+		return Values;
+	}
+
+	TArray<FString> MakeRemovalStrings(
+		const int32 Count,
+		const FString& Pattern,
+		const FString& ItemToRemove,
+		int32& OutMatchCount)
+	{
+		TArray<FString> Values;
+		Values.Reserve(Count);
+		OutMatchCount = 0;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const bool bMatches = Pattern != TEXT("no_match") && IsRemovalMatch(Pattern, Index, Count);
+			Values.Add(bMatches ? ItemToRemove : FString::Printf(TEXT("Value%06d"), Index));
+			OutMatchCount += bMatches ? 1 : 0;
 		}
 		return Values;
 	}
@@ -147,6 +295,47 @@ namespace DirectiveUtilRuntimePerformance
 			OutputPath = FPaths::ProjectSavedDir() / TEXT("Automation/DirectiveUtilities/RuntimePerformance.csv");
 		}
 		return FPaths::ConvertRelativePathToFull(OutputPath);
+	}
+
+	FString GetComparisonOutputPath()
+	{
+		FString OutputPath;
+		if (!FParse::Value(FCommandLine::Get(), TEXT("DirectiveUtilitiesPerfComparisonOutput="), OutputPath))
+		{
+			const FString RuntimeOutputPath = GetOutputPath();
+			OutputPath = FPaths::GetPath(RuntimeOutputPath)
+				/ (FPaths::GetBaseFilename(RuntimeOutputPath) + TEXT("-remove-all-comparison.csv"));
+		}
+		return FPaths::ConvertRelativePathToFull(OutputPath);
+	}
+
+	FString GetBuildConfigurationName()
+	{
+#if UE_BUILD_DEBUG
+		return TEXT("Debug");
+#elif UE_BUILD_DEVELOPMENT
+		return TEXT("Development");
+#elif UE_BUILD_TEST
+		return TEXT("Test");
+#elif UE_BUILD_SHIPPING
+		return TEXT("Shipping");
+#else
+		return TEXT("Unknown");
+#endif
+	}
+
+	FString GetPluginVersion()
+	{
+		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("DirectiveUtilities"));
+		return Plugin.IsValid() ? Plugin->GetDescriptor().VersionName : TEXT("Unknown");
+	}
+
+	FString SanitizeMetadata(FString Value)
+	{
+		Value.ReplaceInline(TEXT(","), TEXT(";"));
+		Value.ReplaceInline(TEXT("\r"), TEXT(" "));
+		Value.ReplaceInline(TEXT("\n"), TEXT(" "));
+		return Value;
 	}
 
 	bool LoadBaseline(TMap<FString, double>& OutMedians, FString& OutPath)
@@ -236,6 +425,48 @@ namespace DirectiveUtilRuntimePerformance
 		}
 		return Csv;
 	}
+
+	FString BuildComparisonCsv(const TArray<FComparisonResult>& Results)
+	{
+		FString Revision;
+		FParse::Value(FCommandLine::Get(), TEXT("DirectiveUtilitiesPerfRevision="), Revision);
+
+		FString Csv;
+		Csv += FString::Printf(TEXT("#engine,%s\n"), *SanitizeMetadata(FEngineVersion::Current().ToString()));
+		Csv += FString::Printf(TEXT("#platform,%hs\n"), FPlatformProperties::PlatformName());
+		Csv += FString::Printf(TEXT("#cpu,%s\n"), *SanitizeMetadata(FPlatformMisc::GetCPUBrand().TrimStartAndEnd()));
+		Csv += FString::Printf(TEXT("#configuration,%s\n"), *GetBuildConfigurationName());
+		Csv += FString::Printf(TEXT("#plugin_version,%s\n"), *SanitizeMetadata(GetPluginVersion()));
+		Csv += FString::Printf(TEXT("#timestamp_utc,%s\n"), *FDateTime::UtcNow().ToIso8601());
+		Csv += FString::Printf(TEXT("#revision,%s\n"), *SanitizeMetadata(Revision));
+		Csv += TEXT("element_type,pattern,element_count,match_count,before_median_ms,before_min_ms,before_max_ms,after_median_ms,after_min_ms,after_max_ms,samples,speedup,time_reduction_percent\n");
+
+		for (const FComparisonResult& Result : Results)
+		{
+			const double Speedup = Result.AfterMedianMilliseconds > 0.0
+				? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+				: 0.0;
+			const double TimeReductionPercent = Result.BeforeMedianMilliseconds > 0.0
+				? ((Result.BeforeMedianMilliseconds - Result.AfterMedianMilliseconds) / Result.BeforeMedianMilliseconds) * 100.0
+				: 0.0;
+			Csv += FString::Printf(
+				TEXT("%s,%s,%d,%d,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%d,%.4f,%.2f\n"),
+				*Result.ElementType,
+				*Result.Pattern,
+				Result.ElementCount,
+				Result.MatchCount,
+				Result.BeforeMedianMilliseconds,
+				Result.BeforeMinimumMilliseconds,
+				Result.BeforeMaximumMilliseconds,
+				Result.AfterMedianMilliseconds,
+				Result.AfterMinimumMilliseconds,
+				Result.AfterMaximumMilliseconds,
+				Result.SampleCount,
+				Speedup,
+				TimeReductionPercent);
+		}
+		return Csv;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -255,9 +486,115 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	FArrayProperty* StringArrayProperty = FindFProperty<FArrayProperty>(
+		UDirectiveUtilTestObject::StaticClass(),
+		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestStringArray));
+	if (!TestNotNull(TEXT("String array property is available"), StringArrayProperty))
+	{
+		return false;
+	}
 
 	constexpr int32 SampleCount = 7;
 	TArray<FResult> Results;
+	TArray<FComparisonResult> ComparisonResults;
+	const TArray<FString> RemovalPatterns = {
+		TEXT("no_match"),
+		TEXT("single_tail"),
+		TEXT("every_64"),
+		TEXT("clustered"),
+		TEXT("alternating"),
+		TEXT("all")
+	};
+	constexpr int32 IntegerToRemove = 0;
+	for (const int32 ElementCount : {256, 1024, 4096, 16384})
+	{
+		for (const FString& Pattern : RemovalPatterns)
+		{
+			int32 MatchCount = 0;
+			const TArray<int32> Source = MakeRemovalIntegers(
+				ElementCount,
+				Pattern,
+				IntegerToRemove,
+				MatchCount);
+			ComparisonResults.Add(MeasureComparison(
+				TEXT("int32"),
+				Pattern,
+				Source,
+				MatchCount,
+				SampleCount,
+				[&](TArray<int32>& Values)
+				{
+					return UKismetArrayLibrary::GenericArray_RemoveItem(&Values, ArrayProperty, &IntegerToRemove);
+				},
+				[&](TArray<int32>& Values)
+				{
+					return UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+						&Values,
+						ArrayProperty,
+						&IntegerToRemove);
+				}));
+		}
+	}
+
+	// The scaling curve uses every_64 only to keep the stock path's runtime bounded.
+	for (const int32 ElementCount : {1000, 10000, 100000, 250000, 1000000})
+	{
+		int32 MatchCount = 0;
+		const TArray<int32> Source = MakeRemovalIntegers(
+			ElementCount,
+			TEXT("every_64"),
+			IntegerToRemove,
+			MatchCount);
+		ComparisonResults.Add(MeasureComparison(
+			TEXT("int32"),
+			TEXT("every_64"),
+			Source,
+			MatchCount,
+			SampleCount,
+			[&](TArray<int32>& Values)
+			{
+				return UKismetArrayLibrary::GenericArray_RemoveItem(&Values, ArrayProperty, &IntegerToRemove);
+			},
+			[&](TArray<int32>& Values)
+			{
+				return UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+					&Values,
+					ArrayProperty,
+					&IntegerToRemove);
+			}));
+	}
+
+	const FString StringToRemove = TEXT("REMOVE");
+	for (const int32 ElementCount : {256, 1024, 4096})
+	{
+		for (const FString& Pattern : RemovalPatterns)
+		{
+			int32 MatchCount = 0;
+			const TArray<FString> Source = MakeRemovalStrings(
+				ElementCount,
+				Pattern,
+				StringToRemove,
+				MatchCount);
+			ComparisonResults.Add(MeasureComparison(
+				TEXT("FString"),
+				Pattern,
+				Source,
+				MatchCount,
+				SampleCount,
+				[&](TArray<FString>& Values)
+				{
+					return UKismetArrayLibrary::GenericArray_RemoveItem(&Values, StringArrayProperty, &StringToRemove);
+				},
+				[&](TArray<FString>& Values)
+				{
+					return UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+						&Values,
+						StringArrayProperty,
+						&StringToRemove);
+				}));
+		}
+	}
+
 	for (const int32 ElementCount : {16, 256, 1024, 4096, 16384})
 	{
 		const TArray<int32> Source = MakeSequentialIntegers(ElementCount);
@@ -471,6 +808,35 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 			[&]() { MatchIndex = UDirectiveUtilStringFunctionLibrary::FindBestStringMatch(Input, Candidates, Similarity); }));
 	}
 
+	for (const FComparisonResult& Result : ComparisonResults)
+	{
+		if (!Result.bOutputsMatch)
+		{
+			AddError(FString::Printf(
+				TEXT("RemoveAll comparison mismatch for %s elements=%d pattern=%s"),
+				*Result.ElementType,
+				Result.ElementCount,
+				*Result.Pattern));
+		}
+
+		const double Speedup = Result.AfterMedianMilliseconds > 0.0
+			? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+			: 0.0;
+		const double TimeReductionPercent = Result.BeforeMedianMilliseconds > 0.0
+			? ((Result.BeforeMedianMilliseconds - Result.AfterMedianMilliseconds) / Result.BeforeMedianMilliseconds) * 100.0
+			: 0.0;
+		AddInfo(FString::Printf(
+			TEXT("REMOVE_ALL_PERF type=%s elements=%d pattern=%s matches=%d before=%.6fms after=%.6fms speedup=%.3fx reduction=%.2f%%"),
+			*Result.ElementType,
+			Result.ElementCount,
+			*Result.Pattern,
+			Result.MatchCount,
+			Result.BeforeMedianMilliseconds,
+			Result.AfterMedianMilliseconds,
+			Speedup,
+			TimeReductionPercent));
+	}
+
 	TMap<FString, double> BaselineMedians;
 	FString BaselinePath;
 	if (!LoadBaseline(BaselineMedians, BaselinePath))
@@ -508,5 +874,12 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	TestTrue(
 		FString::Printf(TEXT("Performance results saved to %s"), *OutputPath),
 		FFileHelper::SaveStringToFile(Csv, *OutputPath));
+
+	const FString ComparisonOutputPath = GetComparisonOutputPath();
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(ComparisonOutputPath), true);
+	const FString ComparisonCsv = BuildComparisonCsv(ComparisonResults);
+	TestTrue(
+		FString::Printf(TEXT("Remove All comparison results saved to %s"), *ComparisonOutputPath),
+		FFileHelper::SaveStringToFile(ComparisonCsv, *ComparisonOutputPath));
 	return !HasAnyErrors();
 }

@@ -81,6 +81,20 @@ namespace
 		return Count;
 	}
 
+	TArray<int32> RemoveAllReference(const TArray<int32>& Values, const int32 QueryValue)
+	{
+		TArray<int32> Result;
+		Result.Reserve(Values.Num());
+		for (const int32 Value : Values)
+		{
+			if (Value != QueryValue)
+			{
+				Result.Add(Value);
+			}
+		}
+		return Result;
+	}
+
 	TArray<int32> SliceReference(const TArray<int32>& Values, const int32 StartIndex, const int32 Count)
 	{
 		TArray<int32> Result;
@@ -709,6 +723,15 @@ bool FDirectiveUtilArrayDeterministicFuzzTest::RunTest(const FString& Parameters
 				Label + TEXT(" CountOccurrences"),
 				UDirectiveUtilArrayFunctionLibrary::GenericArray_CountOccurrences(&Source, ArrayProperty, &QueryValue),
 				CountReference(Source, QueryValue));
+
+			const TArray<int32> ExpectedRemoved = RemoveAllReference(Source, QueryValue);
+			TestObject->TestArray = Source;
+			const bool bRemoved = UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+				&TestObject->TestArray,
+				ArrayProperty,
+				&QueryValue);
+			TestEqual(Label + TEXT(" RemoveAllOccurrences result"), bRemoved, ExpectedRemoved.Num() != Source.Num());
+			TestEqual(Label + TEXT(" RemoveAllOccurrences values"), TestObject->TestArray, ExpectedRemoved);
 
 			for (const int32 Shift : {MIN_int32, -ItemCount - 1, -1, 0, 1, ItemCount + 1, MAX_int32})
 			{

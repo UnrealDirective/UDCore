@@ -184,6 +184,35 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	TestEqual("RemoveAtSwap on the last element should shrink the array", TestObject->TestArray.Num(), 2);
 	TestEqual("RemoveAtSwap on the last element should preserve the order of the rest", TestObject->TestArray[1], 20);
 
+	int32 ItemToRemove = 2;
+	TestObject->TestArray = {1, 2, 3, 2, 4, 2};
+	TestTrue(
+		"RemoveAllOccurrences should report matching values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToRemove));
+	TestEqual(
+		"RemoveAllOccurrences should remove every match and preserve survivor order",
+		TestObject->TestArray,
+		TArray<int32>({1, 3, 4}));
+
+	ItemToRemove = 9;
+	const TArray<int32> UnchangedValues = TestObject->TestArray;
+	TestFalse(
+		"RemoveAllOccurrences should report an absent value",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToRemove));
+	TestEqual("RemoveAllOccurrences should not change an array without matches", TestObject->TestArray, UnchangedValues);
+
+	TestObject->TestArray.Empty();
+	TestFalse(
+		"RemoveAllOccurrences should report false for an empty array",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToRemove));
+
+	ItemToRemove = 5;
+	TestObject->TestArray = {5, 5, 5};
+	TestTrue(
+		"RemoveAllOccurrences should remove an all-matching array",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToRemove));
+	TestTrue("RemoveAllOccurrences should leave an all-matching array empty", TestObject->TestArray.IsEmpty());
+
 	TestObject->TestArray = {1, 2, 2, 3, 1, 4};
 	UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveDuplicates(&TestObject->TestArray, ArrayProperty);
 	TestEqual("RemoveDuplicates should remove all duplicate entries", TestObject->TestArray.Num(), 4);
@@ -277,6 +306,7 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Pop),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_PopFirst),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtSwap),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAllOccurrences),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Rotate)
 	};
 	for (const FName FunctionName : MutatingFunctions)
@@ -658,6 +688,9 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	FArrayProperty* TextArrayProperty = FindFProperty<FArrayProperty>(
 		UDirectiveUtilTestObject::StaticClass(),
 		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestTextArray));
+	FArrayProperty* BoolArrayProperty = FindFProperty<FArrayProperty>(
+		UDirectiveUtilTestObject::StaticClass(),
+		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestBoolArray));
 	FArrayProperty* CollisionArrayProperty = FindFProperty<FArrayProperty>(
 		UDirectiveUtilTestObject::StaticClass(),
 		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestCollisionArray));
@@ -666,6 +699,7 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestObjectArray));
 	TestNotNull("String array property should be available", StringArrayProperty);
 	TestNotNull("Text array property should be available", TextArrayProperty);
+	TestNotNull("Boolean array property should be available", BoolArrayProperty);
 	TestNotNull("Collision array property should be available", CollisionArrayProperty);
 	TestNotNull("Object array property should be available", ObjectArrayProperty);
 
@@ -709,6 +743,19 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		StringArrayProperty);
 	TestEqual("Aliased Slice should preserve string values", TestObject->TestStringArray, TArray<FString>({TEXT("Two"), TEXT("Three")}));
 
+	TestObject->TestStringArray = {TEXT("Remove"), TEXT("Keep A"), TEXT("Remove"), TEXT("Keep B")};
+	const FString StringToRemove = TEXT("Remove");
+	TestTrue(
+		"RemoveAllOccurrences should support strings",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			&StringToRemove));
+	TestEqual(
+		"RemoveAllOccurrences should preserve string survivor order",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("Keep A"), TEXT("Keep B")}));
+
 	UObject* FirstObject = NewObject<UDirectiveUtilTestObject>(TestObject);
 	UObject* SecondObject = NewObject<UDirectiveUtilTestObject>(TestObject);
 	UObject* ThirdObject = NewObject<UDirectiveUtilTestObject>(TestObject);
@@ -735,6 +782,29 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	{
 		TestEqual("Aliased object GetPage should return the final object", TestObject->TestObjectArray[0].Get(), ThirdObject);
 	}
+
+	TestObject->TestObjectArray = {FirstObject, nullptr, SecondObject, FirstObject, nullptr};
+	TestTrue(
+		"RemoveAllOccurrences should support object references",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestObjectArray,
+			ObjectArrayProperty,
+			&FirstObject));
+	TestEqual("RemoveAllOccurrences should retain object and null survivors", TestObject->TestObjectArray.Num(), 3);
+	if (TestObject->TestObjectArray.Num() == 3)
+	{
+		TestNull("RemoveAllOccurrences should retain the first null", TestObject->TestObjectArray[0].Get());
+		TestEqual("RemoveAllOccurrences should retain the unmatched object", TestObject->TestObjectArray[1].Get(), SecondObject);
+		TestNull("RemoveAllOccurrences should retain the second null", TestObject->TestObjectArray[2].Get());
+	}
+	UObject* NullObject = nullptr;
+	TestTrue(
+		"RemoveAllOccurrences should remove null object references",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestObjectArray,
+			ObjectArrayProperty,
+			&NullObject));
+	TestEqual("RemoveAllOccurrences should leave the non-null object", TestObject->TestObjectArray.Num(), 1);
 
 	TestObject->TestStringArray = {TEXT("unchanged")};
 	UDirectiveUtilArrayFunctionLibrary::GenericArray_Slice(
@@ -769,6 +839,30 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		TestTrue("RemoveDuplicates should retain the second unhashable value", TestObject->TestTextArray[1].IdenticalTo(BetaText));
 	}
 
+	TestObject->TestTextArray = {AlphaText, BetaText, AlphaText, BetaText};
+	TestTrue(
+		"RemoveAllOccurrences should support text values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestTextArray,
+			TextArrayProperty,
+			&AlphaText));
+	TestEqual("RemoveAllOccurrences should remove matching text values", TestObject->TestTextArray.Num(), 2);
+	if (TestObject->TestTextArray.Num() == 2)
+	{
+		TestTrue("RemoveAllOccurrences should retain the first text survivor", TestObject->TestTextArray[0].IdenticalTo(BetaText));
+		TestTrue("RemoveAllOccurrences should retain the second text survivor", TestObject->TestTextArray[1].IdenticalTo(BetaText));
+	}
+
+	TestObject->TestBoolArray = {true, false, true, false, true};
+	const bool bBoolToRemove = true;
+	TestTrue(
+		"RemoveAllOccurrences should support Boolean values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestBoolArray,
+			BoolArrayProperty,
+			&bBoolToRemove));
+	TestEqual("RemoveAllOccurrences should remove matching Boolean values", TestObject->TestBoolArray, TArray<bool>({false, false}));
+
 	auto AddCollisionValue = [&TestObject](const int32 Value)
 	{
 		FDirectiveUtilCollisionValue& Entry = TestObject->TestCollisionArray.AddDefaulted_GetRef();
@@ -787,6 +881,27 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		TestEqual("Hash collision result should retain the first value", TestObject->TestCollisionArray[0].Value, 1);
 		TestEqual("Hash collision result should retain the second value", TestObject->TestCollisionArray[1].Value, 2);
 		TestEqual("Hash collision result should retain the third value", TestObject->TestCollisionArray[2].Value, 3);
+	}
+
+	TestObject->TestCollisionArray.Reset();
+	for (const int32 Value : {1, 2, 1, 3, 1, 4})
+	{
+		AddCollisionValue(Value);
+	}
+	FDirectiveUtilCollisionValue CollisionToRemove;
+	CollisionToRemove.Value = 1;
+	TestTrue(
+		"RemoveAllOccurrences should support struct equality",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&TestObject->TestCollisionArray,
+			CollisionArrayProperty,
+			&CollisionToRemove));
+	TestEqual("RemoveAllOccurrences should keep struct survivors", TestObject->TestCollisionArray.Num(), 3);
+	if (TestObject->TestCollisionArray.Num() == 3)
+	{
+		TestEqual("RemoveAllOccurrences should retain the first struct survivor", TestObject->TestCollisionArray[0].Value, 2);
+		TestEqual("RemoveAllOccurrences should retain the second struct survivor", TestObject->TestCollisionArray[1].Value, 3);
+		TestEqual("RemoveAllOccurrences should retain the third struct survivor", TestObject->TestCollisionArray[2].Value, 4);
 	}
 
 	TestObject->TestCollisionArray.Reset();
