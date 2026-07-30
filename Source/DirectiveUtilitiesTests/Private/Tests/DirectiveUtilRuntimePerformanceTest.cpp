@@ -55,6 +55,22 @@ namespace DirectiveUtilRuntimePerformance
 		bool bOutputsMatch = true;
 	};
 
+	struct FAppendComparisonResult
+	{
+		FString ElementType;
+		FString Scenario;
+		int32 SourceCount = 0;
+		int32 InitialTargetCount = 0;
+		double BeforeMedianMilliseconds = 0.0;
+		double BeforeMinimumMilliseconds = 0.0;
+		double BeforeMaximumMilliseconds = 0.0;
+		double AfterMedianMilliseconds = 0.0;
+		double AfterMinimumMilliseconds = 0.0;
+		double AfterMaximumMilliseconds = 0.0;
+		int32 SampleCount = 0;
+		bool bOutputsMatch = true;
+	};
+
 	template <typename PrepareType, typename OperationType>
 	FResult Measure(
 		const FString& Name,
@@ -87,6 +103,91 @@ namespace DirectiveUtilRuntimePerformance
 		Result.MinimumMilliseconds = Samples[0];
 		Result.MaximumMilliseconds = Samples.Last();
 		Result.SampleCount = SampleCount;
+		return Result;
+	}
+
+	template <typename ArrayType, typename BeforeOperationType, typename AfterOperationType>
+	FAppendComparisonResult MeasureAppendComparison(
+		const FString& ElementType,
+		const FString& Scenario,
+		const ArrayType& InitialTarget,
+		const ArrayType& Source,
+		const int32 SampleCount,
+		BeforeOperationType&& BeforeOperation,
+		AfterOperationType&& AfterOperation)
+	{
+		ArrayType BeforeTarget;
+		ArrayType AfterTarget;
+		ArrayType BeforeSource;
+		ArrayType AfterSource;
+		auto Prepare = [&]()
+		{
+			BeforeTarget = InitialTarget;
+			AfterTarget = InitialTarget;
+			BeforeSource = Source;
+			AfterSource = Source;
+		};
+		auto RunBefore = [&]()
+		{
+			BeforeOperation(BeforeTarget, BeforeSource);
+		};
+		auto RunAfter = [&]()
+		{
+			AfterOperation(AfterTarget, AfterSource);
+		};
+
+		Prepare();
+		RunBefore();
+		RunAfter();
+		bool bOutputsMatch = BeforeTarget == AfterTarget
+			&& BeforeSource == Source
+			&& AfterSource == Source;
+
+		TArray<double> BeforeSamples;
+		TArray<double> AfterSamples;
+		BeforeSamples.Reserve(SampleCount);
+		AfterSamples.Reserve(SampleCount);
+		auto TimeOperation = [](auto&& Operation)
+		{
+			const uint64 StartCycles = FPlatformTime::Cycles64();
+			Operation();
+			return FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64() - StartCycles);
+		};
+
+		for (int32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
+		{
+			Prepare();
+			if (SampleIndex % 2 == 0)
+			{
+				BeforeSamples.Add(TimeOperation(RunBefore));
+				AfterSamples.Add(TimeOperation(RunAfter));
+			}
+			else
+			{
+				AfterSamples.Add(TimeOperation(RunAfter));
+				BeforeSamples.Add(TimeOperation(RunBefore));
+			}
+			bOutputsMatch = bOutputsMatch
+				&& BeforeTarget == AfterTarget
+				&& BeforeSource == Source
+				&& AfterSource == Source;
+		}
+
+		BeforeSamples.Sort();
+		AfterSamples.Sort();
+		FAppendComparisonResult Result;
+		Result.ElementType = ElementType;
+		Result.Scenario = Scenario;
+		Result.SourceCount = Source.Num();
+		Result.InitialTargetCount = InitialTarget.Num();
+		Result.BeforeMedianMilliseconds = BeforeSamples[BeforeSamples.Num() / 2];
+		Result.BeforeMinimumMilliseconds = BeforeSamples[0];
+		Result.BeforeMaximumMilliseconds = BeforeSamples.Last();
+		Result.AfterMedianMilliseconds = AfterSamples[AfterSamples.Num() / 2];
+		Result.AfterMinimumMilliseconds = AfterSamples[0];
+		Result.AfterMaximumMilliseconds = AfterSamples.Last();
+		Result.SampleCount = SampleCount;
+		Result.bOutputsMatch = bOutputsMatch;
 		return Result;
 	}
 
@@ -309,6 +410,34 @@ namespace DirectiveUtilRuntimePerformance
 		return FPaths::ConvertRelativePathToFull(OutputPath);
 	}
 
+	FString GetAppendComparisonOutputPath()
+	{
+		FString OutputPath;
+		if (!FParse::Value(FCommandLine::Get(), TEXT("DirectiveUtilitiesPerfAppendComparisonOutput="), OutputPath))
+		{
+			const FString RuntimeOutputPath = GetOutputPath();
+			OutputPath = FPaths::GetPath(RuntimeOutputPath)
+				/ (FPaths::GetBaseFilename(RuntimeOutputPath) + TEXT("-append-comparison.csv"));
+		}
+		return FPaths::ConvertRelativePathToFull(OutputPath);
+	}
+
+	FString GetInsertComparisonOutputPath()
+	{
+		const FString RuntimeOutputPath = GetOutputPath();
+		return FPaths::ConvertRelativePathToFull(
+			FPaths::GetPath(RuntimeOutputPath)
+			/ (FPaths::GetBaseFilename(RuntimeOutputPath) + TEXT("-insert-comparison.csv")));
+	}
+
+	FString GetRemoveIndicesComparisonOutputPath()
+	{
+		const FString RuntimeOutputPath = GetOutputPath();
+		return FPaths::ConvertRelativePathToFull(
+			FPaths::GetPath(RuntimeOutputPath)
+			/ (FPaths::GetBaseFilename(RuntimeOutputPath) + TEXT("-remove-indices-comparison.csv")));
+	}
+
 	FString GetBuildConfigurationName()
 	{
 #if UE_BUILD_DEBUG
@@ -467,6 +596,48 @@ namespace DirectiveUtilRuntimePerformance
 		}
 		return Csv;
 	}
+
+	FString BuildAppendComparisonCsv(const TArray<FAppendComparisonResult>& Results)
+	{
+		FString Revision;
+		FParse::Value(FCommandLine::Get(), TEXT("DirectiveUtilitiesPerfRevision="), Revision);
+
+		FString Csv;
+		Csv += FString::Printf(TEXT("#engine,%s\n"), *SanitizeMetadata(FEngineVersion::Current().ToString()));
+		Csv += FString::Printf(TEXT("#platform,%hs\n"), FPlatformProperties::PlatformName());
+		Csv += FString::Printf(TEXT("#cpu,%s\n"), *SanitizeMetadata(FPlatformMisc::GetCPUBrand().TrimStartAndEnd()));
+		Csv += FString::Printf(TEXT("#configuration,%s\n"), *GetBuildConfigurationName());
+		Csv += FString::Printf(TEXT("#plugin_version,%s\n"), *SanitizeMetadata(GetPluginVersion()));
+		Csv += FString::Printf(TEXT("#timestamp_utc,%s\n"), *FDateTime::UtcNow().ToIso8601());
+		Csv += FString::Printf(TEXT("#revision,%s\n"), *SanitizeMetadata(Revision));
+		Csv += TEXT("element_type,scenario,source_count,initial_target_count,before_median_ms,before_min_ms,before_max_ms,after_median_ms,after_min_ms,after_max_ms,samples,speedup,time_reduction_percent\n");
+
+		for (const FAppendComparisonResult& Result : Results)
+		{
+			const double Speedup = Result.AfterMedianMilliseconds > 0.0
+				? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+				: 0.0;
+			const double TimeReductionPercent = Result.BeforeMedianMilliseconds > 0.0
+				? ((Result.BeforeMedianMilliseconds - Result.AfterMedianMilliseconds) / Result.BeforeMedianMilliseconds) * 100.0
+				: 0.0;
+			Csv += FString::Printf(
+				TEXT("%s,%s,%d,%d,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%d,%.4f,%.2f\n"),
+				*Result.ElementType,
+				*Result.Scenario,
+				Result.SourceCount,
+				Result.InitialTargetCount,
+				Result.BeforeMedianMilliseconds,
+				Result.BeforeMinimumMilliseconds,
+				Result.BeforeMaximumMilliseconds,
+				Result.AfterMedianMilliseconds,
+				Result.AfterMinimumMilliseconds,
+				Result.AfterMaximumMilliseconds,
+				Result.SampleCount,
+				Speedup,
+				TimeReductionPercent);
+		}
+		return Csv;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -497,6 +668,155 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	constexpr int32 SampleCount = 7;
 	TArray<FResult> Results;
 	TArray<FComparisonResult> ComparisonResults;
+	TArray<FAppendComparisonResult> AppendComparisonResults;
+	TArray<FAppendComparisonResult> InsertComparisonResults;
+	TArray<FAppendComparisonResult> RemoveIndicesComparisonResults;
+	for (const int32 ElementCount : {1000, 10000, 100000, 250000, 1000000})
+	{
+		const TArray<int32> Source = MakeSequentialIntegers(ElementCount);
+		const TArray<int32> EmptyTarget;
+		const TArray<int32> PopulatedTarget = MakeSequentialIntegers(ElementCount);
+		auto BeforeAppend = [&](TArray<int32>& Target, TArray<int32>& AppendSource)
+		{
+			UKismetArrayLibrary::GenericArray_Append(
+				&Target,
+				ArrayProperty,
+				&AppendSource,
+				ArrayProperty);
+		};
+		auto AfterAppend = [&](TArray<int32>& Target, TArray<int32>& AppendSource)
+		{
+			UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+				&Target,
+				ArrayProperty,
+				&AppendSource,
+				ArrayProperty);
+		};
+		AppendComparisonResults.Add(MeasureAppendComparison(
+			TEXT("int32"),
+			TEXT("empty_target"),
+			EmptyTarget,
+			Source,
+			SampleCount,
+			BeforeAppend,
+			AfterAppend));
+		AppendComparisonResults.Add(MeasureAppendComparison(
+			TEXT("int32"),
+			TEXT("populated_target"),
+			PopulatedTarget,
+			Source,
+			SampleCount,
+			BeforeAppend,
+			AfterAppend));
+	}
+
+	for (const int32 ElementCount : {1000, 10000, 100000})
+	{
+		TArray<FString> Source;
+		Source.Reserve(ElementCount);
+		for (int32 Index = 0; Index < ElementCount; ++Index)
+		{
+			Source.Add(FString::Printf(TEXT("Value%06d"), Index));
+		}
+		const TArray<FString> EmptyTarget;
+		AppendComparisonResults.Add(MeasureAppendComparison(
+			TEXT("FString"),
+			TEXT("empty_target"),
+			EmptyTarget,
+			Source,
+			SampleCount,
+			[&](TArray<FString>& Target, TArray<FString>& AppendSource)
+			{
+				UKismetArrayLibrary::GenericArray_Append(
+					&Target,
+					StringArrayProperty,
+					&AppendSource,
+					StringArrayProperty);
+			},
+			[&](TArray<FString>& Target, TArray<FString>& AppendSource)
+			{
+				UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+					&Target,
+					StringArrayProperty,
+					&AppendSource,
+					StringArrayProperty);
+			}));
+	}
+
+	for (const int32 TargetCount : {256, 1024, 4096, 16384})
+	{
+		const TArray<int32> InitialTarget = MakeSequentialIntegers(TargetCount);
+		TArray<int32> InsertSource = MakeSequentialIntegers(FMath::Max(1, TargetCount / 4));
+		for (int32& Value : InsertSource)
+		{
+			Value += TargetCount;
+		}
+
+		for (const TPair<FString, int32>& Scenario : {
+			TPair<FString, int32>(TEXT("front"), 0),
+			TPair<FString, int32>(TEXT("middle"), TargetCount / 2),
+			TPair<FString, int32>(TEXT("end"), TargetCount)
+		})
+		{
+			const int32 InsertIndex = Scenario.Value;
+			InsertComparisonResults.Add(MeasureAppendComparison(
+				TEXT("int32"),
+				Scenario.Key,
+				InitialTarget,
+				InsertSource,
+				SampleCount,
+				[&](TArray<int32>& Target, TArray<int32>& Source)
+				{
+					for (int32 SourceIndex = 0; SourceIndex < Source.Num(); ++SourceIndex)
+					{
+						UKismetArrayLibrary::GenericArray_Insert(
+							&Target,
+							ArrayProperty,
+							&Source[SourceIndex],
+							InsertIndex + SourceIndex);
+					}
+				},
+				[&](TArray<int32>& Target, TArray<int32>& Source)
+				{
+					UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+						&Target,
+						ArrayProperty,
+						&Source,
+						ArrayProperty,
+						InsertIndex);
+				}));
+		}
+
+		TArray<int32> RemovalIndices;
+		for (int32 Index = 1; Index < TargetCount; Index += 4)
+		{
+			RemovalIndices.Add(Index);
+		}
+		RemoveIndicesComparisonResults.Add(MeasureAppendComparison(
+			TEXT("int32"),
+			TEXT("every_4"),
+			InitialTarget,
+			RemovalIndices,
+			SampleCount,
+			[&](TArray<int32>& Target, TArray<int32>& Indices)
+			{
+				for (int32 IndexOffset = Indices.Num() - 1; IndexOffset >= 0; --IndexOffset)
+				{
+					UKismetArrayLibrary::GenericArray_Remove(
+						&Target,
+						ArrayProperty,
+						Indices[IndexOffset]);
+				}
+			},
+			[&](TArray<int32>& Target, TArray<int32>& Indices)
+			{
+				UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+					&Target,
+					ArrayProperty,
+					Indices);
+			}));
+	}
+
 	const TArray<FString> RemovalPatterns = {
 		TEXT("no_match"),
 		TEXT("single_tail"),
@@ -837,6 +1157,85 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 			TimeReductionPercent));
 	}
 
+	for (const FAppendComparisonResult& Result : AppendComparisonResults)
+	{
+		if (!Result.bOutputsMatch)
+		{
+			AddError(FString::Printf(
+				TEXT("Append comparison mismatch for %s source=%d scenario=%s"),
+				*Result.ElementType,
+				Result.SourceCount,
+				*Result.Scenario));
+		}
+
+		const double Speedup = Result.AfterMedianMilliseconds > 0.0
+			? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+			: 0.0;
+		const double TimeReductionPercent = Result.BeforeMedianMilliseconds > 0.0
+			? ((Result.BeforeMedianMilliseconds - Result.AfterMedianMilliseconds) / Result.BeforeMedianMilliseconds) * 100.0
+			: 0.0;
+		AddInfo(FString::Printf(
+			TEXT("APPEND_PERF type=%s source=%d initial_target=%d scenario=%s before=%.6fms after=%.6fms speedup=%.3fx reduction=%.2f%%"),
+			*Result.ElementType,
+			Result.SourceCount,
+			Result.InitialTargetCount,
+			*Result.Scenario,
+			Result.BeforeMedianMilliseconds,
+			Result.AfterMedianMilliseconds,
+			Speedup,
+			TimeReductionPercent));
+	}
+
+	for (const FAppendComparisonResult& Result : InsertComparisonResults)
+	{
+		if (!Result.bOutputsMatch)
+		{
+			AddError(FString::Printf(
+				TEXT("Insert comparison mismatch for %s source=%d scenario=%s"),
+				*Result.ElementType,
+				Result.SourceCount,
+				*Result.Scenario));
+		}
+
+		const double Speedup = Result.AfterMedianMilliseconds > 0.0
+			? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+			: 0.0;
+		AddInfo(FString::Printf(
+			TEXT("INSERT_PERF type=%s source=%d initial_target=%d scenario=%s before=%.6fms after=%.6fms speedup=%.3fx"),
+			*Result.ElementType,
+			Result.SourceCount,
+			Result.InitialTargetCount,
+			*Result.Scenario,
+			Result.BeforeMedianMilliseconds,
+			Result.AfterMedianMilliseconds,
+			Speedup));
+	}
+
+	for (const FAppendComparisonResult& Result : RemoveIndicesComparisonResults)
+	{
+		if (!Result.bOutputsMatch)
+		{
+			AddError(FString::Printf(
+				TEXT("Remove At Indices comparison mismatch for %s indices=%d scenario=%s"),
+				*Result.ElementType,
+				Result.SourceCount,
+				*Result.Scenario));
+		}
+
+		const double Speedup = Result.AfterMedianMilliseconds > 0.0
+			? Result.BeforeMedianMilliseconds / Result.AfterMedianMilliseconds
+			: 0.0;
+		AddInfo(FString::Printf(
+			TEXT("REMOVE_INDICES_PERF type=%s indices=%d initial_target=%d scenario=%s before=%.6fms after=%.6fms speedup=%.3fx"),
+			*Result.ElementType,
+			Result.SourceCount,
+			Result.InitialTargetCount,
+			*Result.Scenario,
+			Result.BeforeMedianMilliseconds,
+			Result.AfterMedianMilliseconds,
+			Speedup));
+	}
+
 	TMap<FString, double> BaselineMedians;
 	FString BaselinePath;
 	if (!LoadBaseline(BaselineMedians, BaselinePath))
@@ -881,5 +1280,28 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	TestTrue(
 		FString::Printf(TEXT("Remove All comparison results saved to %s"), *ComparisonOutputPath),
 		FFileHelper::SaveStringToFile(ComparisonCsv, *ComparisonOutputPath));
+
+	const FString AppendComparisonOutputPath = GetAppendComparisonOutputPath();
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(AppendComparisonOutputPath), true);
+	const FString AppendComparisonCsv = BuildAppendComparisonCsv(AppendComparisonResults);
+	TestTrue(
+		FString::Printf(TEXT("Append comparison results saved to %s"), *AppendComparisonOutputPath),
+		FFileHelper::SaveStringToFile(AppendComparisonCsv, *AppendComparisonOutputPath));
+
+	const FString InsertComparisonOutputPath = GetInsertComparisonOutputPath();
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(InsertComparisonOutputPath), true);
+	TestTrue(
+		FString::Printf(TEXT("Insert comparison results saved to %s"), *InsertComparisonOutputPath),
+		FFileHelper::SaveStringToFile(
+			BuildAppendComparisonCsv(InsertComparisonResults),
+			*InsertComparisonOutputPath));
+
+	const FString RemoveIndicesComparisonOutputPath = GetRemoveIndicesComparisonOutputPath();
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(RemoveIndicesComparisonOutputPath), true);
+	TestTrue(
+		FString::Printf(TEXT("Remove At Indices comparison results saved to %s"), *RemoveIndicesComparisonOutputPath),
+		FFileHelper::SaveStringToFile(
+			BuildAppendComparisonCsv(RemoveIndicesComparisonResults),
+			*RemoveIndicesComparisonOutputPath));
 	return !HasAnyErrors();
 }

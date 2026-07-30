@@ -52,6 +52,20 @@ struct TStructOpsTypeTraits<FDirectiveUtilCollisionValue> : TStructOpsTypeTraits
 	};
 };
 
+USTRUCT()
+struct FDirectiveUtilPodValue
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Index;
+
+	UPROPERTY()
+	float Weight;
+};
+
+static_assert(TIsPODType<FDirectiveUtilPodValue>::Value);
+
 UCLASS()
 class UDirectiveUtilTestObject : public UObject
 {
@@ -75,6 +89,9 @@ public:
 
 	UPROPERTY()
 	TArray<FDirectiveUtilCollisionValue> TestCollisionArray;
+
+	UPROPERTY()
+	TArray<FDirectiveUtilPodValue> TestPodArray;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> TestObjectArray;

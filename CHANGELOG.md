@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `Append Array Optimized`, a wildcard array node that bulk-copies plain-data elements and retains Unreal's property-aware path for managed values.
+- Added `Insert Array Optimized`, a wildcard array node that inserts a source array with one structural move.
+- Added `Remove At Indices`, a stable wildcard array node that removes multiple indices in one pass.
 - Added `Remove All Occurrences`, a stable wildcard array node that removes matching values in one pass, with same-build comparisons against Unreal's `Remove Item`.
 - Added keyed runtime stopwatches for measuring elapsed real time in milliseconds from Blueprints.
 

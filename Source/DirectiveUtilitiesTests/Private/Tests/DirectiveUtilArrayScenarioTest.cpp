@@ -733,6 +733,16 @@ bool FDirectiveUtilArrayDeterministicFuzzTest::RunTest(const FString& Parameters
 			TestEqual(Label + TEXT(" RemoveAllOccurrences result"), bRemoved, ExpectedRemoved.Num() != Source.Num());
 			TestEqual(Label + TEXT(" RemoveAllOccurrences values"), TestObject->TestArray, ExpectedRemoved);
 
+			TArray<int32> ExpectedAppended = Source;
+			ExpectedAppended.Append(Source);
+			TestObject->TestArray = Source;
+			UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+				&TestObject->TestArray,
+				ArrayProperty,
+				&TestObject->TestArray,
+				ArrayProperty);
+			TestEqual(Label + TEXT(" AppendOptimized self append"), TestObject->TestArray, ExpectedAppended);
+
 			for (const int32 Shift : {MIN_int32, -ItemCount - 1, -1, 0, 1, ItemCount + 1, MAX_int32})
 			{
 				TestObject->TestArray = Source;

@@ -54,6 +54,24 @@ public:
 	static void Array_RemoveDuplicates(UPARAM(ref) TArray<int32>& TargetArray);
 
 	/**
+	 * Appends every source element to the target array.
+	 * @param TargetArray - The array to append to.
+	 * @param SourceArray - The array to append.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Append Array Optimized", CompactNodeTitle = "APPEND", Keywords = "append merge concatenate bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray"), Category="Directive Utilities|Array")
+	static void Array_AppendOptimized(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& SourceArray);
+
+	/**
+	 * Inserts every source element into the target array at the given index.
+	 * @param TargetArray - The array to insert into.
+	 * @param SourceArray - The array to insert.
+	 * @param Index - The index at which to insert the source array.
+	 * @returns True if one or more elements were inserted.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Insert Array Optimized", CompactNodeTitle = "INSERT ARRAY", Keywords = "insert splice merge bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray"), Category="Directive Utilities|Array")
+	static bool Array_InsertOptimized(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& SourceArray, const int32 Index);
+
+	/**
 	 * Returns a copy of the first element of the array.
 	 * @param TargetArray - The array to read from.
 	 * @param OutItem - [out] A copy of the first element, or the default value if the array is empty.
@@ -126,6 +144,16 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Swap", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
 	static bool Array_RemoveAtSwap(UPARAM(ref) TArray<int32>& TargetArray, const int32 Index);
+
+	/**
+	 * Removes the elements at the given indices while preserving the order of the remaining elements.
+	 * Duplicate and invalid indices are ignored.
+	 * @param TargetArray - The array to remove from.
+	 * @param Indices - The indices to remove.
+	 * @returns The number of elements removed.
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Indices", CompactNodeTitle = "REMOVE INDICES", Keywords = "remove delete batch multiple", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
+	static int32 Array_RemoveAtIndices(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& Indices);
 
 	/**
 	 * Removes every matching item while preserving the order of the remaining elements.
@@ -257,6 +285,8 @@ public:
 	static int32 GenericArray_NextIndex(const void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index, bool bLoop);
 	static int32 GenericArray_PreviousIndex(const void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index, bool bLoop);
 	static void GenericArray_RemoveDuplicates(void* TargetArray, const FArrayProperty* ArrayProperty);
+	static void GenericArray_AppendOptimized(void* TargetArray, const FArrayProperty* TargetArrayProperty, const void* SourceArray, const FArrayProperty* SourceArrayProperty);
+	static bool GenericArray_InsertOptimized(void* TargetArray, const FArrayProperty* TargetArrayProperty, const void* SourceArray, const FArrayProperty* SourceArrayProperty, int32 Index);
 	static bool GenericArray_GetItemAtIndex(const void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index, void* OutItemPtr);
 	static bool GenericArray_GetFirstItem(const void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
 	static bool GenericArray_GetLastItem(const void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
@@ -264,6 +294,7 @@ public:
 	static bool GenericArray_Pop(void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
 	static bool GenericArray_PopFirst(void* TargetArray, const FArrayProperty* ArrayProperty, void* OutItemPtr);
 	static bool GenericArray_RemoveAtSwap(void* TargetArray, const FArrayProperty* ArrayProperty, int32 Index);
+	static int32 GenericArray_RemoveAtIndices(void* TargetArray, const FArrayProperty* ArrayProperty, const TArray<int32>& Indices);
 	static bool GenericArray_RemoveAllOccurrences(void* TargetArray, const FArrayProperty* ArrayProperty, const void* Item);
 	static void GenericArray_Slice(const void* TargetArray, const FArrayProperty* TargetArrayProperty, int32 StartIndex, int32 Count, void* OutArray, const FArrayProperty* OutArrayProperty);
 	static void GenericArray_Rotate(void* TargetArray, const FArrayProperty* ArrayProperty, int32 Shift);
@@ -334,6 +365,78 @@ public:
 		P_NATIVE_BEGIN;
 		MARK_PROPERTY_DIRTY(Stack.Object, ArrayProperty);
 		GenericArray_RemoveDuplicates(ArrayAddr, ArrayProperty);
+		P_NATIVE_END;
+	}
+
+	DECLARE_FUNCTION(execArray_AppendOptimized)
+	{
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		void* TargetArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* TargetArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!TargetArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		const void* SourceArrayAddr = Stack.MostRecentPropertyAddress;
+		const FArrayProperty* SourceArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!SourceArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		P_FINISH;
+		P_NATIVE_BEGIN;
+		MARK_PROPERTY_DIRTY(Stack.Object, TargetArrayProperty);
+		GenericArray_AppendOptimized(
+			TargetArrayAddr,
+			TargetArrayProperty,
+			SourceArrayAddr,
+			SourceArrayProperty);
+		P_NATIVE_END;
+	}
+
+	DECLARE_FUNCTION(execArray_InsertOptimized)
+	{
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		void* TargetArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* TargetArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!TargetArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		const void* SourceArrayAddr = Stack.MostRecentPropertyAddress;
+		const FArrayProperty* SourceArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!SourceArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+
+		P_GET_PROPERTY(FIntProperty, Index);
+		P_FINISH;
+		P_NATIVE_BEGIN;
+		const bool bInserted = GenericArray_InsertOptimized(
+			TargetArrayAddr,
+			TargetArrayProperty,
+			SourceArrayAddr,
+			SourceArrayProperty,
+			Index);
+		if (bInserted)
+		{
+			MARK_PROPERTY_DIRTY(Stack.Object, TargetArrayProperty);
+		}
+		*static_cast<bool*>(RESULT_PARAM) = bInserted;
 		P_NATIVE_END;
 	}
 
@@ -641,6 +744,29 @@ public:
 		P_NATIVE_BEGIN;
 		MARK_PROPERTY_DIRTY(Stack.Object, ArrayProperty);
 		*static_cast<bool*>(RESULT_PARAM) = GenericArray_RemoveAtSwap(ArrayAddr, ArrayProperty, Index);
+		P_NATIVE_END;
+	}
+
+	DECLARE_FUNCTION(execArray_RemoveAtIndices)
+	{
+		Stack.MostRecentProperty = nullptr;
+		Stack.StepCompiledIn<FArrayProperty>(nullptr);
+		void* ArrayAddr = Stack.MostRecentPropertyAddress;
+		FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Stack.MostRecentProperty);
+		if (!ArrayProperty)
+		{
+			Stack.bArrayContextFailed = true;
+			return;
+		}
+		P_GET_TARRAY_REF(int32, Indices);
+		P_FINISH;
+		P_NATIVE_BEGIN;
+		const int32 RemovedCount = GenericArray_RemoveAtIndices(ArrayAddr, ArrayProperty, Indices);
+		if (RemovedCount > 0)
+		{
+			MARK_PROPERTY_DIRTY(Stack.Object, ArrayProperty);
+		}
+		*static_cast<int32*>(RESULT_PARAM) = RemovedCount;
 		P_NATIVE_END;
 	}
 

@@ -40,6 +40,12 @@ $ComparisonFile = if ($OutputDirectory) {
 } else {
     Join-Path (Get-Location) $ComparisonFileName
 }
+$AppendComparisonFileName = "$([System.IO.Path]::GetFileNameWithoutExtension($OutputFile))-append-comparison.csv"
+$AppendComparisonFile = if ($OutputDirectory) {
+    Join-Path $OutputDirectory $AppendComparisonFileName
+} else {
+    Join-Path (Get-Location) $AppendComparisonFileName
+}
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $Revision = ""
 if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -54,6 +60,7 @@ $Arguments = @(
     '-TestExit=Automation Test Queue Empty',
     "-DirectiveUtilitiesPerfOutput=$OutputFile",
     "-DirectiveUtilitiesPerfComparisonOutput=$ComparisonFile",
+    "-DirectiveUtilitiesPerfAppendComparisonOutput=$AppendComparisonFile",
     "-DirectiveUtilitiesPerfRevision=$Revision",
     "-abslog=$LogFile",
     '-unattended',
@@ -76,10 +83,14 @@ if (-not (Test-Path $OutputFile -PathType Leaf)) {
 if (-not (Test-Path $ComparisonFile -PathType Leaf)) {
     throw "Remove All comparison results were not generated: $ComparisonFile"
 }
+if (-not (Test-Path $AppendComparisonFile -PathType Leaf)) {
+    throw "Append comparison results were not generated: $AppendComparisonFile"
+}
 if (-not (Select-String -Path $LogFile -Pattern 'Test Completed\. Result=\{Success\} Name=\{Runtime\} Path=\{Performance\.DirectiveUtilities\.Runtime\}' -Quiet)) {
     throw "Runtime performance suite did not complete successfully. Log: $LogFile"
 }
 
 Write-Host "Runtime performance results: $OutputFile"
 Write-Host "Remove All comparison results: $ComparisonFile"
+Write-Host "Append comparison results: $AppendComparisonFile"
 Write-Host "Automation log: $LogFile"

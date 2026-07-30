@@ -7,14 +7,12 @@ public class DirectiveUtilitiesRuntimeHostTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.Latest;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
-		bBuildDeveloperTools = true;
-		bForceCompileDevelopmentAutomationTests = true;
-		ExtraModuleNames.AddRange(
-			new string[]
-			{
-				"DirectiveUtilitiesRuntimeHost",
-				"DirectiveUtilitiesRuntimeHostTests"
-			}
-		);
+		ExtraModuleNames.Add("DirectiveUtilitiesRuntimeHost");
+		if (Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			bBuildDeveloperTools = true;
+			bForceCompileDevelopmentAutomationTests = true;
+			ExtraModuleNames.Add("DirectiveUtilitiesRuntimeHostTests");
+		}
 	}
 }

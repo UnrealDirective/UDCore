@@ -1,6 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$EngineRoot
+    [string]$EngineRoot,
+
+    [ValidateSet("Development", "Shipping")]
+    [string]$ClientConfiguration = "Development"
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +21,7 @@ $RuntimeTestModule = Join-Path $ProjectRoot "Source\DirectiveUtilitiesRuntimeHos
 $RuntimeTestSourceRoot = Join-Path $RepositoryRoot "Source\DirectiveUtilitiesTests"
 $ArchiveRoot = Join-Path $WorkRoot "Archive"
 $ReportRoot = Join-Path $WorkRoot "Reports"
+$PerformanceRoot = Join-Path $WorkRoot "Performance"
 $BuildScript = Join-Path $EngineRoot "Engine\Build\BatchFiles\Build.bat"
 $RunUAT = Join-Path $EngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
 $EditorCommand = Join-Path $EngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
@@ -86,7 +90,7 @@ $PackageArguments = @(
     "-project=$ProjectFile",
     '-noP4',
     '-platform=Win64',
-    '-clientconfig=Development',
+    "-clientconfig=$ClientConfiguration",
     '-build',
     '-cook',
     '-stage',
@@ -103,7 +107,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Packaged game build failed."
 }
 
-$GameCommand = Get-ChildItem $ArchiveRoot -Filter "DirectiveUtilitiesRuntimeHost.exe" -File -Recurse |
+$GameCommand = Get-ChildItem $ArchiveRoot -Filter "DirectiveUtilitiesRuntimeHost*.exe" -File -Recurse |
     Where-Object { $_.DirectoryName -like "*\Binaries\Win64" } |
     Select-Object -First 1
 if (-not $GameCommand) {
@@ -112,8 +116,6 @@ if (-not $GameCommand) {
 
 $GameLog = Join-Path $WorkRoot "GameTests.log"
 $GameArguments = @(
-    '-ExecCmds=Automation RunTests DirectiveUtilities; Quit',
-    '-TestExit=Automation Test Queue Empty',
     "-abslog=$GameLog",
     '-unattended',
     '-nop4',
@@ -121,6 +123,26 @@ $GameArguments = @(
     '-nosound',
     '-NullRHI'
 )
+if ($ClientConfiguration -eq "Shipping") {
+    New-Item $PerformanceRoot -ItemType Directory -Force | Out-Null
+    $AppendOutput = Join-Path $PerformanceRoot "shipping-append-comparison.csv"
+    $Revision = ""
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $Revision = (& git -C $RepositoryRoot rev-parse HEAD 2>$null)
+        if ($Revision -and (& git -C $RepositoryRoot status --porcelain 2>$null)) {
+            $Revision = "$Revision-dirty"
+        }
+    }
+    $GameArguments += @(
+        "-DirectiveUtilitiesAppendShippingBenchmarkOutput=$AppendOutput",
+        "-DirectiveUtilitiesPerfRevision=$Revision"
+    )
+} else {
+    $GameArguments += @(
+        '-ExecCmds=Automation RunTests DirectiveUtilities; Quit',
+        '-TestExit=Automation Test Queue Empty'
+    )
+}
 $GameCommandPath = $GameCommand.FullName
 $GameArgumentLine = ($GameArguments | ForEach-Object { '"{0}"' -f $_ }) -join ' '
 $GameProcess = Start-Process `
@@ -133,7 +155,7 @@ if ($GameProcess.ExitCode -ne 0) {
     if (Test-Path $GameLog -PathType Leaf) {
         Get-Content $GameLog -Tail 100
     }
-    throw "Packaged game automation tests failed. Log: $GameLog"
+    throw "Packaged game failed. Log: $GameLog"
 }
 
 $EditorReportPath = Join-Path $ReportRoot "Editor\index.json"
@@ -146,14 +168,32 @@ if ($EditorReport.failed -ne 0 -or $EditorReport.notRun -ne 0) {
     throw "Editor automation tests failed. Report: $EditorReportPath"
 }
 
-if (-not (Test-Path $GameLog -PathType Leaf)) {
-    throw "Packaged game automation log was not generated: $GameLog"
+if ($ClientConfiguration -eq "Shipping") {
+    if (-not (Test-Path $AppendOutput -PathType Leaf)) {
+        throw "Packaged Shipping append result was not generated: $AppendOutput"
+    }
+    if (-not (Select-String -Path $AppendOutput -Pattern '^#configuration,Shipping$' -Quiet)) {
+        throw "Packaged benchmark did not report a Shipping configuration: $AppendOutput"
+    }
+    foreach ($ElementType in @("bool", "int32", "float", "FVector", "FString", "UObject")) {
+        if ((Select-String -Path $AppendOutput -Pattern "^$ElementType,").Count -ne 10) {
+            throw "Packaged benchmark did not report all $ElementType scenarios: $AppendOutput"
+        }
+    }
+} else {
+    if (-not (Test-Path $GameLog -PathType Leaf)) {
+        throw "Packaged game automation log was not generated: $GameLog"
+    }
+    if (-not (Select-String -Path $GameLog -Pattern 'TEST COMPLETE\. EXIT CODE: 0' -Quiet)) {
+        throw "Packaged game automation did not finish cleanly. Log: $GameLog"
+    }
 }
 
-if (-not (Select-String -Path $GameLog -Pattern 'TEST COMPLETE\. EXIT CODE: 0' -Quiet)) {
-    throw "Packaged game automation did not finish cleanly. Log: $GameLog"
-}
-
-Write-Host "Editor and packaged game tests passed for $EngineVersion."
 Write-Host "Reports: $ReportRoot"
-Write-Host "Packaged game log: $GameLog"
+if ($ClientConfiguration -eq "Shipping") {
+    Write-Host "Editor tests and packaged Shipping benchmark passed for $EngineVersion."
+    Write-Host "Shipping performance results: $PerformanceRoot"
+} else {
+    Write-Host "Editor and packaged game tests passed for $EngineVersion."
+    Write-Host "Packaged game log: $GameLog"
+}

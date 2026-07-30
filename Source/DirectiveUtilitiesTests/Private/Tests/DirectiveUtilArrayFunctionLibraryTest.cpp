@@ -42,6 +42,22 @@ namespace
 		}
 		return Result;
 	}
+
+	TArray<int32> BuildReferenceRemoval(
+		const TArray<int32>& Values,
+		const TArray<int32>& Indices)
+	{
+		TArray<int32> Result;
+		Result.Reserve(Values.Num());
+		for (int32 Index = 0; Index < Values.Num(); ++Index)
+		{
+			if (!Indices.Contains(Index))
+			{
+				Result.Add(Values[Index]);
+			}
+		}
+		return Result;
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDirectiveUtilArrayFunctionLibraryTest, "DirectiveUtilities.ArrayFunctionLibraryTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
@@ -213,6 +229,196 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToRemove));
 	TestTrue("RemoveAllOccurrences should leave an all-matching array empty", TestObject->TestArray.IsEmpty());
 
+	TestObject->TestArray = {0, 1, 2, 3, 4, 5, 6};
+	TestEqual(
+		"RemoveAtIndices should remove each valid index once",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestArray,
+			ArrayProperty,
+			TArray<int32>({5, 1, 5, -1, 99, 3})),
+		3);
+	TestEqual(
+		"RemoveAtIndices should preserve survivor order",
+		TestObject->TestArray,
+		TArray<int32>({0, 2, 4, 6}));
+
+	const TArray<int32> BeforeInvalidIndices = TestObject->TestArray;
+	TestEqual(
+		"RemoveAtIndices should report zero for invalid indices",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestArray,
+			ArrayProperty,
+			TArray<int32>({-5, 10, 10})),
+		0);
+	TestEqual(
+		"RemoveAtIndices should not modify the target when no indices are valid",
+		TestObject->TestArray,
+		BeforeInvalidIndices);
+
+	TestObject->TestArray = {10, 20, 30};
+	TestEqual(
+		"RemoveAtIndices should remove the full array",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestArray,
+			ArrayProperty,
+			TArray<int32>({2, 0, 1, 1})),
+		3);
+	TestTrue("RemoveAtIndices should leave the array empty when every index is removed", TestObject->TestArray.IsEmpty());
+
+	TestObject->TestArray = {0, 2, 4};
+	TestEqual(
+		"RemoveAtIndices should support using the target array as the index array",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestArray,
+			ArrayProperty,
+			TestObject->TestArray),
+		2);
+	TestEqual(
+		"RemoveAtIndices should read aliased indices before modifying the target",
+		TestObject->TestArray,
+		TArray<int32>({2}));
+
+	TestTrue("Integer arrays should use the bulk append path", ArrayProperty->Inner->HasAnyPropertyFlags(CPF_IsPlainOldData));
+	const TArray<int32> IntegerAppendSource = {3, 4, 5};
+	TestObject->TestArray = {1, 2};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestArray,
+		ArrayProperty,
+		&IntegerAppendSource,
+		ArrayProperty);
+	TestEqual(
+		"AppendOptimized should append POD values in order",
+		TestObject->TestArray,
+		TArray<int32>({1, 2, 3, 4, 5}));
+	TestEqual(
+		"AppendOptimized should not modify the source array",
+		IntegerAppendSource,
+		TArray<int32>({3, 4, 5}));
+
+	TestObject->TestArray.Empty();
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestArray,
+		ArrayProperty,
+		&IntegerAppendSource,
+		ArrayProperty);
+	TestEqual(
+		"AppendOptimized should append into an empty target array",
+		TestObject->TestArray,
+		IntegerAppendSource);
+
+	const TArray<int32> EmptyAppendSource;
+	const TArray<int32> BeforeEmptyAppend = TestObject->TestArray;
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestArray,
+		ArrayProperty,
+		&EmptyAppendSource,
+		ArrayProperty);
+	TestEqual("AppendOptimized should ignore an empty source array", TestObject->TestArray, BeforeEmptyAppend);
+
+	TestObject->TestArray = {7, 8, 9};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestArray,
+		ArrayProperty,
+		&TestObject->TestArray,
+		ArrayProperty);
+	TestEqual(
+		"AppendOptimized should support appending an array to itself",
+		TestObject->TestArray,
+		TArray<int32>({7, 8, 9, 7, 8, 9}));
+
+	const TArray<int32> IntegerInsertSource = {7, 8};
+	TestObject->TestArray = {1, 2, 3};
+	TestTrue(
+		"InsertOptimized should insert POD values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&IntegerInsertSource,
+			ArrayProperty,
+			1));
+	TestEqual(
+		"InsertOptimized should preserve target and source order",
+		TestObject->TestArray,
+		TArray<int32>({1, 7, 8, 2, 3}));
+	TestEqual(
+		"InsertOptimized should not modify the source array",
+		IntegerInsertSource,
+		TArray<int32>({7, 8}));
+
+	TestObject->TestArray = {1, 2, 3};
+	TestTrue(
+		"InsertOptimized should insert at the front",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&IntegerInsertSource,
+			ArrayProperty,
+			0));
+	TestEqual(
+		"InsertOptimized should preserve order at the front",
+		TestObject->TestArray,
+		TArray<int32>({7, 8, 1, 2, 3}));
+
+	TestObject->TestArray = {1, 2, 3};
+	TestTrue(
+		"InsertOptimized should insert at the end",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&IntegerInsertSource,
+			ArrayProperty,
+			TestObject->TestArray.Num()));
+	TestEqual(
+		"InsertOptimized should preserve order at the end",
+		TestObject->TestArray,
+		TArray<int32>({1, 2, 3, 7, 8}));
+
+	const TArray<int32> EmptyInsertSource;
+	const TArray<int32> BeforeEmptyInsert = TestObject->TestArray;
+	TestFalse(
+		"InsertOptimized should report an empty source",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&EmptyInsertSource,
+			ArrayProperty,
+			1));
+	TestEqual("InsertOptimized should ignore an empty source", TestObject->TestArray, BeforeEmptyInsert);
+
+	TestFalse(
+		"InsertOptimized should reject a negative index",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&IntegerInsertSource,
+			ArrayProperty,
+			-1));
+	TestEqual("InsertOptimized should not modify the target for a negative index", TestObject->TestArray, BeforeEmptyInsert);
+
+	TestFalse(
+		"InsertOptimized should reject an index beyond the array end",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&IntegerInsertSource,
+			ArrayProperty,
+			TestObject->TestArray.Num() + 1));
+	TestEqual("InsertOptimized should not modify the target for a large index", TestObject->TestArray, BeforeEmptyInsert);
+
+	TestObject->TestArray = {4, 5, 6};
+	TestTrue(
+		"InsertOptimized should support inserting an array into itself",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestArray,
+			ArrayProperty,
+			&TestObject->TestArray,
+			ArrayProperty,
+			1));
+	TestEqual(
+		"InsertOptimized should preserve self-inserted values",
+		TestObject->TestArray,
+		TArray<int32>({4, 4, 5, 6, 5, 6}));
+
 	TestObject->TestArray = {1, 2, 2, 3, 1, 4};
 	UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveDuplicates(&TestObject->TestArray, ArrayProperty);
 	TestEqual("RemoveDuplicates should remove all duplicate entries", TestObject->TestArray.Num(), 4);
@@ -303,9 +509,12 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 
 	const TArray<FName> MutatingFunctions = {
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveDuplicates),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_AppendOptimized),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_InsertOptimized),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Pop),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_PopFirst),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtSwap),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtIndices),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAllOccurrences),
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Rotate)
 	};
@@ -694,6 +903,9 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	FArrayProperty* CollisionArrayProperty = FindFProperty<FArrayProperty>(
 		UDirectiveUtilTestObject::StaticClass(),
 		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestCollisionArray));
+	FArrayProperty* PodArrayProperty = FindFProperty<FArrayProperty>(
+		UDirectiveUtilTestObject::StaticClass(),
+		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestPodArray));
 	FArrayProperty* ObjectArrayProperty = FindFProperty<FArrayProperty>(
 		UDirectiveUtilTestObject::StaticClass(),
 		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestObjectArray));
@@ -701,7 +913,154 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	TestNotNull("Text array property should be available", TextArrayProperty);
 	TestNotNull("Boolean array property should be available", BoolArrayProperty);
 	TestNotNull("Collision array property should be available", CollisionArrayProperty);
+	TestNotNull("POD struct array property should be available", PodArrayProperty);
 	TestNotNull("Object array property should be available", ObjectArrayProperty);
+
+	TestFalse("String arrays should use the property-aware append path", StringArrayProperty->Inner->HasAnyPropertyFlags(CPF_IsPlainOldData));
+	const TArray<FString> StringAppendSource = {TEXT("Three"), TEXT("Four")};
+	TestObject->TestStringArray = {TEXT("One"), TEXT("Two")};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestStringArray,
+		StringArrayProperty,
+		&StringAppendSource,
+		StringArrayProperty);
+	TestEqual(
+		"AppendOptimized should preserve non-trivial values",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("One"), TEXT("Two"), TEXT("Three"), TEXT("Four")}));
+
+	TestObject->TestStringArray = {TEXT("Alpha"), TEXT("Beta")};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestStringArray,
+		StringArrayProperty,
+		&TestObject->TestStringArray,
+		StringArrayProperty);
+	TestEqual(
+		"AppendOptimized should support self-appending non-trivial values",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("Alpha"), TEXT("Beta"), TEXT("Alpha"), TEXT("Beta")}));
+
+	const TArray<FString> StringInsertSource = {TEXT("Two"), TEXT("Three")};
+	TestObject->TestStringArray = {TEXT("One"), TEXT("Four")};
+	TestTrue(
+		"InsertOptimized should support non-trivial values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			&StringInsertSource,
+			StringArrayProperty,
+			1));
+	TestEqual(
+		"InsertOptimized should preserve non-trivial value order",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("One"), TEXT("Two"), TEXT("Three"), TEXT("Four")}));
+
+	TestObject->TestStringArray = {TEXT("Alpha"), TEXT("Beta"), TEXT("Gamma")};
+	TestTrue(
+		"InsertOptimized should self-insert non-trivial values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			2));
+	TestEqual(
+		"InsertOptimized should preserve self-inserted non-trivial values",
+		TestObject->TestStringArray,
+		TArray<FString>({
+			TEXT("Alpha"),
+			TEXT("Beta"),
+			TEXT("Alpha"),
+			TEXT("Beta"),
+			TEXT("Gamma"),
+			TEXT("Gamma")
+		}));
+
+	TestObject->TestStringArray = {
+		TEXT("Zero"),
+		TEXT("One"),
+		TEXT("Two"),
+		TEXT("Three"),
+		TEXT("Four")
+	};
+	TestEqual(
+		"RemoveAtIndices should remove non-trivial values",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			TArray<int32>({3, 1, 3})),
+		2);
+	TestEqual(
+		"RemoveAtIndices should preserve non-trivial survivor order",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("Zero"), TEXT("Two"), TEXT("Four")}));
+
+	const TArray<bool> BoolAppendSource = {false, true, false};
+	TestObject->TestBoolArray = {true};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestBoolArray,
+		BoolArrayProperty,
+		&BoolAppendSource,
+		BoolArrayProperty);
+	TestEqual(
+		"AppendOptimized should preserve Boolean values",
+		TestObject->TestBoolArray,
+		TArray<bool>({true, false, true, false}));
+
+	TestObject->TestBoolArray = {true, false, false};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestBoolArray,
+		BoolArrayProperty,
+		&TestObject->TestBoolArray,
+		BoolArrayProperty);
+	TestEqual(
+		"AppendOptimized should support self-appending Boolean values",
+		TestObject->TestBoolArray,
+		TArray<bool>({true, false, false, true, false, false}));
+
+	auto MakePodValue = [](const int32 Index, const float Weight)
+	{
+		FDirectiveUtilPodValue Value;
+		Value.Index = Index;
+		Value.Weight = Weight;
+		return Value;
+	};
+	TestTrue("POD struct arrays should use the bulk append path", PodArrayProperty->Inner->HasAnyPropertyFlags(CPF_IsPlainOldData));
+	const TArray<FDirectiveUtilPodValue> PodAppendSource = {
+		MakePodValue(2, 2.5f),
+		MakePodValue(3, 3.5f)
+	};
+	TestObject->TestPodArray = {MakePodValue(1, 1.5f)};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestPodArray,
+		PodArrayProperty,
+		&PodAppendSource,
+		PodArrayProperty);
+	TestEqual("AppendOptimized should append POD structs", TestObject->TestPodArray.Num(), 3);
+	for (int32 Index = 0; Index < TestObject->TestPodArray.Num(); ++Index)
+	{
+		TestEqual("AppendOptimized should preserve POD struct indices", TestObject->TestPodArray[Index].Index, Index + 1);
+		TestEqual("AppendOptimized should preserve POD struct weights", TestObject->TestPodArray[Index].Weight, static_cast<float>(Index) + 1.5f);
+	}
+	TestEqual("AppendOptimized should not modify the POD struct source", PodAppendSource.Num(), 2);
+	if (PodAppendSource.Num() == 2)
+	{
+		TestEqual("AppendOptimized should preserve the first POD source index", PodAppendSource[0].Index, 2);
+		TestEqual("AppendOptimized should preserve the second POD source index", PodAppendSource[1].Index, 3);
+	}
+
+	TestObject->TestPodArray = {MakePodValue(4, 4.5f), MakePodValue(5, 5.5f)};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestPodArray,
+		PodArrayProperty,
+		&TestObject->TestPodArray,
+		PodArrayProperty);
+	TestEqual("AppendOptimized should self-append POD structs", TestObject->TestPodArray.Num(), 4);
+	if (TestObject->TestPodArray.Num() == 4)
+	{
+		TestEqual("AppendOptimized should preserve the first self-appended POD struct", TestObject->TestPodArray[2].Index, 4);
+		TestEqual("AppendOptimized should preserve the second self-appended POD struct", TestObject->TestPodArray[3].Index, 5);
+	}
 
 	TestObject->TestStringArray = {TEXT("Zero"), TEXT("Selected"), TEXT("Never")};
 	TArray<FString> WeightedStrings;
@@ -759,6 +1118,21 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 	UObject* FirstObject = NewObject<UDirectiveUtilTestObject>(TestObject);
 	UObject* SecondObject = NewObject<UDirectiveUtilTestObject>(TestObject);
 	UObject* ThirdObject = NewObject<UDirectiveUtilTestObject>(TestObject);
+	const TArray<TObjectPtr<UObject>> ObjectAppendSource = {SecondObject, ThirdObject};
+	TestObject->TestObjectArray = {FirstObject};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestObjectArray,
+		ObjectArrayProperty,
+		&ObjectAppendSource,
+		ObjectArrayProperty);
+	TestEqual("AppendOptimized should preserve object references", TestObject->TestObjectArray.Num(), 3);
+	if (TestObject->TestObjectArray.Num() == 3)
+	{
+		TestEqual("AppendOptimized should retain the target object", TestObject->TestObjectArray[0].Get(), FirstObject);
+		TestEqual("AppendOptimized should append the first source object", TestObject->TestObjectArray[1].Get(), SecondObject);
+		TestEqual("AppendOptimized should append the second source object", TestObject->TestObjectArray[2].Get(), ThirdObject);
+	}
+
 	TestObject->TestObjectArray = {FirstObject, SecondObject, FirstObject};
 	UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveDuplicates(&TestObject->TestObjectArray, ObjectArrayProperty);
 	TestEqual("RemoveDuplicates should preserve object references", TestObject->TestObjectArray.Num(), 2);
@@ -806,7 +1180,45 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 			&NullObject));
 	TestEqual("RemoveAllOccurrences should leave the non-null object", TestObject->TestObjectArray.Num(), 1);
 
+	TestObject->TestObjectArray = {FirstObject, nullptr, SecondObject, ThirdObject};
+	TestEqual(
+		"RemoveAtIndices should preserve object references",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestObjectArray,
+			ObjectArrayProperty,
+			TArray<int32>({1, 3})),
+		2);
+	TestEqual("RemoveAtIndices should retain two object references", TestObject->TestObjectArray.Num(), 2);
+	if (TestObject->TestObjectArray.Num() == 2)
+	{
+		TestEqual("RemoveAtIndices should retain the first object", TestObject->TestObjectArray[0].Get(), FirstObject);
+		TestEqual("RemoveAtIndices should retain the second object", TestObject->TestObjectArray[1].Get(), SecondObject);
+	}
+
 	TestObject->TestStringArray = {TEXT("unchanged")};
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+		&TestObject->TestStringArray,
+		StringArrayProperty,
+		&TestObject->TestArray,
+		ArrayProperty);
+	TestEqual(
+		"AppendOptimized should reject mismatched array types without changing the target",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("unchanged")}));
+
+	TestFalse(
+		"InsertOptimized should reject mismatched array types",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+			&TestObject->TestStringArray,
+			StringArrayProperty,
+			&TestObject->TestArray,
+			ArrayProperty,
+			0));
+	TestEqual(
+		"InsertOptimized should not change a target with a mismatched source type",
+		TestObject->TestStringArray,
+		TArray<FString>({TEXT("unchanged")}));
+
 	UDirectiveUtilArrayFunctionLibrary::GenericArray_Slice(
 		&TestObject->TestArray,
 		ArrayProperty,
@@ -984,6 +1396,53 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		TestObject->TestArray = SourceValues;
 		UDirectiveUtilArrayFunctionLibrary::GenericArray_GetDistinct(&TestObject->TestArray, ArrayProperty, &DistinctOut, ArrayProperty);
 		TestEqual(FString::Printf(TEXT("GetDistinct fuzz case %d"), Iteration), DistinctOut, ExpectedDistinct);
+
+		TArray<int32> InsertValues;
+		const int32 InsertCount = FuzzStream.RandRange(0, 32);
+		InsertValues.Reserve(InsertCount);
+		for (int32 Index = 0; Index < InsertCount; ++Index)
+		{
+			InsertValues.Add(FuzzStream.RandRange(-20, 20));
+		}
+		const int32 InsertIndex = FuzzStream.RandRange(0, SourceValues.Num());
+		TArray<int32> ExpectedInsert = SourceValues;
+		ExpectedInsert.Insert(InsertValues, InsertIndex);
+		TestObject->TestArray = SourceValues;
+		TestEqual(
+			FString::Printf(TEXT("InsertOptimized fuzz result %d"), Iteration),
+			UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+				&TestObject->TestArray,
+				ArrayProperty,
+				&InsertValues,
+				ArrayProperty,
+				InsertIndex),
+			!InsertValues.IsEmpty());
+		TestEqual(
+			FString::Printf(TEXT("InsertOptimized fuzz values %d"), Iteration),
+			TestObject->TestArray,
+			ExpectedInsert);
+
+		TArray<int32> RemovalIndices;
+		const int32 RemovalCount = FuzzStream.RandRange(0, 48);
+		RemovalIndices.Reserve(RemovalCount);
+		for (int32 Index = 0; Index < RemovalCount; ++Index)
+		{
+			RemovalIndices.Add(FuzzStream.RandRange(-8, SourceValues.Num() + 8));
+		}
+		const TArray<int32> ExpectedRemoval = BuildReferenceRemoval(SourceValues, RemovalIndices);
+		TestObject->TestArray = SourceValues;
+		const int32 RemovedCount = UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+			&TestObject->TestArray,
+			ArrayProperty,
+			RemovalIndices);
+		TestEqual(
+			FString::Printf(TEXT("RemoveAtIndices fuzz count %d"), Iteration),
+			RemovedCount,
+			SourceValues.Num() - ExpectedRemoval.Num());
+		TestEqual(
+			FString::Printf(TEXT("RemoveAtIndices fuzz values %d"), Iteration),
+			TestObject->TestArray,
+			ExpectedRemoval);
 	}
 
 	TArray<FString> StableNaturalStrings = {TEXT("ItemA"), TEXT("itema"), TEXT("ItemB"), TEXT("itemb")};

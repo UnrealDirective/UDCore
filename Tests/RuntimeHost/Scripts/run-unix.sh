@@ -2,7 +2,12 @@
 
 set -euo pipefail
 
-ENGINE_ROOT="${1:?Usage: run-unix.sh <engine-root>}"
+ENGINE_ROOT="${1:?Usage: run-unix.sh <engine-root> [Development|Shipping]}"
+CLIENT_CONFIGURATION="${2:-Development}"
+if [[ "$CLIENT_CONFIGURATION" != "Development" ]] && [[ "$CLIENT_CONFIGURATION" != "Shipping" ]]; then
+	echo "Unsupported client configuration: $CLIENT_CONFIGURATION" >&2
+	exit 2
+fi
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_ROOT/../../.." && pwd)"
 ENGINE_VERSION="$(basename "$ENGINE_ROOT")"
@@ -15,6 +20,7 @@ RUNTIME_TEST_MODULE="$PROJECT_ROOT/Source/DirectiveUtilitiesRuntimeHostTests"
 RUNTIME_TEST_SOURCE_ROOT="$REPOSITORY_ROOT/Source/DirectiveUtilitiesTests"
 ARCHIVE_ROOT="$WORK_ROOT/Archive"
 REPORT_ROOT="$WORK_ROOT/Reports"
+PERFORMANCE_ROOT="$WORK_ROOT/Performance"
 
 case "$(uname -s)" in
 	Darwin)
@@ -94,7 +100,7 @@ cp "$RUNTIME_TEST_SOURCE_ROOT/Public/Tests/DirectiveUtilTestObject.h" "$RUNTIME_
 	-project="$PROJECT_FILE" \
 	-noP4 \
 	-platform="$PLATFORM" \
-	-clientconfig=Development \
+	-clientconfig="$CLIENT_CONFIGURATION" \
 	-build \
 	-cook \
 	-stage \
@@ -107,10 +113,24 @@ cp "$RUNTIME_TEST_SOURCE_ROOT/Public/Tests/DirectiveUtilTestObject.h" "$RUNTIME_
 	-utf8output
 
 GAME_LOG="$WORK_ROOT/GameTests.log"
+APPEND_OUTPUT_NAME="shipping-append-comparison.csv"
+REVISION="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$REVISION" ]] && [[ -n "$(git -C "$REPOSITORY_ROOT" status --porcelain 2>/dev/null)" ]]; then
+	REVISION="${REVISION}-dirty"
+fi
+if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+	mkdir -p "$PERFORMANCE_ROOT"
+fi
+
 if [[ "$PLATFORM" == "Mac" ]]; then
-	GAME_APP="$(find "$ARCHIVE_ROOT" -type d -name DirectiveUtilitiesRuntimeHost.app -print -quit)"
+	GAME_APP="$(find "$ARCHIVE_ROOT" -type d -name 'DirectiveUtilitiesRuntimeHost*.app' -print -quit)"
 	if [[ -z "$GAME_APP" ]]; then
 		echo "Packaged game app not found under $ARCHIVE_ROOT" >&2
+		exit 1
+	fi
+	GAME_COMMAND="$GAME_APP/Contents/MacOS/DirectiveUtilitiesRuntimeHost"
+	if [[ ! -x "$GAME_COMMAND" ]]; then
+		echo "Packaged game executable not found in $GAME_APP" >&2
 		exit 1
 	fi
 
@@ -119,19 +139,38 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 	mkdir -p "$MAC_LOG_ROOT"
 	rm -f "$MAC_GAME_LOG"
 
-	open -n -W "$GAME_APP" --args \
-		-ExecCmds="Automation RunTests DirectiveUtilities; Quit" \
-		-TestExit="Automation Test Queue Empty" \
-		-abslog="$MAC_GAME_LOG" \
-		-unattended \
-		-nop4 \
-		-nosplash \
-		-nosound \
+	GAME_ARGUMENTS=(
+		"-abslog=$MAC_GAME_LOG"
+		-unattended
+		-nop4
+		-nosplash
+		-nosound
 		-NullRHI
+	)
+	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+		MAC_APPEND_OUTPUT="$MAC_LOG_ROOT/$APPEND_OUTPUT_NAME"
+		rm -f "$MAC_APPEND_OUTPUT"
+		GAME_ARGUMENTS+=(
+			"-DirectiveUtilitiesAppendShippingBenchmarkOutput=$MAC_APPEND_OUTPUT"
+			"-DirectiveUtilitiesPerfRevision=$REVISION"
+		)
+	else
+		GAME_ARGUMENTS+=(
+			"-ExecCmds=Automation RunTests DirectiveUtilities; Quit"
+			"-TestExit=Automation Test Queue Empty"
+		)
+	fi
+
+	set +e
+	"$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
+	GAME_EXIT_CODE=$?
+	set -e
 	if [[ -f "$MAC_GAME_LOG" ]]; then
 		cp "$MAC_GAME_LOG" "$GAME_LOG"
 	fi
-	GAME_EXIT_CODE=0
+	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+		cp "$MAC_APPEND_OUTPUT" "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"
+	fi
 else
 	GAME_COMMAND="$(find "$ARCHIVE_ROOT" -type f -name DirectiveUtilitiesRuntimeHost -perm -111 -print -quit)"
 	if [[ -z "$GAME_COMMAND" ]]; then
@@ -139,25 +178,57 @@ else
 		exit 1
 	fi
 
+	GAME_ARGUMENTS=(
+		"-abslog=$GAME_LOG"
+		-unattended
+		-nop4
+		-nosplash
+		-nosound
+		-NullRHI
+	)
+	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+		GAME_ARGUMENTS+=(
+			"-DirectiveUtilitiesAppendShippingBenchmarkOutput=$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"
+			"-DirectiveUtilitiesPerfRevision=$REVISION"
+		)
+	else
+		GAME_ARGUMENTS+=(
+			"-ExecCmds=Automation RunTests DirectiveUtilities; Quit"
+			"-TestExit=Automation Test Queue Empty"
+		)
+	fi
+
 	set +e
-	"$GAME_COMMAND" \
-		-ExecCmds="Automation RunTests DirectiveUtilities; Quit" \
-		-TestExit="Automation Test Queue Empty" \
-		-abslog="$GAME_LOG" \
-		-unattended \
-		-nop4 \
-		-nosplash \
-		-nosound \
-		-NullRHI \
-		>/dev/null 2>&1
+	"$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
 	GAME_EXIT_CODE=$?
 	set -e
 fi
 
-if [[ "$GAME_EXIT_CODE" -ne 0 ]] || ! grep -q 'TEST COMPLETE. EXIT CODE: 0' "$GAME_LOG"; then
+if [[ "$GAME_EXIT_CODE" -ne 0 ]]; then
 	if [[ -f "$GAME_LOG" ]]; then
 		tail -n 100 "$GAME_LOG" >&2
 	fi
+	echo "Packaged game failed. Log: $GAME_LOG" >&2
+	exit 1
+fi
+
+if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+	if [[ ! -f "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME" ]] || \
+		! grep -q '#configuration,Shipping' "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"; then
+		if [[ -f "$GAME_LOG" ]]; then
+			tail -n 100 "$GAME_LOG" >&2
+		fi
+		echo "Packaged Shipping append benchmark failed. Log: $GAME_LOG" >&2
+		exit 1
+	fi
+	for ELEMENT_TYPE in bool int32 float FVector FString UObject; do
+		if [[ "$(grep -c "^${ELEMENT_TYPE}," "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME")" -ne 10 ]]; then
+			echo "Packaged Shipping append benchmark is missing $ELEMENT_TYPE scenarios." >&2
+			exit 1
+		fi
+	done
+elif ! grep -q 'TEST COMPLETE. EXIT CODE: 0' "$GAME_LOG"; then
+	tail -n 100 "$GAME_LOG" >&2
 	echo "Packaged game automation failed. Log: $GAME_LOG" >&2
 	exit 1
 fi
@@ -169,6 +240,11 @@ if [[ ! -f "$REPORT_ROOT/Editor/index.json" ]] || \
 	exit 1
 fi
 
-echo "Editor and packaged game tests passed for $ENGINE_VERSION."
 echo "Reports: $REPORT_ROOT"
-echo "Packaged game log: $GAME_LOG"
+if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
+	echo "Editor tests and packaged Shipping benchmark passed for $ENGINE_VERSION."
+	echo "Shipping performance results: $PERFORMANCE_ROOT"
+else
+	echo "Editor and packaged game tests passed for $ENGINE_VERSION."
+	echo "Packaged game log: $GAME_LOG"
+fi
