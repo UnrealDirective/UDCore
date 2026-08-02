@@ -260,6 +260,44 @@ Tests a world-space point against a cone and an optional distance limit.
 
 **Returns:** True when the point lies inside or on the cone and within the enabled distance limit.
 
+## Locations To Transforms
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Transform`
+
+```cpp
+static TArray<FTransform> LocationsToTransforms(const TArray<FVector>& Locations,
+    FRotator Rotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Creates one transform for each location using a shared rotation and scale. The location order is preserved. The output is allocated once, and the shared rotation is converted to a quaternion once.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Locations | `const TArray<FVector>&` | Transform locations in output order. |
+| Rotation | `FRotator` | Rotation applied to every transform. |
+| Scale | `FVector` | Scale applied to every transform. |
+
+**Returns:** One transform per location. An empty location array or any non-finite input returns an empty array.
+
+## Make Transforms From Arrays
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Transform`
+
+```cpp
+static bool MakeTransformsFromArrays(const TArray<FVector>& Locations,
+    const TArray<FRotator>& Rotations, const TArray<FVector>& Scales,
+    TArray<FTransform>& Transforms);
+```
+
+Creates transforms from aligned attribute arrays. Locations determine the output count. Rotations and Scales may be empty to use identity values, contain one value to broadcast, or contain one value per location.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Locations | `const TArray<FVector>&` | Transform locations and the required output count. |
+| Rotations | `const TArray<FRotator>&` | Zero, one, or one rotation per location. |
+| Scales | `const TArray<FVector>&` | Zero, one, or one scale per location. |
+| Transforms | `TArray<FTransform>&` | The generated transforms. Cleared when validation fails. |
+
+**Returns:** True when the arrays and values are valid. A rotation or scale count other than zero, one, or the location count returns false. Non-finite input also returns false.
+
 ## Generate Grid Points 2D
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
@@ -300,6 +338,130 @@ Generates a rectangular 3D grid. Points are ordered by X, then Y, then Z.
 
 **Returns:** The generated points. Non-positive dimensions, non-finite input, coordinate overflow, or a point count above the array limit returns an empty array.
 
+## Generate Rectangular Hex Grid
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FVector> GenerateRectangularHexGrid(const FVector& Origin, const FRotator& Rotation,
+    FIntPoint Dimensions, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0, bool bCentered = true);
+```
+
+Generates a rectangular set of hex cell centers on the rotated local XY plane. Pointy-top grids use odd-row offset placement. Flat-top grids use odd-column offset placement. Points are ordered by row, then column.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Origin | `const FVector&` | The first cell center, or the grid bounds center when Centered is true. |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| Dimensions | `FIntPoint` | The number of columns and rows. |
+| CellRadius | `double` | Distance from a cell center to a corner. Must be positive. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+| Gap | `double` | Signed edge-to-edge gap between neighboring cells. Negative values overlap cells. |
+| Centered | `bool` | Centers the grid bounds on Origin when true. |
+
+**Returns:** The cell centers. Non-positive dimensions, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
+
+## Generate Hexagonal Hex Grid
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FVector> GenerateHexagonalHexGrid(const FVector& Origin, const FRotator& Rotation,
+    int32 GridRadius, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0);
+```
+
+Generates a hexagon-shaped set of cell centers. Grid Radius is the number of rings around the center, so zero returns one point, one returns seven, and two returns nineteen. Points are ordered by axial R, then Q.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Origin | `const FVector&` | The center cell location. |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| GridRadius | `int32` | Number of cell rings around the center. |
+| CellRadius | `double` | Distance from a cell center to a corner. Must be positive. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+| Gap | `double` | Signed edge-to-edge gap between neighboring cells. Negative values overlap cells. |
+
+**Returns:** `1 + 3 * GridRadius * (GridRadius + 1)` cell centers. A negative grid radius, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
+
+## Hex Coordinate To Location
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static FVector HexCoordinateToLocation(FIntPoint Coordinate, const FVector& Origin,
+    const FRotator& Rotation, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0);
+```
+
+Converts an axial coordinate to its cell center. `Coordinate.X` is Q and `Coordinate.Y` is R. Origin is the center of coordinate `(0, 0)`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Coordinate | `FIntPoint` | Axial Q and R coordinate. |
+| Origin | `const FVector&` | Location of axial coordinate `(0, 0)`. |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| CellRadius | `double` | Distance from a cell center to a corner. Must be positive. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+| Gap | `double` | Signed edge-to-edge gap between neighboring cells. |
+
+**Returns:** The cell center. Invalid layout input, a non-positive center spacing, or coordinate overflow returns the zero vector.
+
+## Location To Hex Coordinate
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static FIntPoint LocationToHexCoordinate(const FVector& Location, const FVector& Origin,
+    const FRotator& Rotation, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0);
+```
+
+Projects a location onto the rotated grid plane and returns the nearest axial coordinate. `Coordinate.X` is Q and `Coordinate.Y` is R. Cube-coordinate rounding keeps the result on a valid hex cell.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Location | `const FVector&` | World-space location to convert. |
+| Origin | `const FVector&` | Location of axial coordinate `(0, 0)`. |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| CellRadius | `double` | Distance from a cell center to a corner. Must be positive. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+| Gap | `double` | Signed edge-to-edge gap between neighboring cells. |
+
+**Returns:** The nearest axial coordinate. Invalid layout input, a non-positive center spacing, or a coordinate outside the `FIntPoint` range returns `(0, 0)`.
+
+## Get Hex Neighbors
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FIntPoint> GetHexNeighbors(FIntPoint Coordinate);
+```
+
+Returns the six adjacent axial coordinates in this order: `(1, 0)`, `(1, -1)`, `(0, -1)`, `(-1, 0)`, `(-1, 1)`, `(0, 1)`, each added to Coordinate.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Coordinate | `FIntPoint` | Axial Q and R coordinate. |
+
+**Returns:** Six adjacent coordinates. If any neighbor would exceed the `FIntPoint` range, the function returns an empty array.
+
+## Get Hex Distance
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static int64 GetHexDistance(FIntPoint A, FIntPoint B);
+```
+
+Returns the minimum number of neighbor steps between two axial coordinates. The calculation uses 64-bit intermediates across the full `FIntPoint` range.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| A | `FIntPoint` | First axial Q and R coordinate. |
+| B | `FIntPoint` | Second axial Q and R coordinate. |
+
+**Returns:** The hex-grid distance.
+
 ## Generate Points Along Direction
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
@@ -338,6 +500,24 @@ Generates evenly spaced points across a line segment. When endpoints are exclude
 | IncludeEndpoints | `bool` | Includes Start and End when at least two points are generated. |
 
 **Returns:** The generated points. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
+
+## Generate Points Along Spline
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FVector> GeneratePointsAlongSpline(const USplineComponent* Spline, double Spacing,
+    bool bIncludeEndpoint = true);
+```
+
+Samples world-space locations at fixed distances along a spline. The first point is always sampled at distance zero. An open spline can append its exact endpoint, which may make the final interval shorter than Spacing. Closed splines do not repeat their first point.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Spline | `const USplineComponent*` | Spline component to sample. |
+| Spacing | `double` | Distance between regular samples. Must be positive. |
+| IncludeEndpoint | `bool` | Appends the exact endpoint of an open spline when true. |
+
+**Returns:** The sampled world-space points. A null or empty spline, non-positive or non-finite spacing, invalid spline length, coordinate overflow, or a point count above the array limit returns an empty array. A zero-length spline with at least one spline point returns one location.
 
 ## Generate Points On Circle
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`

@@ -18,3 +18,4 @@ DirectiveUtilSaveGameFunctionLibraryTest.cpp
 DirectiveUtilStringFunctionLibraryTest.cpp
 DirectiveUtilStringScenarioTest.cpp
 DirectiveUtilTextFunctionLibraryTest.cpp
+DirectiveUtilTransformArrayTest.cpp

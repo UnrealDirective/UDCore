@@ -5,6 +5,14 @@
 #include "CoreMinimal.h"
 #include "DirectiveUtilMathTypes.generated.h"
 
+/** Hex tile orientation on the local XY plane. */
+UENUM(BlueprintType)
+enum class EDirectiveUtilHexOrientation : uint8
+{
+	PointyTop UMETA(DisplayName = "Pointy Top"),
+	FlatTop UMETA(DisplayName = "Flat Top"),
+};
+
 /**
  * Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the classic Penner Back, Elastic and Bounce curves.
  */

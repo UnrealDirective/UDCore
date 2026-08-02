@@ -7,6 +7,8 @@
 #include "Types/DirectiveUtilMathTypes.h"
 #include "DirectiveUtilMathFunctionLibrary.generated.h"
 
+class USplineComponent;
+
 /**
  * UDirectiveUtilMathFunctionLibrary
  *
@@ -146,6 +148,20 @@ public:
 	static bool IsPointWithinCone(const FVector& Point, const FVector& ConeOrigin, const FVector& ConeDirection,
 		float ConeHalfAngleDegrees, double MaximumDistance = 0.0);
 
+	/** Creates one transform per location using a shared rotation and scale. */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Locations To Transforms", BlueprintThreadSafe), Category = "Directive Utilities|Math|Transform")
+	static TArray<FTransform> LocationsToTransforms(const TArray<FVector>& Locations,
+		FRotator Rotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+
+	/**
+	 * Creates transforms from location, rotation, and scale arrays.
+	 * Rotation and scale arrays may be empty, contain one value to broadcast, or match the location count.
+	 * @returns True when the attribute-array lengths and values are valid.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Make Transforms From Arrays", AutoCreateRefTerm = "Rotations,Scales", BlueprintThreadSafe), Category = "Directive Utilities|Math|Transform")
+	static bool MakeTransformsFromArrays(const TArray<FVector>& Locations, const TArray<FRotator>& Rotations,
+		const TArray<FVector>& Scales, TArray<FTransform>& Transforms);
+
 	/**
 	 * Generates a rectangular grid on the local XY plane.
 	 * @param Origin - The first point, or the grid center when Centered is true.
@@ -173,6 +189,69 @@ public:
 		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true);
 
 	/**
+	 * Generates a rectangular hex grid on the rotated local XY plane.
+	 * @param Origin - The first cell center, or the grid bounds center when Centered is true.
+	 * @param Rotation - The grid plane rotation.
+	 * @param Dimensions - The number of columns and rows.
+	 * @param CellRadius - The distance from a cell center to a corner. Must be positive.
+	 * @param Orientation - Whether the hex cells have pointy or flat tops.
+	 * @param Gap - The signed edge-to-edge gap between adjacent cells. Negative values overlap cells.
+	 * @param bCentered - Whether to center the grid bounds on Origin.
+	 * @returns Points ordered by row, then column, or an empty array for invalid input or an unsupported point count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Rectangular Hex Grid", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FVector> GenerateRectangularHexGrid(const FVector& Origin, const FRotator& Rotation,
+		FIntPoint Dimensions, double CellRadius,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0, bool bCentered = true);
+
+	/**
+	 * Generates a hexagon-shaped grid on the rotated local XY plane.
+	 * @param Origin - The center cell location.
+	 * @param Rotation - The grid plane rotation.
+	 * @param GridRadius - The number of cell rings around the center cell.
+	 * @param CellRadius - The distance from a cell center to a corner. Must be positive.
+	 * @param Orientation - Whether the hex cells have pointy or flat tops.
+	 * @param Gap - The signed edge-to-edge gap between adjacent cells. Negative values overlap cells.
+	 * @returns Points ordered by axial R, then Q, or an empty array for invalid input or an unsupported point count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Hexagonal Hex Grid", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FVector> GenerateHexagonalHexGrid(const FVector& Origin, const FRotator& Rotation,
+		int32 GridRadius, double CellRadius,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0);
+
+	/**
+	 * Converts an axial hex coordinate to a location on the rotated local XY plane.
+	 * @returns The cell center, or the zero vector for invalid layout input or coordinate overflow.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Hex Coordinate To Location", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static FVector HexCoordinateToLocation(FIntPoint Coordinate, const FVector& Origin, const FRotator& Rotation,
+		double CellRadius, EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0);
+
+	/**
+	 * Finds the axial coordinate of the nearest hex after projecting a location onto the rotated local XY plane.
+	 * @returns The nearest axial coordinate, or (0, 0) for invalid layout input or an unrepresentable coordinate.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Location To Hex Coordinate", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static FIntPoint LocationToHexCoordinate(const FVector& Location, const FVector& Origin,
+		const FRotator& Rotation, double CellRadius,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0);
+
+	/**
+	 * Returns the six adjacent axial coordinates in a stable direction order.
+	 * @returns Six neighbors, or an empty array when a neighbor would exceed the FIntPoint range.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Neighbors", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FIntPoint> GetHexNeighbors(FIntPoint Coordinate);
+
+	/** Returns the number of hex-grid steps between two axial coordinates. */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Distance", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static int64 GetHexDistance(FIntPoint A, FIntPoint B);
+
+	/**
 	 * Generates points at a fixed spacing along a direction.
 	 * @param Origin - The first point, or the formation center when Centered is true.
 	 * @param Direction - The direction of travel. Its magnitude is ignored.
@@ -196,6 +275,17 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points Between Locations", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsBetweenLocations(const FVector& Start, const FVector& End,
 		int32 Count, bool bIncludeEndpoints = true);
+
+	/**
+	 * Generates world-space points at fixed distances along a spline.
+	 * @param Spline - The spline to sample.
+	 * @param Spacing - The distance between regular samples. Must be positive.
+	 * @param bIncludeEndpoint - Whether to append the exact endpoint of an open spline.
+	 * @returns The generated points, or an empty array for invalid input or an unsupported point count.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Along Spline"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsAlongSpline(const USplineComponent* Spline, double Spacing,
+		bool bIncludeEndpoint = true);
 
 	/**
 	 * Generates evenly spaced points around a circle on the rotated local XY plane.

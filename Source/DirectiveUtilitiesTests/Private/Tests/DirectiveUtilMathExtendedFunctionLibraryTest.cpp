@@ -327,5 +327,165 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		&& UDirectiveUtilMathFunctionLibrary::RandomPointInSphere(
 			std::numeric_limits<float>::infinity()).IsZero());
 
+	TestTrue("Angle array average accepts equivalent angles across multiple turns",
+		UDirectiveUtilMathFunctionLibrary::GetAngleArrayAverage({730.0f, -710.0f}, FloatResult, Strength)
+		&& FMath::IsNearlyEqual(FloatResult, 10.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(Strength, 1.0f, 1.e-4f));
+	FloatResult = 123.0f;
+	Strength = 123.0f;
+	TestFalse("Angle array average rejects an empty array",
+		UDirectiveUtilMathFunctionLibrary::GetAngleArrayAverage({}, FloatResult, Strength));
+	TestTrue("A rejected angle average resets both outputs",
+		FMath::IsNearlyZero(FloatResult) && FMath::IsNearlyZero(Strength));
+
+	FloatResult = 123.0f;
+	TestTrue("Weighted float average ignores unusable weights",
+		UDirectiveUtilMathFunctionLibrary::GetWeightedFloatArrayAverage(
+			{10.0f, 20.0f, 30.0f, 40.0f},
+			{std::numeric_limits<float>::quiet_NaN(), -1.0f, std::numeric_limits<float>::infinity(), 2.0f},
+			FloatResult)
+		&& FMath::IsNearlyEqual(FloatResult, 40.0f));
+	FloatResult = 123.0f;
+	TestFalse("Weighted float average rejects arrays without a usable weight",
+		UDirectiveUtilMathFunctionLibrary::GetWeightedFloatArrayAverage(
+			{10.0f, 20.0f}, {-1.0f, std::numeric_limits<float>::quiet_NaN()}, FloatResult));
+	TestTrue("A rejected weighted float average resets its output", FMath::IsNearlyZero(FloatResult));
+
+	VectorResult = FVector(123.0);
+	TestTrue("Weighted vector average ignores unusable weights",
+		UDirectiveUtilMathFunctionLibrary::GetWeightedVectorArrayAverage(
+			{FVector(10.0, 20.0, 30.0), FVector(-4.0, 5.0, -6.0)},
+			{std::numeric_limits<float>::infinity(), 3.0f}, VectorResult)
+		&& VectorResult.Equals(FVector(-4.0, 5.0, -6.0), 1.e-9));
+	VectorResult = FVector(123.0);
+	TestFalse("Weighted vector average rejects arrays without a usable weight",
+		UDirectiveUtilMathFunctionLibrary::GetWeightedVectorArrayAverage(
+			{FVector::ForwardVector}, {-1.0f}, VectorResult));
+	TestTrue("A rejected weighted vector average resets its output", VectorResult.IsZero());
+
+	FloatArrayResult = {123.0f};
+	TestFalse("Float array normalization rejects a non-finite source value",
+		UDirectiveUtilMathFunctionLibrary::NormalizeFloatArrayToRange(
+			{1.0f, std::numeric_limits<float>::quiet_NaN()}, 0.0f, 1.0f, FloatArrayResult));
+	TestTrue("Rejected float array normalization clears its output", FloatArrayResult.IsEmpty());
+	TestFalse("Float array normalization rejects a non-finite output bound",
+		UDirectiveUtilMathFunctionLibrary::NormalizeFloatArrayToRange(
+			{1.0f, 2.0f}, 0.0f, std::numeric_limits<float>::infinity(), FloatArrayResult));
+
+	TestTrue("Weight normalization ignores non-finite and negative weights",
+		UDirectiveUtilMathFunctionLibrary::NormalizeWeights(
+			{std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(), -2.0f, 4.0f},
+			FloatArrayResult)
+		&& FloatArrayResult == TArray<float>({0.0f, 0.0f, 0.0f, 1.0f}));
+	FloatArrayResult = {123.0f};
+	TestFalse("Weight normalization rejects an empty array",
+		UDirectiveUtilMathFunctionLibrary::NormalizeWeights({}, FloatArrayResult));
+	TestTrue("Rejected weight normalization clears its output", FloatArrayResult.IsEmpty());
+
+	TestTrue("Percentiles clamp below zero",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile({7.0f, 3.0f, 11.0f}, -50.0f, FloatResult)
+		&& FMath::IsNearlyEqual(FloatResult, 3.0f));
+	TestTrue("Percentiles return the maximum at one hundred",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile({7.0f, 3.0f, 11.0f}, 100.0f, FloatResult)
+		&& FMath::IsNearlyEqual(FloatResult, 11.0f));
+	TestTrue("A single-value percentile is stable at every finite percentile",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile({-7.5f}, 37.25f, FloatResult)
+		&& FMath::IsNearlyEqual(FloatResult, -7.5f));
+	FloatResult = 123.0f;
+	TestFalse("Percentiles reject a non-finite percentile",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile(
+			{1.0f, 2.0f}, std::numeric_limits<float>::quiet_NaN(), FloatResult));
+	TestTrue("A rejected percentile resets its output", FMath::IsNearlyZero(FloatResult));
+
+	const float LargeFiniteValue = std::numeric_limits<float>::max() * 0.25f;
+	TestTrue("Root mean square remains finite near the float limit",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayRootMeanSquare(
+			{LargeFiniteValue, -LargeFiniteValue}, FloatResult)
+		&& FMath::IsFinite(FloatResult)
+		&& FMath::IsNearlyEqual(FloatResult / LargeFiniteValue, 1.0f, 1.e-5f));
+	FloatResult = 123.0f;
+	TestFalse("Root mean square rejects non-finite values",
+		UDirectiveUtilMathFunctionLibrary::GetFloatArrayRootMeanSquare(
+			{1.0f, std::numeric_limits<float>::infinity()}, FloatResult));
+	TestTrue("A rejected root mean square resets its output", FMath::IsNearlyZero(FloatResult));
+
+	TestTrue("Signed angle is invariant under positive vector scaling",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector(20.0, 0.0, 5.0), FVector(0.0, 30.0, -7.0), FVector(0.0, 0.0, 9.0)), 90.0f, 1.e-4f));
+	TestTrue("A half-turn signed angle has the expected magnitude",
+		FMath::IsNearlyEqual(FMath::Abs(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::ForwardVector, -FVector::ForwardVector, FVector::UpVector)), 180.0f, 1.e-4f));
+	TestEqual("Signed angle rejects non-finite vectors",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector(std::numeric_limits<double>::infinity(), 0.0, 0.0), FVector::RightVector, FVector::UpVector),
+		0.0f);
+	TestTrue("Delta angle ignores complete turns",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(-1080.0f + 15.0f, 1440.0f - 25.0f), -40.0f));
+	TestTrue("Angle interpolation permits negative extrapolation",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(10.0f, 350.0f, -1.0f), 30.0f));
+
+	TestTrue("Ping Pong repeats across multiple positive periods",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(123.0f, -2.0f, 3.0f), 3.0f));
+	TestTrue("Ping Pong repeats across multiple negative periods",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(-122.0f, -2.0f, 3.0f), -2.0f));
+	TestTrue("Smooth Step clamps above its range",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SmoothStep(100.0f, -2.0f, 3.0f), 1.0f));
+	TestTrue("Smoother Step accepts reversed bounds",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SmootherStep(0.25f, 1.0f, 0.0f), 0.103515625f));
+	TestTrue("Step functions reject non-finite values",
+		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::SmoothStep(
+			std::numeric_limits<float>::quiet_NaN(), 0.0f, 1.0f))
+		&& FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::SmootherStep(
+			0.5f, 0.0f, std::numeric_limits<float>::infinity())));
+
+	TestTrue("Range Falloff accepts reversed radii",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(5.0f, 10.0f, 0.0f), 0.5f));
+	TestTrue("Range Falloff clamps negative distances to zero",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(-5.0f, 2.0f, 10.0f), 1.0f));
+	TestTrue("Range Falloff treats non-positive exponents as a hard inner range",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(9.0f, 2.0f, 10.0f, -3.0f), 1.0f));
+	TestTrue("Range Falloff returns zero at a collapsed outer boundary",
+		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::RangeFalloff(5.0f, 5.0f, 5.0f)));
+
+	TestTrue("A full-width cone includes the opposite direction",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(
+			-FVector::ForwardVector, FVector::ForwardVector, 180.0f));
+	TestFalse("A zero-width cone excludes the opposite direction",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(
+			-FVector::ForwardVector, FVector::ForwardVector, 0.0f));
+	TestTrue("A point on both cone boundaries is included",
+		UDirectiveUtilMathFunctionLibrary::IsPointWithinCone(
+			FVector(5.0, 5.0, 0.0), FVector::ZeroVector, FVector::ForwardVector, 45.0f,
+			FMath::Sqrt(50.0)));
+	TestTrue("Negative cone distance is treated as unlimited",
+		UDirectiveUtilMathFunctionLibrary::IsPointWithinCone(
+			FVector(100.0, 0.0, 0.0), FVector::ZeroVector, FVector::ForwardVector, 0.0f, -1.0));
+
+	TestTrue("Rotating by a complete turn preserves a translated point",
+		UDirectiveUtilMathFunctionLibrary::RotatePointAroundPivot2D(
+			FVector2D(1000003.0, -1999995.0), FVector2D(1000000.0, -2000000.0), 1080.0f)
+		.Equals(FVector2D(1000003.0, -1999995.0), 1.e-8));
+	TestTrue("Signed plane distance is translation invariant",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedDistanceToPlane(
+			FVector(1000000.0, -2000000.0, 3000007.0), FVector(1000000.0, -2000000.0, 3000000.0),
+			FVector(0.0, 0.0, 123.0)), 7.0, 1.e-9));
+
+	FRandomStream PositiveRadiusStream(424242);
+	FRandomStream NegativeRadiusStream(424242);
+	TestTrue("Random circle stream treats negative radius as magnitude",
+		UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(PositiveRadiusStream, 5.0f).Equals(
+			UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(NegativeRadiusStream, -5.0f), 1.e-12));
+	FRandomStream OrderedAnnulusStream(31337);
+	FRandomStream ReversedAnnulusStream(31337);
+	TestTrue("Random annulus stream accepts negative reversed radii",
+		UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(OrderedAnnulusStream, 2.0f, 5.0f).Equals(
+			UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(ReversedAnnulusStream, -5.0f, -2.0f),
+			1.e-12));
+	FRandomStream PositiveSphereStream(8675309);
+	FRandomStream NegativeSphereStream(8675309);
+	TestTrue("Random sphere stream treats negative radius as magnitude",
+		UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(PositiveSphereStream, 5.0f).Equals(
+			UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(NegativeSphereStream, -5.0f), 1.e-12));
+
 	return !HasAnyErrors();
 }

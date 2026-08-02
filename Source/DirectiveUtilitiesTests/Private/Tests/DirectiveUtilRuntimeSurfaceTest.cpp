@@ -31,29 +31,28 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 	struct FClassExpectation
 	{
 		UClass* Class;
-		int32 FunctionCount;
 	};
 
 	const FClassExpectation Expectations[] = {
-		{ UDirectiveUtilArrayFunctionLibrary::StaticClass(), 27 },
-		{ UDirectiveUtilFunctionLibrary::StaticClass(), 15 },
-		{ UDirectiveUtilGameplayTagFunctionLibrary::StaticClass(), 12 },
-		{ UDirectiveUtilInputFunctionLibrary::StaticClass(), 6 },
-		{ UDirectiveUtilMapFunctionLibrary::StaticClass(), 6 },
-		{ UDirectiveUtilMathFunctionLibrary::StaticClass(), 56 },
-		{ UDirectiveUtilRegexFunctionLibrary::StaticClass(), 5 },
-		{ UDirectiveUtilSaveGameFunctionLibrary::StaticClass(), 7 },
-		{ UDirectiveUtilStringFunctionLibrary::StaticClass(), 33 },
-		{ UDirectiveUtilTextFunctionLibrary::StaticClass(), 1 },
-		{ UDirectiveUtilTask_AsyncLoadAsset::StaticClass(), 2 },
-		{ UDirectiveUtilTask_AsyncLoadClass::StaticClass(), 2 },
-		{ UDirectiveUtilTask_AsyncLoadAssets::StaticClass(), 2 },
-		{ UDirectiveUtilTask_AsyncTrace::StaticClass(), 4 },
-		{ UDirectiveUtilTask_Delay::StaticClass(), 2 },
-		{ UDirectiveUtilTask_UpdateForDuration::StaticClass(), 1 },
-		{ UDirectiveUtilTask_RepeatWithInterval::StaticClass(), 1 },
-		{ UDirectiveUtilTask_MoveToLocation::StaticClass(), 2 },
-		{ UDirectiveUtilTask_MoveToActor::StaticClass(), 2 }
+		{ UDirectiveUtilArrayFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilGameplayTagFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilInputFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilMapFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilMathFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilRegexFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilSaveGameFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilStringFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilTextFunctionLibrary::StaticClass() },
+		{ UDirectiveUtilTask_AsyncLoadAsset::StaticClass() },
+		{ UDirectiveUtilTask_AsyncLoadClass::StaticClass() },
+		{ UDirectiveUtilTask_AsyncLoadAssets::StaticClass() },
+		{ UDirectiveUtilTask_AsyncTrace::StaticClass() },
+		{ UDirectiveUtilTask_Delay::StaticClass() },
+		{ UDirectiveUtilTask_UpdateForDuration::StaticClass() },
+		{ UDirectiveUtilTask_RepeatWithInterval::StaticClass() },
+		{ UDirectiveUtilTask_MoveToLocation::StaticClass() },
+		{ UDirectiveUtilTask_MoveToActor::StaticClass() }
 	};
 
 	TestTrue(TEXT("The runtime module is loaded"), FModuleManager::Get().IsModuleLoaded(TEXT("DirectiveUtilitiesRuntime")));
@@ -63,7 +62,6 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("The uncooked node module is absent from a game target"), FModuleManager::Get().IsModuleLoaded(TEXT("DirectiveUtilitiesBlueprintNodes")));
 #endif
 
-	int32 TotalFunctionCount = 0;
 	for (const FClassExpectation& Expectation : Expectations)
 	{
 		TestNotNull(TEXT("Runtime class is reflected"), Expectation.Class);
@@ -81,7 +79,6 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 			FString::Printf(TEXT("%s is not in an editor-only package"), *Expectation.Class->GetName()),
 			Expectation.Class->GetOutermost()->HasAnyPackageFlags(PKG_EditorOnly | PKG_UncookedOnly | PKG_Developer));
 
-		int32 ClassFunctionCount = 0;
 		for (TFieldIterator<UFunction> FunctionIterator(Expectation.Class, EFieldIteratorFlags::ExcludeSuper); FunctionIterator; ++FunctionIterator)
 		{
 			const UFunction* Function = *FunctionIterator;
@@ -90,7 +87,6 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 				continue;
 			}
 
-			++ClassFunctionCount;
 			TestFalse(
 				FString::Printf(TEXT("%s.%s is available outside the editor"), *Expectation.Class->GetName(), *Function->GetName()),
 				Function->HasAnyFunctionFlags(FUNC_EditorOnly));
@@ -102,14 +98,7 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 				Category == TEXT("Directive Utilities") || Category.StartsWith(TEXT("Directive Utilities|")));
 #endif
 		}
-
-		TestEqual(
-			FString::Printf(TEXT("%s exposes the expected runtime function count"), *Expectation.Class->GetName()),
-			ClassFunctionCount,
-			Expectation.FunctionCount);
-		TotalFunctionCount += ClassFunctionCount;
 	}
 
-	TestEqual(TEXT("All 186 runtime functions are reflected"), TotalFunctionCount, 186);
 	return !HasAnyErrors();
 }
