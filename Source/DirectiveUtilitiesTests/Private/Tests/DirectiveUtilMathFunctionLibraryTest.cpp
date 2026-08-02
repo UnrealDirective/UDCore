@@ -18,6 +18,74 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	TestTrue("AngleBetweenVectors should handle zero vector gracefully",
 		FMath::IsFinite(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ForwardVector)));
 
+	TestTrue("SignedAngleBetweenVectors returns a positive counterclockwise angle around the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::ForwardVector, FVector::RightVector, FVector::UpVector), 90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors returns a negative clockwise angle around the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::RightVector, FVector::ForwardVector, FVector::UpVector), -90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors reverses sign with the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::ForwardVector, FVector::RightVector, -FVector::UpVector), -90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors projects directions onto the axis plane",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector(1.0, 0.0, 4.0), FVector(0.0, 1.0, -3.0), FVector::UpVector), 90.0f, 1.e-4f));
+	TestEqual("SignedAngleBetweenVectors returns zero for a zero direction",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::ZeroVector, FVector::RightVector, FVector::UpVector), 0.0f);
+	TestEqual("SignedAngleBetweenVectors returns zero for a direction parallel to the axis",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::UpVector, FVector::RightVector, FVector::UpVector), 0.0f);
+	TestEqual("SignedAngleBetweenVectors returns zero for a zero axis",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::ForwardVector, FVector::RightVector, FVector::ZeroVector), 0.0f);
+
+	TestTrue("DeltaAngle crosses the positive angle seam by the shortest path",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(350.0f, 10.0f), 20.0f, 1.e-4f));
+	TestTrue("DeltaAngle crosses the negative angle seam by the shortest path",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(10.0f, 350.0f), -20.0f, 1.e-4f));
+	TestEqual("DeltaAngle returns zero for equivalent wrapped angles",
+		UDirectiveUtilMathFunctionLibrary::DeltaAngle(-180.0f, 180.0f), 0.0f);
+	TestEqual("DeltaAngle returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::DeltaAngle(std::numeric_limits<float>::infinity(), 0.0f), 0.0f);
+
+	TestTrue("LerpAngle crosses the angle seam by the shortest path",
+		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.5f), 1.e-4f));
+	TestTrue("LerpAngle normalizes its starting angle",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.0f), -10.0f, 1.e-4f));
+	TestTrue("LerpAngle reaches its normalized target angle",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 1.0f), 10.0f, 1.e-4f));
+	TestTrue("LerpAngle permits extrapolation",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 2.0f), 180.0f, 1.e-4f));
+	TestEqual("LerpAngle returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, std::numeric_limits<float>::quiet_NaN()), 0.0f);
+
+	TestTrue("PingPong reaches the middle of an ascending range",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(0.5f, 0.0f, 1.0f), 0.5f, 1.e-4f));
+	TestTrue("PingPong reverses after the upper bound",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(1.5f, 0.0f, 1.0f), 0.5f, 1.e-4f));
+	TestTrue("PingPong supports negative values",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(-0.25f, 0.0f, 1.0f), 0.25f, 1.e-4f));
+	TestTrue("PingPong accepts reversed bounds",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(12.5f, 20.0f, 10.0f), 12.5f, 1.e-4f));
+	TestEqual("PingPong returns the shared bound for a zero-sized range",
+		UDirectiveUtilMathFunctionLibrary::PingPong(100.0f, 7.0f, 7.0f), 7.0f);
+	TestEqual("PingPong returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::PingPong(std::numeric_limits<float>::infinity(), 0.0f, 1.0f), 0.0f);
+
+	TestTrue("IsDirectionWithinCone includes a direction inside the cone",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 1.0, 0.0), FVector::ForwardVector, 46.0f));
+	TestTrue("IsDirectionWithinCone includes a direction on the cone boundary",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 1.0, 0.0), FVector::ForwardVector, 45.0f));
+	TestFalse("IsDirectionWithinCone excludes a direction outside the cone",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector::RightVector, FVector::ForwardVector, 45.0f));
+	TestTrue("IsDirectionWithinCone clamps angles above 180 degrees",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(-FVector::ForwardVector, FVector::ForwardVector, 270.0f));
+	TestFalse("IsDirectionWithinCone clamps negative angles to zero",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 0.1, 0.0), FVector::ForwardVector, -20.0f));
+	TestFalse("IsDirectionWithinCone rejects a zero direction",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector::ZeroVector, FVector::ForwardVector, 45.0f));
+	TestFalse("IsDirectionWithinCone rejects a non-finite angle",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(
+			FVector::ForwardVector, FVector::ForwardVector, std::numeric_limits<float>::quiet_NaN()));
+
 	{
 		const FVector2D Sample2D(12.34f, 56.78f);
 		const float Noise2DFirst = UDirectiveUtilMathFunctionLibrary::PerlinNoise2D(Sample2D);

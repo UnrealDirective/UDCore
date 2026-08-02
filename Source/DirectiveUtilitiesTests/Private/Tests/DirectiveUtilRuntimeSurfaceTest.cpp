@@ -40,7 +40,7 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 		{ UDirectiveUtilGameplayTagFunctionLibrary::StaticClass(), 12 },
 		{ UDirectiveUtilInputFunctionLibrary::StaticClass(), 6 },
 		{ UDirectiveUtilMapFunctionLibrary::StaticClass(), 6 },
-		{ UDirectiveUtilMathFunctionLibrary::StaticClass(), 23 },
+		{ UDirectiveUtilMathFunctionLibrary::StaticClass(), 56 },
 		{ UDirectiveUtilRegexFunctionLibrary::StaticClass(), 5 },
 		{ UDirectiveUtilSaveGameFunctionLibrary::StaticClass(), 7 },
 		{ UDirectiveUtilStringFunctionLibrary::StaticClass(), 33 },
@@ -110,6 +110,6 @@ bool FDirectiveUtilRuntimeSurfaceTest::RunTest(const FString& Parameters)
 		TotalFunctionCount += ClassFunctionCount;
 	}
 
-	TestEqual(TEXT("All 153 runtime functions are reflected"), TotalFunctionCount, 153);
+	TestEqual(TEXT("All 186 runtime functions are reflected"), TotalFunctionCount, 186);
 	return !HasAnyErrors();
 }

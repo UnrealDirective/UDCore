@@ -3,8 +3,13 @@
 
 #include "Libraries/DirectiveUtilMathFunctionLibrary.h"
 
+#include <limits>
+
 namespace
 {
+	constexpr double DirectionDotTolerance = 8.0 * std::numeric_limits<double>::epsilon();
+	constexpr double ProjectionTolerance = 32.0 * std::numeric_limits<double>::epsilon();
+
 	double EaseBackIn(double t)
 	{
 		const double s = 1.70158;
@@ -104,6 +109,306 @@ namespace
 		return FMath::IsFinite(Weight) && Weight > 0.0f ? Weight : 0.0f;
 	}
 
+	bool IsFiniteVector2D(const FVector2D& Value)
+	{
+		return FMath::IsFinite(Value.X) && FMath::IsFinite(Value.Y);
+	}
+
+	bool TryGetNormalizedVector(const FVector& Value, FVector& Normalized, double* Length = nullptr)
+	{
+		Normalized = FVector::ZeroVector;
+		if (Value.ContainsNaN())
+		{
+			return false;
+		}
+
+		const double MaximumComponent = Value.GetAbsMax();
+		if (MaximumComponent == 0.0)
+		{
+			return false;
+		}
+
+		const FVector Scaled = Value / MaximumComponent;
+		const double ScaledLength = Scaled.Size();
+		if (!FMath::IsFinite(ScaledLength) || ScaledLength == 0.0)
+		{
+			return false;
+		}
+
+		Normalized = Scaled / ScaledLength;
+		if (Length)
+		{
+			if (ScaledLength > TNumericLimits<double>::Max() / MaximumComponent)
+			{
+				Normalized = FVector::ZeroVector;
+				return false;
+			}
+			*Length = MaximumComponent * ScaledLength;
+		}
+		return !Normalized.ContainsNaN();
+	}
+
+	bool TryGetProjectedDirection(const FVector& Value, const FVector& NormalizedAxis, FVector& Direction)
+	{
+		Direction = FVector::ZeroVector;
+		if (Value.ContainsNaN())
+		{
+			return false;
+		}
+
+		const double MaximumComponent = Value.GetAbsMax();
+		if (MaximumComponent == 0.0)
+		{
+			return false;
+		}
+
+		const FVector Scaled = Value / MaximumComponent;
+		const FVector Projected = FVector::VectorPlaneProject(Scaled, NormalizedAxis);
+		if (Projected.GetAbsMax() <= ProjectionTolerance)
+		{
+			return false;
+		}
+		return TryGetNormalizedVector(Projected, Direction);
+	}
+
+	bool IsNormalizedDirectionWithinCone(const FVector& NormalizedDirection, const FVector& ConeDirection,
+		const float ConeHalfAngleDegrees)
+	{
+		FVector NormalizedConeDirection;
+		if (!FMath::IsFinite(ConeHalfAngleDegrees)
+			|| !TryGetNormalizedVector(ConeDirection, NormalizedConeDirection))
+		{
+			return false;
+		}
+
+		const double Dot = FMath::Clamp(
+			FVector::DotProduct(NormalizedDirection, NormalizedConeDirection), -1.0, 1.0);
+		const double ClampedHalfAngle = FMath::Clamp(static_cast<double>(ConeHalfAngleDegrees), 0.0, 180.0);
+		return Dot + DirectionDotTolerance >= FMath::Cos(FMath::DegreesToRadians(ClampedHalfAngle));
+	}
+
+	FVector2D MakePointInAnnulus(const double InnerRadius, const double OuterRadius,
+		const double AngleSample, const double RadiusSample)
+	{
+		const double Angle = AngleSample * UE_TWO_PI;
+		const double Radius = FMath::Sqrt(FMath::Lerp(
+			InnerRadius * InnerRadius,
+			OuterRadius * OuterRadius,
+			RadiusSample));
+		return FVector2D(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius);
+	}
+
+	template <typename RandomFractionFunction>
+	FVector MakePointInSphere(const double Radius, RandomFractionFunction&& RandomFraction)
+	{
+		FVector Point;
+		double SizeSquared;
+		do
+		{
+			const double X = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
+			const double Y = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
+			const double Z = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
+			Point = FVector(X, Y, Z);
+			SizeSquared = Point.SizeSquared();
+		}
+		while (SizeSquared > 1.0);
+
+		return Point * Radius;
+	}
+
+	bool TryGetRotatedAxes(const FRotator& Rotation, FVector& AxisX, FVector& AxisY, FVector& AxisZ)
+	{
+		AxisX = FVector::ZeroVector;
+		AxisY = FVector::ZeroVector;
+		AxisZ = FVector::ZeroVector;
+		if (!FMath::IsFinite(Rotation.Pitch) || !FMath::IsFinite(Rotation.Yaw) || !FMath::IsFinite(Rotation.Roll))
+		{
+			return false;
+		}
+
+		const FQuat Quaternion = Rotation.Quaternion();
+		if (Quaternion.ContainsNaN())
+		{
+			return false;
+		}
+
+		AxisX = Quaternion.GetAxisX();
+		AxisY = Quaternion.GetAxisY();
+		AxisZ = Quaternion.GetAxisZ();
+		return !AxisX.ContainsNaN() && !AxisY.ContainsNaN() && !AxisZ.ContainsNaN();
+	}
+
+	bool TryGetGridPointCount(const FIntVector& Dimensions, int32& PointCount)
+	{
+		PointCount = 0;
+		if (Dimensions.X <= 0 || Dimensions.Y <= 0 || Dimensions.Z <= 0)
+		{
+			return false;
+		}
+
+		constexpr int64 MaximumPointCount = TNumericLimits<int32>::Max();
+		int64 Count = Dimensions.X;
+		if (Count > MaximumPointCount / Dimensions.Y)
+		{
+			return false;
+		}
+		Count *= Dimensions.Y;
+		if (Count > MaximumPointCount / Dimensions.Z)
+		{
+			return false;
+		}
+		PointCount = static_cast<int32>(Count * Dimensions.Z);
+		return true;
+	}
+
+	TArray<FVector> GenerateGridPoints(const FVector& Origin, const FRotator& Rotation,
+		const FIntVector& Dimensions, const FVector& Spacing, const bool bCentered)
+	{
+		int32 PointCount;
+		FVector AxisX;
+		FVector AxisY;
+		FVector AxisZ;
+		if (Origin.ContainsNaN() || Spacing.ContainsNaN()
+			|| !TryGetGridPointCount(Dimensions, PointCount)
+			|| !TryGetRotatedAxes(Rotation, AxisX, AxisY, AxisZ))
+		{
+			return {};
+		}
+
+		const FVector StepX = AxisX * Spacing.X;
+		const FVector StepY = AxisY * Spacing.Y;
+		const FVector StepZ = AxisZ * Spacing.Z;
+		FVector FirstPoint = Origin;
+		if (bCentered)
+		{
+			FirstPoint -= (StepX * (Dimensions.X - 1)
+				+ StepY * (Dimensions.Y - 1)
+				+ StepZ * (Dimensions.Z - 1)) * 0.5;
+		}
+		if (FirstPoint.ContainsNaN() || StepX.ContainsNaN() || StepY.ContainsNaN() || StepZ.ContainsNaN())
+		{
+			return {};
+		}
+
+		TArray<FVector> Points;
+		Points.SetNumUninitialized(PointCount);
+		int32 PointIndex = 0;
+		for (int32 Z = 0; Z < Dimensions.Z; ++Z)
+		{
+			const FVector LayerStart = FirstPoint + StepZ * Z;
+			for (int32 Y = 0; Y < Dimensions.Y; ++Y)
+			{
+				const FVector RowStart = LayerStart + StepY * Y;
+				for (int32 X = 0; X < Dimensions.X; ++X)
+				{
+					const FVector Point = RowStart + StepX * X;
+					if (Point.ContainsNaN())
+					{
+						return {};
+					}
+					Points[PointIndex++] = Point;
+				}
+			}
+		}
+		return Points;
+	}
+
+	TArray<FVector> GenerateLinearPoints(const FVector& Origin, const FVector& Step,
+		const int32 Count, const double FirstStep)
+	{
+		if (Count <= 0 || !FMath::IsFinite(FirstStep) || Origin.ContainsNaN() || Step.ContainsNaN())
+		{
+			return {};
+		}
+
+		TArray<FVector> Points;
+		Points.SetNumUninitialized(Count);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const FVector Point = Origin + Step * (FirstStep + Index);
+			if (Point.ContainsNaN())
+			{
+				return {};
+			}
+			Points[Index] = Point;
+		}
+		return Points;
+	}
+
+	TArray<FVector> MakeSinglePoint(const FVector& Point)
+	{
+		return Point.ContainsNaN() ? TArray<FVector>() : TArray<FVector>({ Point });
+	}
+
+	struct FAngleStepper
+	{
+		explicit FAngleStepper(const double InStartAngle, const double InStepAngle)
+			: StartAngle(InStartAngle), StepAngle(InStepAngle)
+		{
+			FMath::SinCos(&Sine, &Cosine, StartAngle);
+			FMath::SinCos(&StepSine, &StepCosine, StepAngle);
+		}
+
+		void Advance()
+		{
+			++Index;
+			if ((Index & 255) == 0)
+			{
+				FMath::SinCos(&Sine, &Cosine, StartAngle + StepAngle * Index);
+				return;
+			}
+
+			const double NextSine = Sine * StepCosine + Cosine * StepSine;
+			Cosine = Cosine * StepCosine - Sine * StepSine;
+			Sine = NextSine;
+		}
+
+		double Sine = 0.0;
+		double Cosine = 1.0;
+
+	private:
+		double StartAngle;
+		double StepAngle;
+		double StepSine = 0.0;
+		double StepCosine = 1.0;
+		int32 Index = 0;
+	};
+
+	template <typename RadiusFunction>
+	TArray<FVector> GeneratePlanarRadialPoints(const FVector& Center, const FRotator& Rotation,
+		const int32 Count, const double StartAngle, const double StepAngle, RadiusFunction&& GetRadius)
+	{
+		FVector AxisX;
+		FVector AxisY;
+		FVector AxisZ;
+		if (Count <= 0 || Center.ContainsNaN() || !FMath::IsFinite(StartAngle) || !FMath::IsFinite(StepAngle)
+			|| !TryGetRotatedAxes(Rotation, AxisX, AxisY, AxisZ))
+		{
+			return {};
+		}
+
+		TArray<FVector> Points;
+		Points.SetNumUninitialized(Count);
+		FAngleStepper Angle(StartAngle, StepAngle);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const double Radius = GetRadius(Index);
+			const FVector Point = Center + AxisX * (Angle.Cosine * Radius) + AxisY * (Angle.Sine * Radius);
+			if (!FMath::IsFinite(Radius) || Point.ContainsNaN())
+			{
+				return {};
+			}
+			Points[Index] = Point;
+			Angle.Advance();
+		}
+		return Points;
+	}
+
+	double WrapDegreesAsRadians(const double AngleDegrees)
+	{
+		return FMath::DegreesToRadians(FMath::Fmod(AngleDegrees, 360.0));
+	}
+
 	template <typename ValueType>
 	ValueType SelectNth(TArray<ValueType>& Values, const int32 NthIndex)
 	{
@@ -200,6 +505,409 @@ float UDirectiveUtilMathFunctionLibrary::PerlinNoise3D(const FVector& Position)
 float UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(const FVector& A, const FVector& B)
 {
 	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(A.GetSafeNormal(), B.GetSafeNormal()), -1.0, 1.0)));
+}
+
+float UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(const FVector& From, const FVector& To, const FVector& Axis)
+{
+	FVector NormalizedAxis;
+	if (!TryGetNormalizedVector(Axis, NormalizedAxis))
+	{
+		return 0.0f;
+	}
+
+	FVector ProjectedFrom;
+	FVector ProjectedTo;
+	if (!TryGetProjectedDirection(From, NormalizedAxis, ProjectedFrom)
+		|| !TryGetProjectedDirection(To, NormalizedAxis, ProjectedTo))
+	{
+		return 0.0f;
+	}
+
+	const double Sine = FVector::DotProduct(NormalizedAxis, FVector::CrossProduct(ProjectedFrom, ProjectedTo));
+	const double Cosine = FMath::Clamp(FVector::DotProduct(ProjectedFrom, ProjectedTo), -1.0, 1.0);
+	return static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(Sine, Cosine)));
+}
+
+float UDirectiveUtilMathFunctionLibrary::DeltaAngle(const float From, const float To)
+{
+	if (!FMath::IsFinite(From) || !FMath::IsFinite(To))
+	{
+		return 0.0f;
+	}
+
+	return static_cast<float>(FMath::FindDeltaAngleDegrees(static_cast<double>(From), static_cast<double>(To)));
+}
+
+float UDirectiveUtilMathFunctionLibrary::LerpAngle(const float A, const float B, const float Alpha)
+{
+	if (!FMath::IsFinite(A) || !FMath::IsFinite(B) || !FMath::IsFinite(Alpha))
+	{
+		return 0.0f;
+	}
+
+	const double Result = static_cast<double>(A)
+		+ FMath::FindDeltaAngleDegrees(static_cast<double>(A), static_cast<double>(B)) * static_cast<double>(Alpha);
+	return static_cast<float>(FMath::Wrap(Result, -180.0, 180.0));
+}
+
+float UDirectiveUtilMathFunctionLibrary::PingPong(const float Value, const float Minimum, const float Maximum)
+{
+	if (!FMath::IsFinite(Value) || !FMath::IsFinite(Minimum) || !FMath::IsFinite(Maximum))
+	{
+		return 0.0f;
+	}
+
+	const double LowerBound = FMath::Min(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	const double UpperBound = FMath::Max(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	const double Range = UpperBound - LowerBound;
+	if (Range == 0.0)
+	{
+		return static_cast<float>(LowerBound);
+	}
+
+	const double Period = Range * 2.0;
+	double Offset = FMath::Fmod(static_cast<double>(Value) - LowerBound, Period);
+	if (Offset < 0.0)
+	{
+		Offset += Period;
+	}
+
+	const double DistanceFromLowerBound = Offset <= Range ? Offset : Period - Offset;
+	return static_cast<float>(LowerBound + DistanceFromLowerBound);
+}
+
+float UDirectiveUtilMathFunctionLibrary::SmoothStep(const float Value, const float Minimum, const float Maximum)
+{
+	if (!FMath::IsFinite(Value) || !FMath::IsFinite(Minimum) || !FMath::IsFinite(Maximum))
+	{
+		return 0.0f;
+	}
+
+	const double LowerBound = FMath::Min(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	const double UpperBound = FMath::Max(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	if (LowerBound == UpperBound)
+	{
+		return Value < LowerBound ? 0.0f : 1.0f;
+	}
+
+	const double Alpha = FMath::Clamp((static_cast<double>(Value) - LowerBound) / (UpperBound - LowerBound), 0.0, 1.0);
+	return static_cast<float>(Alpha * Alpha * (3.0 - 2.0 * Alpha));
+}
+
+float UDirectiveUtilMathFunctionLibrary::SmootherStep(const float Value, const float Minimum, const float Maximum)
+{
+	if (!FMath::IsFinite(Value) || !FMath::IsFinite(Minimum) || !FMath::IsFinite(Maximum))
+	{
+		return 0.0f;
+	}
+
+	const double LowerBound = FMath::Min(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	const double UpperBound = FMath::Max(static_cast<double>(Minimum), static_cast<double>(Maximum));
+	if (LowerBound == UpperBound)
+	{
+		return Value < LowerBound ? 0.0f : 1.0f;
+	}
+
+	const double Alpha = FMath::Clamp((static_cast<double>(Value) - LowerBound) / (UpperBound - LowerBound), 0.0, 1.0);
+	return static_cast<float>(Alpha * Alpha * Alpha * (Alpha * (Alpha * 6.0 - 15.0) + 10.0));
+}
+
+float UDirectiveUtilMathFunctionLibrary::RangeFalloff(const float Distance, const float InnerRadius,
+	const float OuterRadius, const float FalloffExponent)
+{
+	if (!FMath::IsFinite(Distance) || !FMath::IsFinite(InnerRadius)
+		|| !FMath::IsFinite(OuterRadius) || !FMath::IsFinite(FalloffExponent))
+	{
+		return 0.0f;
+	}
+
+	const double FirstRadius = FMath::Max(0.0, static_cast<double>(InnerRadius));
+	const double SecondRadius = FMath::Max(0.0, static_cast<double>(OuterRadius));
+	const double Inner = FMath::Min(FirstRadius, SecondRadius);
+	const double Outer = FMath::Max(FirstRadius, SecondRadius);
+	const double ClampedDistance = FMath::Max(0.0, static_cast<double>(Distance));
+	if (ClampedDistance >= Outer)
+	{
+		return 0.0f;
+	}
+	if (ClampedDistance <= Inner || FalloffExponent <= 0.0f)
+	{
+		return 1.0f;
+	}
+
+	const double Alpha = 1.0 - (ClampedDistance - Inner) / (Outer - Inner);
+	if (FalloffExponent == 1.0f)
+	{
+		return static_cast<float>(Alpha);
+	}
+	if (FalloffExponent == 2.0f)
+	{
+		return static_cast<float>(Alpha * Alpha);
+	}
+	return static_cast<float>(FMath::Pow(Alpha, static_cast<double>(FalloffExponent)));
+}
+
+bool UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(const FVector& Direction, const FVector& ConeDirection, const float ConeHalfAngleDegrees)
+{
+	FVector NormalizedDirection;
+	if (!TryGetNormalizedVector(Direction, NormalizedDirection))
+	{
+		return false;
+	}
+	return IsNormalizedDirectionWithinCone(NormalizedDirection, ConeDirection, ConeHalfAngleDegrees);
+}
+
+bool UDirectiveUtilMathFunctionLibrary::GetDirectionAndDistance(const FVector& From, const FVector& To,
+	FVector& Direction, double& Distance)
+{
+	Direction = FVector::ZeroVector;
+	Distance = 0.0;
+	if (From.ContainsNaN() || To.ContainsNaN())
+	{
+		return false;
+	}
+
+	const FVector Delta = To - From;
+	if (Delta.ContainsNaN())
+	{
+		return false;
+	}
+
+	if (!TryGetNormalizedVector(Delta, Direction, &Distance))
+	{
+		Distance = 0.0;
+		return false;
+	}
+	return true;
+}
+
+FVector2D UDirectiveUtilMathFunctionLibrary::RotatePointAroundPivot2D(const FVector2D& Point,
+	const FVector2D& Pivot, const float AngleDegrees)
+{
+	if (!IsFiniteVector2D(Point) || !IsFiniteVector2D(Pivot) || !FMath::IsFinite(AngleDegrees))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const FVector2D Offset = Point - Pivot;
+	const double AngleRadians = FMath::DegreesToRadians(static_cast<double>(AngleDegrees));
+	const double Sine = FMath::Sin(AngleRadians);
+	const double Cosine = FMath::Cos(AngleRadians);
+	const FVector2D RotatedPoint = Pivot + FVector2D(
+		Offset.X * Cosine - Offset.Y * Sine,
+		Offset.X * Sine + Offset.Y * Cosine);
+	return IsFiniteVector2D(RotatedPoint) ? RotatedPoint : FVector2D::ZeroVector;
+}
+
+double UDirectiveUtilMathFunctionLibrary::SignedDistanceToPlane(const FVector& Point,
+	const FVector& PlanePoint, const FVector& PlaneNormal)
+{
+	FVector NormalizedPlaneNormal;
+	if (Point.ContainsNaN() || PlanePoint.ContainsNaN()
+		|| !TryGetNormalizedVector(PlaneNormal, NormalizedPlaneNormal))
+	{
+		return 0.0;
+	}
+
+	const FVector Offset = Point - PlanePoint;
+	if (Offset.ContainsNaN())
+	{
+		return 0.0;
+	}
+
+	const double MaximumComponent = Offset.GetAbsMax();
+	if (MaximumComponent == 0.0)
+	{
+		return 0.0;
+	}
+
+	const double ScaledDistance = FVector::DotProduct(Offset / MaximumComponent, NormalizedPlaneNormal);
+	if (!FMath::IsFinite(ScaledDistance)
+		|| FMath::Abs(ScaledDistance) > TNumericLimits<double>::Max() / MaximumComponent)
+	{
+		return 0.0;
+	}
+	return ScaledDistance * MaximumComponent;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::IsPointWithinCone(const FVector& Point, const FVector& ConeOrigin,
+	const FVector& ConeDirection, const float ConeHalfAngleDegrees, const double MaximumDistance)
+{
+	if (Point.ContainsNaN() || ConeOrigin.ContainsNaN() || ConeDirection.ContainsNaN()
+		|| !FMath::IsFinite(ConeHalfAngleDegrees) || !FMath::IsFinite(MaximumDistance))
+	{
+		return false;
+	}
+
+	const FVector PointDirection = Point - ConeOrigin;
+	FVector NormalizedPointDirection;
+	double Distance = 0.0;
+	if (PointDirection.ContainsNaN()
+		|| !TryGetNormalizedVector(PointDirection, NormalizedPointDirection,
+			MaximumDistance > 0.0 ? &Distance : nullptr))
+	{
+		return false;
+	}
+
+	if (MaximumDistance > 0.0 && Distance > MaximumDistance)
+	{
+		return false;
+	}
+
+	return IsNormalizedDirectionWithinCone(NormalizedPointDirection, ConeDirection, ConeHalfAngleDegrees);
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(const FVector& Origin,
+	const FRotator& Rotation, const FIntPoint Dimensions, const FVector2D& Spacing, const bool bCentered)
+{
+	if (!IsFiniteVector2D(Spacing))
+	{
+		return {};
+	}
+	return GenerateGridPoints(Origin, Rotation, FIntVector(Dimensions.X, Dimensions.Y, 1),
+		FVector(Spacing.X, Spacing.Y, 0.0), bCentered);
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateGridPoints3D(const FVector& Origin,
+	const FRotator& Rotation, const FIntVector Dimensions, const FVector& Spacing, const bool bCentered)
+{
+	return GenerateGridPoints(Origin, Rotation, Dimensions, Spacing, bCentered);
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongDirection(const FVector& Origin,
+	const FVector& Direction, const int32 Count, const double Spacing, const bool bCentered)
+{
+	FVector NormalizedDirection;
+	if (Count <= 0 || !FMath::IsFinite(Spacing) || Origin.ContainsNaN()
+		|| !TryGetNormalizedVector(Direction, NormalizedDirection))
+	{
+		return {};
+	}
+
+	const FVector Step = NormalizedDirection * Spacing;
+	const double FirstStep = bCentered ? -0.5 * static_cast<double>(Count - 1) : 0.0;
+	return GenerateLinearPoints(Origin, Step, Count, FirstStep);
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsBetweenLocations(const FVector& Start,
+	const FVector& End, const int32 Count, const bool bIncludeEndpoints)
+{
+	if (Count <= 0 || Start.ContainsNaN() || End.ContainsNaN())
+	{
+		return {};
+	}
+	if (Count == 1)
+	{
+		return MakeSinglePoint(Start * 0.5 + End * 0.5);
+	}
+
+	const FVector Delta = End - Start;
+	if (Delta.ContainsNaN())
+	{
+		return {};
+	}
+	const double Divisor = bIncludeEndpoints ? static_cast<double>(Count - 1) : static_cast<double>(Count) + 1.0;
+	TArray<FVector> Points = GenerateLinearPoints(Start, Delta / Divisor, Count, bIncludeEndpoints ? 0.0 : 1.0);
+	if (bIncludeEndpoints && Points.Num() == Count)
+	{
+		Points[0] = Start;
+		Points.Last() = End;
+	}
+	return Points;
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnCircle(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double StartAngleDegrees)
+{
+	if (Count <= 0 || !FMath::IsFinite(Radius) || !FMath::IsFinite(StartAngleDegrees))
+	{
+		return {};
+	}
+	const double AbsoluteRadius = FMath::Abs(Radius);
+	return GeneratePlanarRadialPoints(Center, Rotation, Count, WrapDegreesAsRadians(StartAngleDegrees),
+		UE_DOUBLE_TWO_PI / Count, [AbsoluteRadius](const int32) { return AbsoluteRadius; });
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnArc(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double StartAngleDegrees,
+	const double ArcAngleDegrees, const bool bIncludeEndpoint)
+{
+	if (Count <= 0 || !FMath::IsFinite(Radius) || !FMath::IsFinite(StartAngleDegrees)
+		|| !FMath::IsFinite(ArcAngleDegrees))
+	{
+		return {};
+	}
+
+	const double Divisor = bIncludeEndpoint && Count > 1 ? Count - 1.0 : static_cast<double>(Count);
+	const double StepAngle = Count == 1 ? 0.0 : WrapDegreesAsRadians(ArcAngleDegrees / Divisor);
+	const double AbsoluteRadius = FMath::Abs(Radius);
+	return GeneratePlanarRadialPoints(Center, Rotation, Count, WrapDegreesAsRadians(StartAngleDegrees),
+		StepAngle, [AbsoluteRadius](const int32) { return AbsoluteRadius; });
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnDisc(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double AngleOffsetDegrees)
+{
+	if (Count <= 0 || !FMath::IsFinite(Radius) || !FMath::IsFinite(AngleOffsetDegrees))
+	{
+		return {};
+	}
+	if (Count == 1)
+	{
+		return MakeSinglePoint(Center);
+	}
+
+	const double AbsoluteRadius = FMath::Abs(Radius);
+	const double InverseCount = 1.0 / Count;
+	const double GoldenAngle = UE_DOUBLE_PI * (3.0 - FMath::Sqrt(5.0));
+	return GeneratePlanarRadialPoints(Center, Rotation, Count, WrapDegreesAsRadians(AngleOffsetDegrees),
+		GoldenAngle, [AbsoluteRadius, InverseCount](const int32 Index)
+		{
+			return AbsoluteRadius * FMath::Sqrt((Index + 0.5) * InverseCount);
+		});
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double AngleOffsetDegrees)
+{
+	if (Count <= 0 || Center.ContainsNaN() || !FMath::IsFinite(Radius) || !FMath::IsFinite(AngleOffsetDegrees))
+	{
+		return {};
+	}
+
+	FVector AxisX;
+	FVector AxisY;
+	FVector AxisZ;
+	if (!TryGetRotatedAxes(Rotation, AxisX, AxisY, AxisZ))
+	{
+		return {};
+	}
+
+	const double AbsoluteRadius = FMath::Abs(Radius);
+	if (Count == 1)
+	{
+		return MakeSinglePoint(Center + AxisZ * AbsoluteRadius);
+	}
+
+	TArray<FVector> Points;
+	Points.SetNumUninitialized(Count);
+	const double InverseCount = 1.0 / Count;
+	const double GoldenAngle = UE_DOUBLE_PI * (3.0 - FMath::Sqrt(5.0));
+	FAngleStepper Angle(WrapDegreesAsRadians(AngleOffsetDegrees), GoldenAngle);
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const double Z = 1.0 - 2.0 * (Index + 0.5) * InverseCount;
+		const double RadialScale = FMath::Sqrt(FMath::Max(0.0, 1.0 - Z * Z));
+		const FVector Point = Center + (AxisX * (Angle.Cosine * RadialScale)
+			+ AxisY * (Angle.Sine * RadialScale) + AxisZ * Z) * AbsoluteRadius;
+		if (Point.ContainsNaN())
+		{
+			return {};
+		}
+		Points[Index] = Point;
+		Angle.Advance();
+	}
+	return Points;
 }
 
 float UDirectiveUtilMathFunctionLibrary::EaseAlpha(const float Alpha, const EDirectiveUtilEaseType EaseType)
@@ -478,6 +1186,250 @@ float UDirectiveUtilMathFunctionLibrary::GetFloatArrayStandardDeviation(const TA
 	return static_cast<float>(FMath::Sqrt(SquaredDeltaSum / Values.Num()));
 }
 
+bool UDirectiveUtilMathFunctionLibrary::GetAngleArrayAverage(const TArray<float>& Angles,
+	float& AverageAngle, float& ResultantStrength)
+{
+	AverageAngle = 0.0f;
+	ResultantStrength = 0.0f;
+	if (Angles.IsEmpty())
+	{
+		return false;
+	}
+
+	double SineSum = 0.0;
+	double CosineSum = 0.0;
+	for (const float Angle : Angles)
+	{
+		if (!FMath::IsFinite(Angle))
+		{
+			return false;
+		}
+
+		const double Radians = FMath::DegreesToRadians(FMath::Fmod(static_cast<double>(Angle), 360.0));
+		SineSum += FMath::Sin(Radians);
+		CosineSum += FMath::Cos(Radians);
+	}
+
+	const double Magnitude = FMath::Sqrt(SineSum * SineSum + CosineSum * CosineSum);
+	ResultantStrength = static_cast<float>(FMath::Clamp(Magnitude / Angles.Num(), 0.0, 1.0));
+	if (ResultantStrength <= UE_DOUBLE_SMALL_NUMBER)
+	{
+		ResultantStrength = 0.0f;
+		return false;
+	}
+
+	AverageAngle = static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(SineSum, CosineSum)));
+	return true;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::GetWeightedFloatArrayAverage(const TArray<float>& Values,
+	const TArray<float>& Weights, float& Average)
+{
+	Average = 0.0f;
+	if (Values.IsEmpty() || Values.Num() != Weights.Num())
+	{
+		return false;
+	}
+
+	double WeightedSum = 0.0;
+	double WeightSum = 0.0;
+	for (int32 Index = 0; Index < Values.Num(); ++Index)
+	{
+		if (!FMath::IsFinite(Values[Index]))
+		{
+			return false;
+		}
+
+		const double Weight = GetUsableWeight(Weights[Index]);
+		WeightedSum += static_cast<double>(Values[Index]) * Weight;
+		WeightSum += Weight;
+	}
+
+	if (WeightSum <= 0.0)
+	{
+		return false;
+	}
+
+	Average = static_cast<float>(WeightedSum / WeightSum);
+	return FMath::IsFinite(Average);
+}
+
+bool UDirectiveUtilMathFunctionLibrary::GetWeightedVectorArrayAverage(const TArray<FVector>& Values,
+	const TArray<float>& Weights, FVector& Average)
+{
+	Average = FVector::ZeroVector;
+	if (Values.IsEmpty() || Values.Num() != Weights.Num())
+	{
+		return false;
+	}
+
+	FVector RunningAverage = FVector::ZeroVector;
+	double WeightSum = 0.0;
+	for (int32 Index = 0; Index < Values.Num(); ++Index)
+	{
+		if (Values[Index].ContainsNaN())
+		{
+			return false;
+		}
+
+		const double Weight = GetUsableWeight(Weights[Index]);
+		if (Weight > 0.0)
+		{
+			const double NewWeightSum = WeightSum + Weight;
+			RunningAverage = FMath::LerpStable(RunningAverage, Values[Index], Weight / NewWeightSum);
+			WeightSum = NewWeightSum;
+		}
+	}
+
+	if (WeightSum <= 0.0 || RunningAverage.ContainsNaN())
+	{
+		return false;
+	}
+
+	Average = RunningAverage;
+	return true;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::NormalizeFloatArrayToRange(const TArray<float>& Values,
+	const float OutputMinimum, const float OutputMaximum, TArray<float>& NormalizedValues)
+{
+	TArray<float> ValuesCopy;
+	const TArray<float>* SourceValues = &Values;
+	if (&Values == &NormalizedValues)
+	{
+		ValuesCopy = Values;
+		SourceValues = &ValuesCopy;
+	}
+
+	NormalizedValues.Reset();
+	if (SourceValues->IsEmpty() || !FMath::IsFinite(OutputMinimum) || !FMath::IsFinite(OutputMaximum))
+	{
+		return false;
+	}
+
+	float InputMinimum = (*SourceValues)[0];
+	float InputMaximum = (*SourceValues)[0];
+	for (const float Value : *SourceValues)
+	{
+		if (!FMath::IsFinite(Value))
+		{
+			return false;
+		}
+		InputMinimum = FMath::Min(InputMinimum, Value);
+		InputMaximum = FMath::Max(InputMaximum, Value);
+	}
+
+	NormalizedValues.SetNumUninitialized(SourceValues->Num());
+	if (InputMinimum == InputMaximum)
+	{
+		NormalizedValues.Init(OutputMinimum, SourceValues->Num());
+		return true;
+	}
+
+	const double Scale = (static_cast<double>(OutputMaximum) - OutputMinimum)
+		/ (static_cast<double>(InputMaximum) - InputMinimum);
+	for (int32 Index = 0; Index < SourceValues->Num(); ++Index)
+	{
+		NormalizedValues[Index] = static_cast<float>(OutputMinimum
+			+ (static_cast<double>((*SourceValues)[Index]) - InputMinimum) * Scale);
+	}
+	return true;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::NormalizeWeights(const TArray<float>& Weights,
+	TArray<float>& NormalizedWeights)
+{
+	TArray<float> WeightsCopy;
+	const TArray<float>* SourceWeights = &Weights;
+	if (&Weights == &NormalizedWeights)
+	{
+		WeightsCopy = Weights;
+		SourceWeights = &WeightsCopy;
+	}
+
+	NormalizedWeights.Reset();
+	if (SourceWeights->IsEmpty())
+	{
+		return false;
+	}
+
+	double WeightSum = 0.0;
+	for (const float Weight : *SourceWeights)
+	{
+		WeightSum += GetUsableWeight(Weight);
+	}
+	if (WeightSum <= 0.0)
+	{
+		return false;
+	}
+
+	NormalizedWeights.SetNumUninitialized(SourceWeights->Num());
+	for (int32 Index = 0; Index < SourceWeights->Num(); ++Index)
+	{
+		NormalizedWeights[Index] = static_cast<float>(GetUsableWeight((*SourceWeights)[Index]) / WeightSum);
+	}
+	return true;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile(const TArray<float>& Values,
+	const float Percentile, float& Value)
+{
+	Value = 0.0f;
+	if (Values.IsEmpty() || !FMath::IsFinite(Percentile))
+	{
+		return false;
+	}
+
+	for (const float Candidate : Values)
+	{
+		if (!FMath::IsFinite(Candidate))
+		{
+			return false;
+		}
+	}
+	TArray<float> WorkingValues = Values;
+
+	const double Position = FMath::Clamp(static_cast<double>(Percentile), 0.0, 100.0)
+		* 0.01 * (WorkingValues.Num() - 1);
+	const int32 LowerIndex = FMath::FloorToInt(Position);
+	const int32 UpperIndex = FMath::CeilToInt(Position);
+	const float LowerValue = SelectNth(WorkingValues, LowerIndex);
+	if (LowerIndex == UpperIndex)
+	{
+		Value = LowerValue;
+		return true;
+	}
+	const float UpperValue = SelectNth(WorkingValues, UpperIndex);
+	Value = static_cast<float>(FMath::Lerp(
+		static_cast<double>(LowerValue),
+		static_cast<double>(UpperValue),
+		Position - LowerIndex));
+	return true;
+}
+
+bool UDirectiveUtilMathFunctionLibrary::GetFloatArrayRootMeanSquare(const TArray<float>& Values,
+	float& RootMeanSquare)
+{
+	RootMeanSquare = 0.0f;
+	if (Values.IsEmpty())
+	{
+		return false;
+	}
+
+	double SquaredSum = 0.0;
+	for (const float Value : Values)
+	{
+		if (!FMath::IsFinite(Value))
+		{
+			return false;
+		}
+		SquaredSum += static_cast<double>(Value) * Value;
+	}
+
+	RootMeanSquare = static_cast<float>(FMath::Sqrt(SquaredSum / Values.Num()));
+	return FMath::IsFinite(RootMeanSquare);
+}
+
 int32 UDirectiveUtilMathFunctionLibrary::GetRandomIndexFromWeights(const TArray<float>& Weights)
 {
 	double Total = 0.0;
@@ -544,4 +1496,115 @@ int32 UDirectiveUtilMathFunctionLibrary::GetRandomIndexFromWeightsFromStream(FRa
 	}
 
 	return LastPositiveIndex;
+}
+
+FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInCircle(const float Radius)
+{
+	if (!FMath::IsFinite(Radius))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
+	if (AbsoluteRadius == 0.0)
+	{
+		return FVector2D::ZeroVector;
+	}
+	const double AngleSample = FMath::FRand();
+	const double RadiusSample = FMath::FRand();
+	return MakePointInAnnulus(0.0, AbsoluteRadius, AngleSample, RadiusSample);
+}
+
+FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(FRandomStream& Stream, const float Radius)
+{
+	if (!FMath::IsFinite(Radius))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
+	if (AbsoluteRadius == 0.0)
+	{
+		return FVector2D::ZeroVector;
+	}
+	const double AngleSample = Stream.FRand();
+	const double RadiusSample = Stream.FRand();
+	return MakePointInAnnulus(0.0, AbsoluteRadius, AngleSample, RadiusSample);
+}
+
+FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulus(const float InnerRadius, const float OuterRadius)
+{
+	if (!FMath::IsFinite(InnerRadius) || !FMath::IsFinite(OuterRadius))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const double FirstRadius = FMath::Abs(static_cast<double>(InnerRadius));
+	const double SecondRadius = FMath::Abs(static_cast<double>(OuterRadius));
+	const double Inner = FMath::Min(FirstRadius, SecondRadius);
+	const double Outer = FMath::Max(FirstRadius, SecondRadius);
+	if (Outer == 0.0)
+	{
+		return FVector2D::ZeroVector;
+	}
+	const double AngleSample = FMath::FRand();
+	const double RadiusSample = FMath::FRand();
+	return MakePointInAnnulus(Inner, Outer, AngleSample, RadiusSample);
+}
+
+FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(FRandomStream& Stream,
+	const float InnerRadius, const float OuterRadius)
+{
+	if (!FMath::IsFinite(InnerRadius) || !FMath::IsFinite(OuterRadius))
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	const double FirstRadius = FMath::Abs(static_cast<double>(InnerRadius));
+	const double SecondRadius = FMath::Abs(static_cast<double>(OuterRadius));
+	const double Inner = FMath::Min(FirstRadius, SecondRadius);
+	const double Outer = FMath::Max(FirstRadius, SecondRadius);
+	if (Outer == 0.0)
+	{
+		return FVector2D::ZeroVector;
+	}
+	const double AngleSample = Stream.FRand();
+	const double RadiusSample = Stream.FRand();
+	return MakePointInAnnulus(Inner, Outer, AngleSample, RadiusSample);
+}
+
+FVector UDirectiveUtilMathFunctionLibrary::RandomPointInSphere(const float Radius)
+{
+	if (!FMath::IsFinite(Radius))
+	{
+		return FVector::ZeroVector;
+	}
+
+	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
+	if (AbsoluteRadius == 0.0)
+	{
+		return FVector::ZeroVector;
+	}
+	return MakePointInSphere(AbsoluteRadius, []
+	{
+		return FMath::FRand();
+	});
+}
+
+FVector UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(FRandomStream& Stream, const float Radius)
+{
+	if (!FMath::IsFinite(Radius))
+	{
+		return FVector::ZeroVector;
+	}
+
+	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
+	if (AbsoluteRadius == 0.0)
+	{
+		return FVector::ZeroVector;
+	}
+	return MakePointInSphere(AbsoluteRadius, [&Stream]
+	{
+		return Stream.FRand();
+	});
 }

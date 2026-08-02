@@ -47,6 +47,191 @@ public:
 	static float AngleBetweenVectors(const FVector& A, const FVector& B);
 
 	/**
+	 * Returns the signed angle in degrees from one vector to another around an axis.
+	 * The vectors are projected onto the plane perpendicular to the axis before measuring.
+	 * @param From - The starting direction.
+	 * @param To - The target direction.
+	 * @param Axis - The axis that defines the rotation plane and positive direction.
+	 * @returns The signed angle in the [-180, 180] range, or 0 if an input cannot define a direction.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Signed Angle Between Vectors", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static float SignedAngleBetweenVectors(const FVector& From, const FVector& To, const FVector& Axis);
+
+	/**
+	 * Returns the shortest signed difference in degrees from one angle to another.
+	 * @param From - The starting angle in degrees.
+	 * @param To - The target angle in degrees.
+	 * @returns The signed difference in the [-180, 180] range, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Delta Angle (Degrees)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float DeltaAngle(float From, float To);
+
+	/**
+	 * Interpolates between two angles along the shortest path.
+	 * @param A - The starting angle in degrees.
+	 * @param B - The target angle in degrees.
+	 * @param Alpha - The interpolation alpha. Values outside [0, 1] extrapolate.
+	 * @returns The interpolated angle in the [-180, 180] range, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Lerp Angle (Degrees)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float LerpAngle(float A, float B, float Alpha);
+
+	/**
+	 * Repeats a value between two bounds, reversing direction at each bound.
+	 * @param Value - The value to repeat.
+	 * @param Minimum - One range bound.
+	 * @param Maximum - The other range bound.
+	 * @returns The ping-ponged value, the shared bound for a zero-sized range, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ping Pong (Float)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float PingPong(float Value, float Minimum = 0.0f, float Maximum = 1.0f);
+
+	/**
+	 * Applies cubic smoothing to a value between two bounds.
+	 * @returns A value in the [0, 1] range, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Smooth Step", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float SmoothStep(float Value, float Minimum = 0.0f, float Maximum = 1.0f);
+
+	/**
+	 * Applies quintic smoothing to a value between two bounds.
+	 * @returns A value in the [0, 1] range, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Smoother Step", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float SmootherStep(float Value, float Minimum = 0.0f, float Maximum = 1.0f);
+
+	/**
+	 * Returns a normalized falloff between an inner and outer radius.
+	 * @returns 1 inside the inner radius, 0 at or beyond the outer radius, or 0 for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Range Falloff", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
+	static float RangeFalloff(float Distance, float InnerRadius, float OuterRadius, float FalloffExponent = 1.0f);
+
+	/**
+	 * Tests whether a direction lies within a cone centered on another direction.
+	 * @param Direction - The direction to test.
+	 * @param ConeDirection - The center direction of the cone.
+	 * @param ConeHalfAngleDegrees - The angle from the cone center to its edge. Clamped to [0, 180].
+	 * @returns True when the direction lies inside or on the cone, or false for an invalid direction or angle.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Is Direction Within Cone", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static bool IsDirectionWithinCone(const FVector& Direction, const FVector& ConeDirection, float ConeHalfAngleDegrees);
+
+	/**
+	 * Calculates the normalized direction and distance from one point to another.
+	 * @returns False when the points are equal or an input is non-finite.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Direction And Distance", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static bool GetDirectionAndDistance(const FVector& From, const FVector& To, FVector& Direction, double& Distance);
+
+	/**
+	 * Rotates a 2D point around a pivot in degrees.
+	 * @returns The rotated point, or zero for non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Rotate Point Around Pivot 2D", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static FVector2D RotatePointAroundPivot2D(const FVector2D& Point, const FVector2D& Pivot, float AngleDegrees);
+
+	/**
+	 * Calculates the signed distance from a point to a plane.
+	 * @returns The signed distance, or 0 when the plane normal is zero or an input is non-finite.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Signed Distance To Plane", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static double SignedDistanceToPlane(const FVector& Point, const FVector& PlanePoint, const FVector& PlaneNormal);
+
+	/**
+	 * Tests whether a point lies within a cone and optional maximum distance.
+	 * @returns True when the point lies inside or on the cone and within the distance limit.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Is Point Within Cone", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static bool IsPointWithinCone(const FVector& Point, const FVector& ConeOrigin, const FVector& ConeDirection,
+		float ConeHalfAngleDegrees, double MaximumDistance = 0.0);
+
+	/**
+	 * Generates a rectangular grid on the local XY plane.
+	 * @param Origin - The first point, or the grid center when Centered is true.
+	 * @param Rotation - The grid plane rotation.
+	 * @param Dimensions - The number of points along the local X and Y axes.
+	 * @param Spacing - The signed center-to-center spacing along the local X and Y axes.
+	 * @param bCentered - Whether to center the grid on Origin.
+	 * @returns Points ordered by X, then Y, or an empty array for invalid input or an unsupported point count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Points 2D", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GenerateGridPoints2D(const FVector& Origin, const FRotator& Rotation,
+		FIntPoint Dimensions, const FVector2D& Spacing, bool bCentered = true);
+
+	/**
+	 * Generates a rectangular 3D grid.
+	 * @param Origin - The first point, or the grid center when Centered is true.
+	 * @param Rotation - The grid rotation.
+	 * @param Dimensions - The number of points along the local X, Y, and Z axes.
+	 * @param Spacing - The signed center-to-center spacing along the local X, Y, and Z axes.
+	 * @param bCentered - Whether to center the grid on Origin.
+	 * @returns Points ordered by X, then Y, then Z, or an empty array for invalid input or an unsupported point count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Points 3D", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GenerateGridPoints3D(const FVector& Origin, const FRotator& Rotation,
+		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true);
+
+	/**
+	 * Generates points at a fixed spacing along a direction.
+	 * @param Origin - The first point, or the formation center when Centered is true.
+	 * @param Direction - The direction of travel. Its magnitude is ignored.
+	 * @param Count - The number of points to generate.
+	 * @param Spacing - The signed center-to-center distance between points.
+	 * @param bCentered - Whether to center the formation on Origin.
+	 * @returns The generated points, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points Along Direction", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsAlongDirection(const FVector& Origin, const FVector& Direction,
+		int32 Count, double Spacing, bool bCentered = false);
+
+	/**
+	 * Generates evenly spaced points between two locations.
+	 * @param Start - The start of the segment.
+	 * @param End - The end of the segment.
+	 * @param Count - The number of points to generate.
+	 * @param bIncludeEndpoints - Whether the generated points include Start and End.
+	 * @returns The generated points, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points Between Locations", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsBetweenLocations(const FVector& Start, const FVector& End,
+		int32 Count, bool bIncludeEndpoints = true);
+
+	/**
+	 * Generates evenly spaced points around a circle on the rotated local XY plane.
+	 * @returns The generated points without repeating the first point, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Circle", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsOnCircle(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double StartAngleDegrees = 0.0);
+
+	/**
+	 * Generates evenly spaced points along an arc on the rotated local XY plane.
+	 * @param bIncludeEndpoint - Whether the final point lies at Start Angle plus Arc Angle.
+	 * @returns The generated points, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Arc", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsOnArc(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
+		bool bIncludeEndpoint = true);
+
+	/**
+	 * Generates a deterministic sunflower distribution across a disc on the rotated local XY plane.
+	 * @returns Approximately even area coverage, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Disc", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsOnDisc(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double AngleOffsetDegrees = 0.0);
+
+	/**
+	 * Generates a deterministic Fibonacci distribution across a sphere surface.
+	 * @returns Approximately even surface coverage, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Sphere", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsOnSphere(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double AngleOffsetDegrees = 0.0);
+
+	/**
 	 * Applies a Back/Elastic/Bounce easing curve to a normalized alpha.
 	 * @note These are the Penner easing curves the engine's built-in "Ease" node (EEasingFunc) does not provide.
 	 * For Sinusoidal/Exponential/Circular/power easings, use the engine's "Ease" node instead.
@@ -225,6 +410,56 @@ public:
 	static float GetFloatArrayStandardDeviation(const TArray<float>& Values);
 
 	/**
+	 * Calculates the circular mean of an angle array in degrees.
+	 * @returns False for an empty array, non-finite input, or an undefined or numerically indeterminate circular mean.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Angle Array Average", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool GetAngleArrayAverage(const TArray<float>& Angles, float& AverageAngle, float& ResultantStrength);
+
+	/**
+	 * Calculates the weighted average of a float array.
+	 * @returns False when the arrays differ in size, contain invalid values, or have no positive weight.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Weighted Float Array Average", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool GetWeightedFloatArrayAverage(const TArray<float>& Values, const TArray<float>& Weights, float& Average);
+
+	/**
+	 * Calculates the weighted average of a vector array.
+	 * @returns False when the arrays differ in size, contain invalid values, or have no positive weight.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Weighted Vector Array Average", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool GetWeightedVectorArrayAverage(const TArray<FVector>& Values, const TArray<float>& Weights, FVector& Average);
+
+	/**
+	 * Normalizes a float array to an output range.
+	 * @returns False for an empty array or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Normalize Float Array To Range", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool NormalizeFloatArrayToRange(const TArray<float>& Values, float OutputMinimum, float OutputMaximum,
+		TArray<float>& NormalizedValues);
+
+	/**
+	 * Normalizes positive weights so their sum is one. Negative and non-finite weights are treated as zero.
+	 * @returns False for an empty array or when no positive weight remains.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Normalize Weights", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool NormalizeWeights(const TArray<float>& Weights, TArray<float>& NormalizedWeights);
+
+	/**
+	 * Calculates a percentile using the Type 7 linear method without modifying the input array.
+	 * @returns False for an empty array or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Float Array Percentile", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool GetFloatArrayPercentile(const TArray<float>& Values, float Percentile, float& Value);
+
+	/**
+	 * Calculates the root mean square of a float array.
+	 * @returns False for an empty array or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Float Array Root Mean Square", BlueprintThreadSafe), Category = "Directive Utilities|Math|Array")
+	static bool GetFloatArrayRootMeanSquare(const TArray<float>& Values, float& RootMeanSquare);
+
+	/**
 	 * Returns a random index into the Weights array, where each index's probability is proportional to its weight.
 	 * Useful for loot tables and weighted spawning. Negative and non-finite weights are treated as zero.
 	 * @param Weights - The per-index weights.
@@ -241,4 +476,28 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Random Index From Weights (Stream)"), Category = "Directive Utilities|Math|Random")
 	static int32 GetRandomIndexFromWeightsFromStream(UPARAM(ref) FRandomStream& Stream, const TArray<float>& Weights);
+
+	/** Returns a uniformly distributed random point inside a circle. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle"), Category = "Directive Utilities|Math|Random")
+	static FVector2D RandomPointInCircle(float Radius);
+
+	/** Returns a deterministic uniformly distributed random point inside a circle. Invalid or zero radii do not advance the stream. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle (Stream)"), Category = "Directive Utilities|Math|Random")
+	static FVector2D RandomPointInCircleFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
+
+	/** Returns a uniformly distributed random point inside a 2D annulus. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus"), Category = "Directive Utilities|Math|Random")
+	static FVector2D RandomPointInAnnulus(float InnerRadius, float OuterRadius);
+
+	/** Returns a deterministic uniformly distributed random point inside a 2D annulus. Invalid or zero radii do not advance the stream. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus (Stream)"), Category = "Directive Utilities|Math|Random")
+	static FVector2D RandomPointInAnnulusFromStream(UPARAM(ref) FRandomStream& Stream, float InnerRadius, float OuterRadius);
+
+	/** Returns a uniformly distributed random point inside a sphere. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere"), Category = "Directive Utilities|Math|Random")
+	static FVector RandomPointInSphere(float Radius);
+
+	/** Returns a deterministic uniformly distributed random point inside a sphere. Invalid or zero radii do not advance the stream. */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere (Stream)"), Category = "Directive Utilities|Math|Random")
+	static FVector RandomPointInSphereFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
 };

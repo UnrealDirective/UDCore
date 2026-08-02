@@ -1088,6 +1088,7 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 			ShuffledFloats.Add(static_cast<float>(Value) + 0.25f);
 		}
 		float MedianResult = 0.0f;
+		float PercentileResult = 0.0f;
 
 		Results.Add(Measure(
 			TEXT("IntMedian"), ElementCount, 0, SampleCount,
@@ -1098,6 +1099,11 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 			TEXT("FloatMedian"), ElementCount, 0, SampleCount,
 			[]() {},
 			[&]() { MedianResult = UDirectiveUtilMathFunctionLibrary::GetFloatArrayMedian(ShuffledFloats); }));
+
+		Results.Add(Measure(
+			TEXT("FloatPercentile"), ElementCount, 40, SampleCount,
+			[]() {},
+			[&]() { UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile(ShuffledFloats, 40.0f, PercentileResult); }));
 
 		if (ElementCount == 100001)
 		{
@@ -1113,6 +1119,36 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 				[]() {},
 				[&]() { MedianResult = UDirectiveUtilMathFunctionLibrary::GetIntArrayMedian(ReverseValues); }));
 		}
+	}
+
+	for (const int32 OperationCount : {1000, 100000})
+	{
+		double FalloffSum = 0.0;
+		Results.Add(Measure(
+			TEXT("RangeFalloffDefault"), OperationCount, 1, SampleCount,
+			[&]() { FalloffSum = 0.0; },
+			[&]()
+			{
+				for (int32 Index = 0; Index < OperationCount; ++Index)
+				{
+					FalloffSum += UDirectiveUtilMathFunctionLibrary::RangeFalloff(
+						static_cast<float>(Index % 1000), 100.0f, 900.0f);
+				}
+			}));
+
+		FRandomStream SphereStream;
+		FVector SphereSum = FVector::ZeroVector;
+		Results.Add(Measure(
+			TEXT("RandomPointInSphereStream"), OperationCount, 0, SampleCount,
+			[&]() { SphereStream.Initialize(1337); SphereSum = FVector::ZeroVector; },
+			[&]()
+			{
+				for (int32 Index = 0; Index < OperationCount; ++Index)
+				{
+					SphereSum += UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(
+						SphereStream, 100.0f);
+				}
+			}));
 	}
 
 	for (const int32 CandidateCount : {10, 1000, 10000})

@@ -25,7 +25,7 @@ Per-library reference for every Blueprint-exposed node. Each page lists the modu
 - [String Function Library](Nodes/StringFunctionLibrary.md) - validation, filtering, matching, formatting, hashing, and case conversion.
 - [Text Function Library](Nodes/TextFunctionLibrary.md) - text helpers.
 - [Regex Function Library](Nodes/RegexFunctionLibrary.md) - pattern matching and replacement.
-- [Math Function Library](Nodes/MathFunctionLibrary.md) - easing, weighted random, rounding, formatting, noise, and array statistics.
+- [Math Function Library](Nodes/MathFunctionLibrary.md) - angles, easing, ranges, point generation, weighted random, formatting, noise, and array statistics.
 - [Gameplay Tag Function Library](Nodes/GameplayTagFunctionLibrary.md) - tag hierarchy helpers and registry search.
 - [Save Game Function Library](Nodes/SaveGameFunctionLibrary.md) - save-slot enumeration, timestamps, byte serialization, and slot management.
 - [Input Function Library](Nodes/InputFunctionLibrary.md) - Enhanced Input helpers.
