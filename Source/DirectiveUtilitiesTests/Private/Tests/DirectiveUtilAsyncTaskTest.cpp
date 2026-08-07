@@ -594,6 +594,54 @@ bool FDirectiveUtilCancelRepeatAfterIterationScenario::Update()
 	return true;
 }
 
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(
+	FDirectiveUtilTickInfiniteRepeatScenario,
+	FAutomationTestBase*, Test,
+	UDirectiveUtilDelegateListener*, Listener,
+	int32, FramesRemaining);
+
+bool FDirectiveUtilTickInfiniteRepeatScenario::Update()
+{
+	if (!Listener)
+	{
+		return true;
+	}
+
+	if (UWorld* World = Listener->ScenarioWorld.Get())
+	{
+		World->GetTimerManager().Tick(0.1f);
+	}
+
+	if (--FramesRemaining > 0)
+	{
+		return false;
+	}
+
+	Test->TestFalse(TEXT("An infinite Repeat with Interval does not complete on its own"), Listener->bCompleted);
+	Test->TestTrue(TEXT("An infinite Repeat with Interval keeps iterating"), Listener->IterationCount >= 3);
+	TArray<int32> ExpectedRemaining;
+	ExpectedRemaining.Init(-1, Listener->IterationCount);
+	Test->TestEqual(TEXT("An infinite Repeat with Interval reports Remaining as -1"),
+		Listener->IterationRemaining, ExpectedRemaining);
+
+	if (UDirectiveUtilTask_RepeatWithInterval* Task = Cast<UDirectiveUtilTask_RepeatWithInterval>(Listener->Keepalive))
+	{
+		const int32 IterationsAtCancel = Listener->IterationCount;
+		Task->Cancel();
+		if (UWorld* World = Listener->ScenarioWorld.Get())
+		{
+			World->GetTimerManager().Tick(0.1f);
+			World->GetTimerManager().Tick(0.1f);
+		}
+		Test->TestEqual(TEXT("Cancel stops further infinite iterations"), Listener->IterationCount, IterationsAtCancel);
+		Test->TestFalse(TEXT("Cancel does not fire Completed for an infinite Repeat"), Listener->bCompleted);
+		Test->TestFalse(TEXT("Cancelled infinite Repeat is inactive"), Task->IsActive());
+	}
+
+	DirectiveUtilAsyncTaskTestHelpers::DestroyScenario(Listener);
+	return true;
+}
+
 DEFINE_LATENT_AUTOMATION_COMMAND_FIVE_PARAMETER(
 	FDirectiveUtilTickRepeatScenario,
 	FAutomationTestBase*, Test,
@@ -680,6 +728,15 @@ bool FDirectiveUtilRepeatWithIntervalTaskTest::RunTest(const FString& Parameters
 	else
 	{
 		AddError(TEXT("Failed to create the empty Repeat with Interval scenario."));
+	}
+
+	if (UDirectiveUtilDelegateListener* Infinite = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(-1, 0.0f, 0.0f, false))
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickInfiniteRepeatScenario(this, Infinite, 5));
+	}
+	else
+	{
+		AddError(TEXT("Failed to create the infinite Repeat with Interval scenario."));
 	}
 
 	if (UDirectiveUtilDelegateListener* NegativeCount = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(-4, 0.1f, 0.1f, false))
