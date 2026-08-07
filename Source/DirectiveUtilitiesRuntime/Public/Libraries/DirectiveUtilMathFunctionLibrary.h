@@ -806,7 +806,7 @@ public:
 	 * @param Weights - The per-index weights. Negative and non-finite weights are treated as zero.
 	 * @returns The selected index, or INDEX_NONE (-1) if the array is empty or all weights are zero.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Random Index From Weights (Stream)"), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Random Index From Weights (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
 	static int32 GetRandomIndexFromWeightsFromStream(UPARAM(ref) FRandomStream& Stream, const TArray<float>& Weights);
 
 	/** Returns a uniformly distributed random point inside a circle. */
@@ -814,7 +814,7 @@ public:
 	static FVector2D RandomPointInCircle(float Radius);
 
 	/** Returns a deterministic uniformly distributed random point inside a circle. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle (Stream)"), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
 	static FVector2D RandomPointInCircleFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
 
 	/** Returns a uniformly distributed random point inside a 2D annulus. */
@@ -822,7 +822,7 @@ public:
 	static FVector2D RandomPointInAnnulus(float InnerRadius, float OuterRadius);
 
 	/** Returns a deterministic uniformly distributed random point inside a 2D annulus. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus (Stream)"), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
 	static FVector2D RandomPointInAnnulusFromStream(UPARAM(ref) FRandomStream& Stream, float InnerRadius, float OuterRadius);
 
 	/** Returns a uniformly distributed random point inside a sphere. */
@@ -830,6 +830,6 @@ public:
 	static FVector RandomPointInSphere(float Radius);
 
 	/** Returns a deterministic uniformly distributed random point inside a sphere. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere (Stream)"), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
 	static FVector RandomPointInSphereFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
 };

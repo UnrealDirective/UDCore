@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Repeat with Interval` accepts `Count = -1` to repeat until Cancel; `Remaining` stays `-1` while running.
 
 ### Changed
+- Seeded random nodes and the in-place array nodes are marked thread safe, so they can be called from thread-safe Blueprint functions and PCG Blueprint elements. The unseeded random nodes stay game-thread only because they draw from the global random stream.
 - `Generate Points Along Spline` keeps `Include Endpoint` as the third pin; Spacing Mode and later options follow it so existing Blueprint and C++ call sites keep their meaning.
 
 ### Fixed
