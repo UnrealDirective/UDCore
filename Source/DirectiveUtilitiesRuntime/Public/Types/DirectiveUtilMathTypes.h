@@ -13,8 +13,29 @@ enum class EDirectiveUtilHexOrientation : uint8
 	FlatTop UMETA(DisplayName = "Flat Top"),
 };
 
+/** Rotation applied to transforms generated around a center point. */
+UENUM(BlueprintType)
+enum class EDirectiveUtilRadialOrientation : uint8
+{
+	Fixed UMETA(DisplayName = "Fixed"),
+	FaceCenter UMETA(DisplayName = "Face Center"),
+	FaceAwayFromCenter UMETA(DisplayName = "Face Away From Center"),
+	FollowPath UMETA(DisplayName = "Follow Path"),
+	FaceAgainstPath UMETA(DisplayName = "Face Against Path"),
+};
+
+/** Spacing behavior for spline sample generation. */
+UENUM(BlueprintType)
+enum class EDirectiveUtilSplineSpacingMode : uint8
+{
+	Fixed UMETA(DisplayName = "Fixed", Tooltip = "Samples every Spacing units. The final interval may be shorter."),
+	Even UMETA(DisplayName = "Even", Tooltip = "Shrinks Spacing so the samples divide the range evenly."),
+};
+
 /**
- * Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the classic Penner Back, Elastic and Bounce curves.
+ * Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the classic Penner Back, Elastic and Bounce curves,
+ * plus Linear for un-eased interpolation.
+ * New values append at the end so existing Blueprint ordinals stay stable.
  */
 UENUM(BlueprintType)
 enum class EDirectiveUtilEaseType : uint8
@@ -28,4 +49,5 @@ enum class EDirectiveUtilEaseType : uint8
 	BounceIn UMETA(DisplayName = "Bounce In", Tooltip="Bounces with increasing energy before easing in."),
 	BounceOut UMETA(DisplayName = "Bounce Out", Tooltip="Bounces with decreasing energy after the end."),
 	BounceInOut UMETA(DisplayName = "Bounce In Out", Tooltip="Bounces at both the start and the end."),
+	Linear UMETA(DisplayName = "Linear", Tooltip="Interpolates at a constant rate without easing."),
 };

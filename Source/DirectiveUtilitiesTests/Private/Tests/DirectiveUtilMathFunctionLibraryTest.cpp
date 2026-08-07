@@ -147,7 +147,8 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	const TArray<EDirectiveUtilEaseType> AllEaseTypes = {
 		EDirectiveUtilEaseType::BackIn, EDirectiveUtilEaseType::BackOut, EDirectiveUtilEaseType::BackInOut,
 		EDirectiveUtilEaseType::ElasticIn, EDirectiveUtilEaseType::ElasticOut, EDirectiveUtilEaseType::ElasticInOut,
-		EDirectiveUtilEaseType::BounceIn, EDirectiveUtilEaseType::BounceOut, EDirectiveUtilEaseType::BounceInOut
+		EDirectiveUtilEaseType::BounceIn, EDirectiveUtilEaseType::BounceOut, EDirectiveUtilEaseType::BounceInOut,
+		EDirectiveUtilEaseType::Linear
 	};
 	for (const EDirectiveUtilEaseType EaseType : AllEaseTypes)
 	{
@@ -166,6 +167,22 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	TestEqual("EaseAlpha should clamp alpha below 0",
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(-1.0f, EDirectiveUtilEaseType::BounceOut),
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EDirectiveUtilEaseType::BounceOut));
+	TestEqual("Linear ease should pass the clamped alpha through",
+		UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.3f, EDirectiveUtilEaseType::Linear), 0.3f);
+
+	const FTransform EaseStart(FRotator::ZeroRotator, FVector::ZeroVector, FVector::OneVector);
+	const FTransform EaseTarget(FRotator(0.0, 90.0, 0.0), FVector(10.0, 0.0, 0.0), FVector(3.0));
+	const FTransform EasedMidpoint = UDirectiveUtilMathFunctionLibrary::EaseTransform(
+		EaseStart, EaseTarget, 0.5f, EDirectiveUtilEaseType::Linear);
+	TestTrue("EaseTransform should blend location, rotation, and scale",
+		EasedMidpoint.GetLocation().Equals(FVector(5.0, 0.0, 0.0), 1.e-4)
+		&& EasedMidpoint.GetRotation().Equals(FRotator(0.0, 45.0, 0.0).Quaternion(), 1.e-4)
+		&& EasedMidpoint.GetScale3D().Equals(FVector(2.0), 1.e-4));
+	TestTrue("EaseTransform should return its endpoints at alpha 0 and 1",
+		UDirectiveUtilMathFunctionLibrary::EaseTransform(
+			EaseStart, EaseTarget, 0.0f, EDirectiveUtilEaseType::BounceOut).Equals(EaseStart, 1.e-4)
+		&& UDirectiveUtilMathFunctionLibrary::EaseTransform(
+			EaseStart, EaseTarget, 1.0f, EDirectiveUtilEaseType::BounceOut).Equals(EaseTarget, 1.e-4));
 	TestEqual("EaseAlpha should clamp alpha above 1",
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(2.0f, EDirectiveUtilEaseType::BounceOut),
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EDirectiveUtilEaseType::BounceOut));

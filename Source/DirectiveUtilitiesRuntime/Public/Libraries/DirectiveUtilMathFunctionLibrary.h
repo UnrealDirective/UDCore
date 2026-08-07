@@ -3,11 +3,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Components/SplineComponent.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Types/DirectiveUtilMathTypes.h"
 #include "DirectiveUtilMathFunctionLibrary.generated.h"
-
-class USplineComponent;
 
 /**
  * UDirectiveUtilMathFunctionLibrary
@@ -148,10 +147,29 @@ public:
 	static bool IsPointWithinCone(const FVector& Point, const FVector& ConeOrigin, const FVector& ConeDirection,
 		float ConeHalfAngleDegrees, double MaximumDistance = 0.0);
 
+	/**
+	 * Samples a location along the polyline through an array, with Alpha 0 at the first point and 1 at the last.
+	 * Progress is distance-weighted, so equal alpha steps cover equal distance.
+	 * A closed loop adds the segment from the last point back to the first and wraps Alpha instead of clamping it.
+	 * @returns The sampled location, or the zero vector for an empty array or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Sample Location Array", BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
+	static FVector SampleLocationArray(const TArray<FVector>& Locations, float Alpha, bool bClosedLoop = false);
+
 	/** Creates one transform per location using a shared rotation and scale. */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Locations To Transforms", BlueprintThreadSafe), Category = "Directive Utilities|Math|Transform")
 	static TArray<FTransform> LocationsToTransforms(const TArray<FVector>& Locations,
 		FRotator Rotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+
+	/**
+	 * Creates one transform per location with its local X axis facing toward or away from a target.
+	 * A location equal to Target uses Rotation Offset without a facing rotation.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Locations To Facing Transforms", BlueprintThreadSafe, AdvancedDisplay = "UpDirection,RotationOffset,Scale,bFaceAway"), Category = "Directive Utilities|Math|Transform")
+	static TArray<FTransform> LocationsToFacingTransforms(const TArray<FVector>& Locations,
+		FVector Target, FVector UpDirection = FVector(0.0, 0.0, 1.0),
+		FRotator RotationOffset = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0),
+		bool bFaceAway = false);
 
 	/**
 	 * Creates transforms from location, rotation, and scale arrays.
@@ -161,6 +179,15 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Make Transforms From Arrays", AutoCreateRefTerm = "Rotations,Scales", BlueprintThreadSafe), Category = "Directive Utilities|Math|Transform")
 	static bool MakeTransformsFromArrays(const TArray<FVector>& Locations, const TArray<FRotator>& Rotations,
 		const TArray<FVector>& Scales, TArray<FTransform>& Transforms);
+
+	/**
+	 * Samples a transform along the path through an array, with Alpha 0 at the first transform and 1 at the last.
+	 * Progress is distance-weighted by location. Rotation takes the shortest path and scale interpolates linearly.
+	 * A closed loop adds the segment from the last transform back to the first and wraps Alpha instead of clamping it.
+	 * @returns The sampled transform, or the identity for an empty array or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Sample Transform Array", BlueprintThreadSafe), Category = "Directive Utilities|Math|Transform")
+	static FTransform SampleTransformArray(const TArray<FTransform>& Transforms, float Alpha, bool bClosedLoop = false);
 
 	/**
 	 * Generates a rectangular grid on the local XY plane.
@@ -189,6 +216,38 @@ public:
 		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true);
 
 	/**
+	 * Generates transforms on a rectangular grid on the local XY plane.
+	 * @param Origin - The first location, or the grid center when Centered is true.
+	 * @param Rotation - The grid plane rotation.
+	 * @param Dimensions - The number of points along the local X and Y axes.
+	 * @param Spacing - The signed center-to-center spacing along the local X and Y axes.
+	 * @param bCentered - Whether to center the grid on Origin.
+	 * @param InstanceRotation - Shared rotation applied to every transform.
+	 * @param Scale - Shared scale applied to every transform.
+	 * @returns Transforms ordered by X, then Y, or an empty array for invalid input or an unsupported count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Transforms 2D", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateGridTransforms2D(const FVector& Origin, const FRotator& Rotation,
+		FIntPoint Dimensions, const FVector2D& Spacing, bool bCentered = true,
+		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+
+	/**
+	 * Generates transforms on a rectangular 3D grid.
+	 * @param Origin - The first location, or the grid center when Centered is true.
+	 * @param Rotation - The grid rotation.
+	 * @param Dimensions - The number of points along the local X, Y, and Z axes.
+	 * @param Spacing - The signed center-to-center spacing along the local X, Y, and Z axes.
+	 * @param bCentered - Whether to center the grid on Origin.
+	 * @param InstanceRotation - Shared rotation applied to every transform.
+	 * @param Scale - Shared scale applied to every transform.
+	 * @returns Transforms ordered by X, then Y, then Z, or an empty array for invalid input or an unsupported count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Transforms 3D", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateGridTransforms3D(const FVector& Origin, const FRotator& Rotation,
+		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true,
+		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+
+	/**
 	 * Generates a rectangular hex grid on the rotated local XY plane.
 	 * @param Origin - The first cell center, or the grid bounds center when Centered is true.
 	 * @param Rotation - The grid plane rotation.
@@ -206,6 +265,26 @@ public:
 		double Gap = 0.0, bool bCentered = true);
 
 	/**
+	 * Generates transforms for a rectangular hex grid with a shared instance rotation and scale.
+	 * Cell order matches Generate Rectangular Hex Grid.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Rectangular Hex Grid Transforms", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FTransform> GenerateRectangularHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
+		FIntPoint Dimensions, double CellRadius,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0, bool bCentered = true,
+		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+
+	/**
+	 * Returns the axial coordinate of every cell of a rectangular hex grid, in the same cell order as
+	 * Generate Rectangular Hex Grid.
+	 * @returns The coordinates, or an empty array for invalid input or an unsupported count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Rectangular Hex Grid Coordinates", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FIntPoint> GetRectangularHexGridCoordinates(FIntPoint Dimensions,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop);
+
+	/**
 	 * Generates a hexagon-shaped grid on the rotated local XY plane.
 	 * @param Origin - The center cell location.
 	 * @param Rotation - The grid plane rotation.
@@ -220,6 +299,17 @@ public:
 		int32 GridRadius, double CellRadius,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
 		double Gap = 0.0);
+
+	/**
+	 * Generates transforms for a hexagon-shaped grid with a shared instance rotation and scale.
+	 * Cell order matches Generate Hexagonal Hex Grid.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Hexagonal Hex Grid Transforms", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FTransform> GenerateHexagonalHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
+		int32 GridRadius, double CellRadius,
+		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0,
+		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
 
 	/**
 	 * Converts an axial hex coordinate to a location on the rotated local XY plane.
@@ -252,6 +342,39 @@ public:
 	static int64 GetHexDistance(FIntPoint A, FIntPoint B);
 
 	/**
+	 * Returns every axial coordinate within a number of steps of a center cell, ordered by axial R, then Q.
+	 * With a zero center the order matches the cells of Generate Hexagonal Hex Grid.
+	 * @returns The coordinates, or an empty array for a negative range, coordinate overflow, or an unsupported count.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hexes In Range", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FIntPoint> GetHexesInRange(FIntPoint Center, int32 Range);
+
+	/**
+	 * Returns the axial coordinates exactly Radius steps from a center cell.
+	 * Consecutive entries are adjacent and trace the ring once. A radius of zero returns the center.
+	 * @returns The ring coordinates, or an empty array for a negative radius or coordinate overflow.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Ring", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FIntPoint> GetHexRing(FIntPoint Center, int32 Radius);
+
+	/**
+	 * Returns the axial coordinates along the straight line between two cells, including both endpoints.
+	 * @returns The line coordinates, or an empty array for an unsupported length.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Line", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FIntPoint> GetHexLine(FIntPoint Start, FIntPoint End);
+
+	/**
+	 * Returns the six corner locations of a hex cell on the rotated local XY plane, ordered counter-clockwise.
+	 * Corners lie at Cell Radius from the cell center; Gap only moves the center.
+	 * @returns The corner locations, or an empty array for invalid layout input or coordinate overflow.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Cell Corners", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	static TArray<FVector> GetHexCellCorners(FIntPoint Coordinate, const FVector& Origin, const FRotator& Rotation,
+		double CellRadius, EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+		double Gap = 0.0);
+
+	/**
 	 * Generates points at a fixed spacing along a direction.
 	 * @param Origin - The first point, or the formation center when Centered is true.
 	 * @param Direction - The direction of travel. Its magnitude is ignored.
@@ -277,15 +400,62 @@ public:
 		int32 Count, bool bIncludeEndpoints = true);
 
 	/**
-	 * Generates world-space points at fixed distances along a spline.
+	 * Generates points at fixed distances along a spline.
 	 * @param Spline - The spline to sample.
 	 * @param Spacing - The distance between regular samples. Must be positive.
-	 * @param bIncludeEndpoint - Whether to append the exact endpoint of an open spline.
+	 * @param bIncludeEndpoint - Whether to append the exact end of an open sampling range.
+	 * @param SpacingMode - Fixed samples every Spacing units. Even shrinks the spacing so the samples divide the range evenly.
+	 * @param CoordinateSpace - The space of the returned points.
+	 * @param StartDistance - The distance where sampling starts. Clamped to the spline length.
+	 * @param EndDistance - The distance where sampling ends. Negative means the end of the spline.
 	 * @returns The generated points, or an empty array for invalid input or an unsupported point count.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Along Spline"), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Along Spline", AdvancedDisplay = "SpacingMode,CoordinateSpace,StartDistance,EndDistance"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsAlongSpline(const USplineComponent* Spline, double Spacing,
-		bool bIncludeEndpoint = true);
+		bool bIncludeEndpoint = true,
+		EDirectiveUtilSplineSpacingMode SpacingMode = EDirectiveUtilSplineSpacingMode::Fixed,
+		ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+		double StartDistance = 0.0, double EndDistance = -1.0);
+
+	/**
+	 * Generates a fixed number of evenly spaced points along a spline.
+	 * A closed loop spreads the points around the loop; a count of one on an open range returns its midpoint.
+	 * @param Count - The number of points to generate.
+	 * @param bIncludeEndpoints - Whether the points include both ends of an open sampling range.
+	 * @param StartDistance - The distance where sampling starts. Clamped to the spline length.
+	 * @param EndDistance - The distance where sampling ends. Negative means the end of the spline.
+	 * @returns The generated points, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Along Spline by Count", AdvancedDisplay = "StartDistance,EndDistance"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> GeneratePointsAlongSplineByCount(const USplineComponent* Spline, int32 Count,
+		bool bIncludeEndpoints = true,
+		ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+		double StartDistance = 0.0, double EndDistance = -1.0);
+
+	/**
+	 * Generates transforms at fixed distances along a spline.
+	 * Rotation follows the spline tangent and roll. Scale can include the spline scale before applying Scale Multiplier.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Transforms Along Spline", AdvancedDisplay = "SpacingMode,CoordinateSpace,bUseSplineScale,RotationOffset,ScaleMultiplier,StartDistance,EndDistance"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateTransformsAlongSpline(const USplineComponent* Spline, double Spacing,
+		bool bIncludeEndpoint = true,
+		EDirectiveUtilSplineSpacingMode SpacingMode = EDirectiveUtilSplineSpacingMode::Fixed,
+		ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+		bool bUseSplineScale = true,
+		FRotator RotationOffset = FRotator(0.0, 0.0, 0.0), FVector ScaleMultiplier = FVector(1.0, 1.0, 1.0),
+		double StartDistance = 0.0, double EndDistance = -1.0);
+
+	/**
+	 * Generates a fixed number of evenly spaced transforms along a spline.
+	 * Rotation follows the spline tangent and roll. Scale can include the spline scale before applying Scale Multiplier.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Transforms Along Spline by Count", AdvancedDisplay = "bUseSplineScale,RotationOffset,ScaleMultiplier,StartDistance,EndDistance"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateTransformsAlongSplineByCount(const USplineComponent* Spline, int32 Count,
+		bool bIncludeEndpoints = true,
+		ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+		bool bUseSplineScale = true,
+		FRotator RotationOffset = FRotator(0.0, 0.0, 0.0), FVector ScaleMultiplier = FVector(1.0, 1.0, 1.0),
+		double StartDistance = 0.0, double EndDistance = -1.0);
 
 	/**
 	 * Generates evenly spaced points around a circle on the rotated local XY plane.
@@ -294,6 +464,13 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Circle", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnCircle(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0);
+
+	/** Generates transforms around a circle with fixed, radial, or path-relative orientation. */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Transforms On Circle", BlueprintThreadSafe, AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateTransformsOnCircle(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double StartAngleDegrees = 0.0,
+		EDirectiveUtilRadialOrientation Orientation = EDirectiveUtilRadialOrientation::FaceCenter,
+		FRotator RotationOffset = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
 
 	/**
 	 * Generates evenly spaced points along an arc on the rotated local XY plane.
@@ -304,6 +481,14 @@ public:
 	static TArray<FVector> GeneratePointsOnArc(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
 		bool bIncludeEndpoint = true);
+
+	/** Generates transforms along an arc with fixed, radial, or path-relative orientation. */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Transforms On Arc", BlueprintThreadSafe, AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> GenerateTransformsOnArc(const FVector& Center, const FRotator& Rotation,
+		double Radius, int32 Count, double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
+		bool bIncludeEndpoint = true,
+		EDirectiveUtilRadialOrientation Orientation = EDirectiveUtilRadialOrientation::FaceCenter,
+		FRotator RotationOffset = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
 
 	/**
 	 * Generates a deterministic sunflower distribution across a disc on the rotated local XY plane.
@@ -320,6 +505,30 @@ public:
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Sphere", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnSphere(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double AngleOffsetDegrees = 0.0);
+
+	/**
+	 * Offsets each location along a direction by Perlin noise sampled at that location.
+	 * The offset varies smoothly between -Amplitude and Amplitude across the noise field.
+	 * @param Locations - The locations to offset.
+	 * @param NoiseScale - The world-space size of the noise features. Must be positive.
+	 * @param Amplitude - The maximum offset distance along the direction.
+	 * @param Direction - The offset direction. Its magnitude is ignored.
+	 * @param NoiseOffset - World-space shift of the noise field, for varying the pattern between layers.
+	 * @returns The offset locations, or an empty array for invalid input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Offset Locations By Noise", BlueprintThreadSafe, AdvancedDisplay = "Direction,NoiseOffset"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FVector> OffsetLocationsByNoise(const TArray<FVector>& Locations, double NoiseScale,
+		double Amplitude, FVector Direction = FVector(0.0, 0.0, 1.0),
+		FVector NoiseOffset = FVector(0.0, 0.0, 0.0));
+
+	/**
+	 * Offsets each transform location along a direction by Perlin noise sampled at that location.
+	 * Rotation and scale are unchanged. Behaves like Offset Locations By Noise.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Offset Transforms By Noise", BlueprintThreadSafe, AdvancedDisplay = "Direction,NoiseOffset"), Category = "Directive Utilities|Math|Point Generation")
+	static TArray<FTransform> OffsetTransformsByNoise(const TArray<FTransform>& Transforms, double NoiseScale,
+		double Amplitude, FVector Direction = FVector(0.0, 0.0, 1.0),
+		FVector NoiseOffset = FVector(0.0, 0.0, 0.0));
 
 	/**
 	 * Applies a Back/Elastic/Bounce easing curve to a normalized alpha.
@@ -375,6 +584,39 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ease (Color)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Easing")
 	static FLinearColor EaseColor(const FLinearColor& A, const FLinearColor& B, float Alpha, EDirectiveUtilEaseType EaseType);
+
+	/**
+	 * Eases a transform from A to B. Rotation takes the shortest path; location and scale interpolate linearly
+	 * before the eased alpha is applied.
+	 * @param A - The start transform (returned at Alpha 0).
+	 * @param B - The target transform (returned at Alpha 1).
+	 * @param Alpha - The input alpha. Clamped to the [0, 1] range.
+	 * @param EaseType - The easing curve to apply.
+	 * @returns The eased transform between A and B.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ease (Transform)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Easing")
+	static FTransform EaseTransform(const FTransform& A, const FTransform& B, float Alpha, EDirectiveUtilEaseType EaseType);
+
+	/**
+	 * Eases each location in From toward the same index in To. Use with two generated layouts to blend formations.
+	 * @param Alpha - The shared input alpha. Clamped to the [0, 1] range.
+	 * @param PerElementAlphas - When non-empty, one alpha per element replaces Alpha for staggered blends.
+	 * @returns The eased locations, or an empty array for mismatched lengths or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ease Location Arrays", AutoCreateRefTerm = "PerElementAlphas", BlueprintThreadSafe, AdvancedDisplay = "PerElementAlphas"), Category = "Directive Utilities|Math|Easing")
+	static TArray<FVector> EaseLocationArrays(const TArray<FVector>& From, const TArray<FVector>& To,
+		float Alpha, EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas);
+
+	/**
+	 * Eases each transform in From toward the same index in To. Use with two generated layouts to blend formations.
+	 * Rotation takes the shortest path; location and scale interpolate linearly before the eased alpha is applied.
+	 * @param Alpha - The shared input alpha. Clamped to the [0, 1] range.
+	 * @param PerElementAlphas - When non-empty, one alpha per element replaces Alpha for staggered blends.
+	 * @returns The eased transforms, or an empty array for mismatched lengths or non-finite input.
+	 */
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ease Transform Arrays", AutoCreateRefTerm = "PerElementAlphas", BlueprintThreadSafe, AdvancedDisplay = "PerElementAlphas"), Category = "Directive Utilities|Math|Easing")
+	static TArray<FTransform> EaseTransformArrays(const TArray<FTransform>& From, const TArray<FTransform>& To,
+		float Alpha, EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas);
 
 	/**
 	 * Rounds a float to a given number of decimal places. Rounds half away from zero,

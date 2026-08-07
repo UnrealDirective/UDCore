@@ -4,6 +4,7 @@
 #include "Libraries/DirectiveUtilMathFunctionLibrary.h"
 
 #include "Components/SplineComponent.h"
+#include "Math/RotationMatrix.h"
 
 #include <limits>
 
@@ -114,6 +115,11 @@ namespace
 	bool IsFiniteVector2D(const FVector2D& Value)
 	{
 		return FMath::IsFinite(Value.X) && FMath::IsFinite(Value.Y);
+	}
+
+	bool IsFiniteVector(const FVector& Value)
+	{
+		return FMath::IsFinite(Value.X) && FMath::IsFinite(Value.Y) && FMath::IsFinite(Value.Z);
 	}
 
 	bool TryGetNormalizedVector(const FVector& Value, FVector& Normalized, double* Length = nullptr)
@@ -302,6 +308,120 @@ namespace
 		return !Layout.StepQ.ContainsNaN() && !Layout.StepR.ContainsNaN();
 	}
 
+	constexpr int32 HexDirections[6][2] = {
+		{ 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, 0 }, { -1, 1 }, { 0, 1 }
+	};
+
+	void GetHexOffsetCoordinate(const EDirectiveUtilHexOrientation Orientation, const int32 Column,
+		const int32 Row, int64& Q, int64& R)
+	{
+		if (Orientation == EDirectiveUtilHexOrientation::PointyTop)
+		{
+			Q = static_cast<int64>(Column) - (Row - (Row & 1)) / 2;
+			R = Row;
+		}
+		else
+		{
+			Q = Column;
+			R = static_cast<int64>(Row) - (Column - (Column & 1)) / 2;
+		}
+	}
+
+	bool TryMakeHexCoordinate(const int64 Q, const int64 R, FIntPoint& Coordinate)
+	{
+		if (Q < MIN_int32 || Q > MAX_int32 || R < MIN_int32 || R > MAX_int32)
+		{
+			return false;
+		}
+		Coordinate = FIntPoint(static_cast<int32>(Q), static_cast<int32>(R));
+		return true;
+	}
+
+	bool TryValidateHexLayoutSpan(const FHexLayout& Layout, const int64 MaxAbsQ, const int64 MaxAbsR)
+	{
+		if (MaxAbsQ < 0 || MaxAbsR < 0)
+		{
+			return false;
+		}
+		const FVector Bound = Layout.Origin.GetAbs()
+			+ Layout.StepQ.GetAbs() * static_cast<double>(MaxAbsQ)
+			+ Layout.StepR.GetAbs() * static_cast<double>(MaxAbsR);
+		return IsFiniteVector(Bound);
+	}
+
+	void WriteHexLocationUnchecked(const FHexLayout& Layout, const int64 Q, const int64 R, FVector& Destination)
+	{
+		Destination = Layout.GetLocation(Q, R);
+	}
+
+	bool TryApplyRectangularHexCentering(FHexLayout& Layout, const FIntPoint Dimensions, const bool bCentered)
+	{
+		if (!bCentered)
+		{
+			return true;
+		}
+
+		const double NeighborSpacing = UE_DOUBLE_SQRT_3 * Layout.LayoutRadius;
+		double CenterX;
+		double CenterY;
+		if (Layout.Orientation == EDirectiveUtilHexOrientation::PointyTop)
+		{
+			CenterX = NeighborSpacing * (Dimensions.X - 1 + (Dimensions.Y > 1 ? 0.5 : 0.0)) * 0.5;
+			CenterY = 1.5 * Layout.LayoutRadius * (Dimensions.Y - 1) * 0.5;
+		}
+		else
+		{
+			CenterX = 1.5 * Layout.LayoutRadius * (Dimensions.X - 1) * 0.5;
+			CenterY = NeighborSpacing * (Dimensions.Y - 1 + (Dimensions.X > 1 ? 0.5 : 0.0)) * 0.5;
+		}
+		Layout.Origin -= Layout.AxisX * CenterX + Layout.AxisY * CenterY;
+		return !Layout.Origin.ContainsNaN();
+	}
+
+	int64 GetRectangularHexSpan(const FIntPoint Dimensions)
+	{
+		// Offset coordinates stay within |Q|,|R| ≤ Columns+Rows for both orientations.
+		return static_cast<int64>(Dimensions.X) + Dimensions.Y;
+	}
+
+	template <typename VisitorType>
+	bool VisitHexagonalCoordinates(const int64 Radius, VisitorType Visitor)
+	{
+		for (int64 R = -Radius; R <= Radius; ++R)
+		{
+			const int64 MinimumQ = FMath::Max(-Radius, -R - Radius);
+			const int64 MaximumQ = FMath::Min(Radius, -R + Radius);
+			for (int64 Q = MinimumQ; Q <= MaximumQ; ++Q)
+			{
+				if (!Visitor(Q, R))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	template <typename VisitorType>
+	bool VisitRectangularHexCoordinates(const FIntPoint Dimensions,
+		const EDirectiveUtilHexOrientation Orientation, VisitorType Visitor)
+	{
+		for (int32 Row = 0; Row < Dimensions.Y; ++Row)
+		{
+			for (int32 Column = 0; Column < Dimensions.X; ++Column)
+			{
+				int64 Q;
+				int64 R;
+				GetHexOffsetCoordinate(Orientation, Column, Row, Q, R);
+				if (!Visitor(Q, R))
+				{
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
 	bool TryRoundHexCoordinate(const double FractionalQ, const double FractionalR, FIntPoint& Coordinate)
 	{
 		const double FractionalS = -FractionalQ - FractionalR;
@@ -402,56 +522,114 @@ namespace
 		return true;
 	}
 
-	TArray<FVector> GenerateGridPoints(const FVector& Origin, const FRotator& Rotation,
-		const FIntVector& Dimensions, const FVector& Spacing, const bool bCentered)
+	struct FGridLattice
 	{
-		int32 PointCount;
+		int32 DimX = 0;
+		int32 DimY = 0;
+		int32 DimZ = 0;
+		int32 PointCount = 0;
+		FVector FirstPoint = FVector::ZeroVector;
+		FVector StepX = FVector::ZeroVector;
+		FVector StepY = FVector::ZeroVector;
+		FVector StepZ = FVector::ZeroVector;
+	};
+
+	bool TryMakeGridLattice(const FVector& Origin, const FRotator& Rotation,
+		const FIntVector& Dimensions, const FVector& Spacing, const bool bCentered, FGridLattice& Lattice)
+	{
+		Lattice = {};
 		FVector AxisX;
 		FVector AxisY;
 		FVector AxisZ;
-		if (Origin.ContainsNaN() || Spacing.ContainsNaN()
-			|| !TryGetGridPointCount(Dimensions, PointCount)
+		if (!IsFiniteVector(Origin) || !IsFiniteVector(Spacing)
+			|| !TryGetGridPointCount(Dimensions, Lattice.PointCount)
 			|| !TryGetRotatedAxes(Rotation, AxisX, AxisY, AxisZ))
 		{
-			return {};
+			return false;
 		}
 
-		const FVector StepX = AxisX * Spacing.X;
-		const FVector StepY = AxisY * Spacing.Y;
-		const FVector StepZ = AxisZ * Spacing.Z;
-		FVector FirstPoint = Origin;
+		Lattice.DimX = Dimensions.X;
+		Lattice.DimY = Dimensions.Y;
+		Lattice.DimZ = Dimensions.Z;
+		Lattice.StepX = AxisX * Spacing.X;
+		Lattice.StepY = AxisY * Spacing.Y;
+		Lattice.StepZ = AxisZ * Spacing.Z;
+		Lattice.FirstPoint = Origin;
 		if (bCentered)
 		{
-			FirstPoint -= (StepX * (Dimensions.X - 1)
-				+ StepY * (Dimensions.Y - 1)
-				+ StepZ * (Dimensions.Z - 1)) * 0.5;
+			Lattice.FirstPoint -= (Lattice.StepX * (Lattice.DimX - 1)
+				+ Lattice.StepY * (Lattice.DimY - 1)
+				+ Lattice.StepZ * (Lattice.DimZ - 1)) * 0.5;
 		}
-		if (FirstPoint.ContainsNaN() || StepX.ContainsNaN() || StepY.ContainsNaN() || StepZ.ContainsNaN())
+
+		// Reject if any lattice point can overflow: |p| <= |First| + Σ |Step|*(Dim-1).
+		const FVector CoordinateBound = Lattice.FirstPoint.GetAbs()
+			+ Lattice.StepX.GetAbs() * (Lattice.DimX - 1)
+			+ Lattice.StepY.GetAbs() * (Lattice.DimY - 1)
+			+ Lattice.StepZ.GetAbs() * (Lattice.DimZ - 1);
+		return IsFiniteVector(Lattice.FirstPoint)
+			&& IsFiniteVector(Lattice.StepX)
+			&& IsFiniteVector(Lattice.StepY)
+			&& IsFiniteVector(Lattice.StepZ)
+			&& IsFiniteVector(CoordinateBound);
+	}
+
+	TArray<FVector> GenerateGridPoints(const FVector& Origin, const FRotator& Rotation,
+		const FIntVector& Dimensions, const FVector& Spacing, const bool bCentered)
+	{
+		FGridLattice Lattice;
+		if (!TryMakeGridLattice(Origin, Rotation, Dimensions, Spacing, bCentered, Lattice))
 		{
 			return {};
 		}
 
 		TArray<FVector> Points;
-		Points.SetNumUninitialized(PointCount);
-		int32 PointIndex = 0;
-		for (int32 Z = 0; Z < Dimensions.Z; ++Z)
+		Points.SetNumUninitialized(Lattice.PointCount);
+		FVector* RESTRICT Dest = Points.GetData();
+		for (int32 Z = 0; Z < Lattice.DimZ; ++Z)
 		{
-			const FVector LayerStart = FirstPoint + StepZ * Z;
-			for (int32 Y = 0; Y < Dimensions.Y; ++Y)
+			const FVector LayerStart = Lattice.FirstPoint + Lattice.StepZ * Z;
+			for (int32 Y = 0; Y < Lattice.DimY; ++Y)
 			{
-				const FVector RowStart = LayerStart + StepY * Y;
-				for (int32 X = 0; X < Dimensions.X; ++X)
+				const FVector RowStart = LayerStart + Lattice.StepY * Y;
+				for (int32 X = 0; X < Lattice.DimX; ++X)
 				{
-					const FVector Point = RowStart + StepX * X;
-					if (Point.ContainsNaN())
-					{
-						return {};
-					}
-					Points[PointIndex++] = Point;
+					*Dest++ = RowStart + Lattice.StepX * X;
 				}
 			}
 		}
 		return Points;
+	}
+
+	TArray<FTransform> GenerateGridTransforms(const FVector& Origin, const FRotator& Rotation,
+		const FIntVector& Dimensions, const FVector& Spacing, const bool bCentered,
+		const FRotator& InstanceRotation, const FVector& Scale)
+	{
+		FGridLattice Lattice;
+		FQuat InstanceQuaternion;
+		if (!IsFiniteVector(Scale)
+			|| !TryGetRotationQuaternion(InstanceRotation, InstanceQuaternion)
+			|| !TryMakeGridLattice(Origin, Rotation, Dimensions, Spacing, bCentered, Lattice))
+		{
+			return {};
+		}
+
+		TArray<FTransform> Transforms;
+		Transforms.SetNumUninitialized(Lattice.PointCount);
+		FTransform* RESTRICT Dest = Transforms.GetData();
+		for (int32 Z = 0; Z < Lattice.DimZ; ++Z)
+		{
+			const FVector LayerStart = Lattice.FirstPoint + Lattice.StepZ * Z;
+			for (int32 Y = 0; Y < Lattice.DimY; ++Y)
+			{
+				const FVector RowStart = LayerStart + Lattice.StepY * Y;
+				for (int32 X = 0; X < Lattice.DimX; ++X)
+				{
+					*Dest++ = FTransform(InstanceQuaternion, RowStart + Lattice.StepX * X, Scale);
+				}
+			}
+		}
+		return Transforms;
 	}
 
 	TArray<FVector> GenerateLinearPoints(const FVector& Origin, const FVector& Step,
@@ -543,6 +721,415 @@ namespace
 			Angle.Advance();
 		}
 		return Points;
+	}
+
+	bool TryMakeFacingRotationFromNormalized(const FVector& Forward, const FVector& UpDirection,
+		const FQuat& RotationOffset, FQuat& Rotation)
+	{
+		// Forward and RotationOffset are already unit/validated; MakeFromXZ yields a unit quat.
+		Rotation = FRotationMatrix::MakeFromXZ(Forward, UpDirection).ToQuat() * RotationOffset;
+		return !Rotation.ContainsNaN();
+	}
+
+	bool IsValidRadialOrientation(const EDirectiveUtilRadialOrientation Orientation)
+	{
+		switch (Orientation)
+		{
+		case EDirectiveUtilRadialOrientation::Fixed:
+		case EDirectiveUtilRadialOrientation::FaceCenter:
+		case EDirectiveUtilRadialOrientation::FaceAwayFromCenter:
+		case EDirectiveUtilRadialOrientation::FollowPath:
+		case EDirectiveUtilRadialOrientation::FaceAgainstPath:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	bool TryGetRadialRotation(const EDirectiveUtilRadialOrientation Orientation,
+		const FVector& AxisX, const FVector& AxisY, const FVector& AxisZ, const FQuat& FixedRotation,
+		const FQuat& RotationOffset, const double Sine, const double Cosine, const double PathDirection,
+		FQuat& Rotation)
+	{
+		switch (Orientation)
+		{
+		case EDirectiveUtilRadialOrientation::Fixed:
+			Rotation = FixedRotation;
+			return true;
+		case EDirectiveUtilRadialOrientation::FaceCenter:
+			return TryMakeFacingRotationFromNormalized(
+				-AxisX * Cosine - AxisY * Sine, AxisZ, RotationOffset, Rotation);
+		case EDirectiveUtilRadialOrientation::FaceAwayFromCenter:
+			return TryMakeFacingRotationFromNormalized(
+				AxisX * Cosine + AxisY * Sine, AxisZ, RotationOffset, Rotation);
+		case EDirectiveUtilRadialOrientation::FollowPath:
+			return TryMakeFacingRotationFromNormalized(
+				(AxisX * -Sine + AxisY * Cosine) * PathDirection, AxisZ, RotationOffset, Rotation);
+		case EDirectiveUtilRadialOrientation::FaceAgainstPath:
+			return TryMakeFacingRotationFromNormalized(
+				(AxisX * Sine - AxisY * Cosine) * PathDirection, AxisZ, RotationOffset, Rotation);
+		default:
+			return false;
+		}
+	}
+
+	TArray<FTransform> GeneratePlanarRadialTransforms(const FVector& Center, const FRotator& PlaneRotator,
+		const double Radius, const int32 Count, const double StartAngle, const double StepAngle,
+		const double PathDirection, const EDirectiveUtilRadialOrientation Orientation,
+		const FRotator& RotationOffset, const FVector& Scale)
+	{
+		FQuat PlaneRotation;
+		FQuat RotationOffsetQuaternion;
+		if (Count <= 0 || Center.ContainsNaN() || Scale.ContainsNaN()
+			|| !FMath::IsFinite(Radius) || !FMath::IsFinite(StartAngle) || !FMath::IsFinite(StepAngle)
+			|| !FMath::IsFinite(PathDirection) || !IsValidRadialOrientation(Orientation)
+			|| !TryGetRotationQuaternion(PlaneRotator, PlaneRotation)
+			|| !TryGetRotationQuaternion(RotationOffset, RotationOffsetQuaternion))
+		{
+			return {};
+		}
+
+		const FVector AxisX = PlaneRotation.GetAxisX();
+		const FVector AxisY = PlaneRotation.GetAxisY();
+		const FVector AxisZ = PlaneRotation.GetAxisZ();
+		const double DirectionSign = PathDirection < 0.0 ? -1.0 : 1.0;
+		const double AbsoluteRadius = FMath::Abs(Radius);
+		FQuat FixedRotation = PlaneRotation * RotationOffsetQuaternion;
+		FixedRotation.Normalize();
+		TArray<FTransform> Transforms;
+		Transforms.SetNumUninitialized(Count);
+		FAngleStepper Angle(StartAngle, StepAngle);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const FVector Location = Center
+				+ AxisX * (Angle.Cosine * AbsoluteRadius) + AxisY * (Angle.Sine * AbsoluteRadius);
+			FQuat TransformRotation;
+			if (!TryGetRadialRotation(Orientation, AxisX, AxisY, AxisZ, FixedRotation,
+					RotationOffsetQuaternion, Angle.Sine, Angle.Cosine, DirectionSign, TransformRotation))
+			{
+				return {};
+			}
+			Transforms[Index] = FTransform(TransformRotation, Location, Scale);
+			Angle.Advance();
+		}
+		return Transforms;
+	}
+
+	struct FSplineSamplePlan
+	{
+		double StartDistance = 0.0;
+		double EndDistance = 0.0;
+		double Spacing = 0.0;
+		float SampleStart = 0.0f;
+		float SampleSpacing = 0.0f;
+		float SampleEnd = 0.0f;
+		int32 RegularSampleCount = 0;
+		bool bAppendEndpoint = false;
+
+		int32 Num() const
+		{
+			return RegularSampleCount + (bAppendEndpoint ? 1 : 0);
+		}
+
+		void FinalizeSampleDistances()
+		{
+			SampleStart = static_cast<float>(StartDistance);
+			SampleSpacing = static_cast<float>(Spacing);
+			SampleEnd = static_cast<float>(EndDistance);
+		}
+
+		float GetDistance(const int32 Index) const
+		{
+			return bAppendEndpoint && Index == RegularSampleCount
+				? SampleEnd
+				: SampleStart + static_cast<float>(Index) * SampleSpacing;
+		}
+	};
+
+	bool IsValidSplineCoordinateSpace(const ESplineCoordinateSpace::Type CoordinateSpace)
+	{
+		return CoordinateSpace == ESplineCoordinateSpace::Local
+			|| CoordinateSpace == ESplineCoordinateSpace::World;
+	}
+
+	bool TryResolveSplineSampleRange(const USplineComponent* Spline, const double StartDistance,
+		const double EndDistance, FSplineSamplePlan& Plan, bool& bOutFullClosedLoop)
+	{
+		Plan = {};
+		bOutFullClosedLoop = false;
+		if (!IsValid(Spline) || Spline->GetNumberOfSplinePoints() <= 0
+			|| !FMath::IsFinite(StartDistance) || !FMath::IsFinite(EndDistance))
+		{
+			return false;
+		}
+
+		const double SplineLength = Spline->GetSplineLength();
+		if (!FMath::IsFinite(SplineLength) || SplineLength < 0.0)
+		{
+			return false;
+		}
+
+		Plan.StartDistance = FMath::Clamp(StartDistance, 0.0, SplineLength);
+		Plan.EndDistance = EndDistance < 0.0 ? SplineLength : FMath::Clamp(EndDistance, 0.0, SplineLength);
+		if (Plan.EndDistance < Plan.StartDistance)
+		{
+			return false;
+		}
+
+		bOutFullClosedLoop = Spline->IsClosedLoop()
+			&& Plan.StartDistance == 0.0 && Plan.EndDistance == SplineLength;
+		return true;
+	}
+
+	bool TryMakeSplineSpacingPlan(const USplineComponent* Spline, const double Spacing,
+		const EDirectiveUtilSplineSpacingMode SpacingMode, const bool bIncludeEndpoint,
+		const double StartDistance, const double EndDistance, FSplineSamplePlan& Plan)
+	{
+		bool bFullClosedLoop = false;
+		if (!FMath::IsFinite(Spacing) || Spacing <= 0.0
+			|| (SpacingMode != EDirectiveUtilSplineSpacingMode::Fixed
+				&& SpacingMode != EDirectiveUtilSplineSpacingMode::Even)
+			|| !TryResolveSplineSampleRange(Spline, StartDistance, EndDistance, Plan, bFullClosedLoop))
+		{
+			return false;
+		}
+
+		const double RangeLength = Plan.EndDistance - Plan.StartDistance;
+		if (RangeLength == 0.0)
+		{
+			Plan.RegularSampleCount = 1;
+			Plan.FinalizeSampleDistances();
+			return true;
+		}
+
+		const double SampleCountValue = FMath::CeilToDouble(RangeLength / Spacing);
+		if (!FMath::IsFinite(SampleCountValue) || SampleCountValue < 1.0 || SampleCountValue >= MAX_int32)
+		{
+			return false;
+		}
+
+		Plan.RegularSampleCount = static_cast<int32>(SampleCountValue);
+		Plan.Spacing = SpacingMode == EDirectiveUtilSplineSpacingMode::Even
+			? RangeLength / SampleCountValue
+			: Spacing;
+		Plan.bAppendEndpoint = bIncludeEndpoint && !bFullClosedLoop;
+		if (Plan.bAppendEndpoint)
+		{
+			// Drop a final regular sample that float noise placed within a hair of the endpoint.
+			const double LastRegularOffset = static_cast<double>(Plan.RegularSampleCount - 1) * Plan.Spacing;
+			if (RangeLength - LastRegularOffset <= FMath::Max(UE_DOUBLE_KINDA_SMALL_NUMBER, RangeLength * 1.e-9))
+			{
+				--Plan.RegularSampleCount;
+			}
+		}
+		Plan.FinalizeSampleDistances();
+		return true;
+	}
+
+	bool TryMakeSplineCountPlan(const USplineComponent* Spline, const int32 Count,
+		const bool bIncludeEndpoints, const double StartDistance, const double EndDistance,
+		FSplineSamplePlan& Plan)
+	{
+		bool bFullClosedLoop = false;
+		if (Count <= 0
+			|| !TryResolveSplineSampleRange(Spline, StartDistance, EndDistance, Plan, bFullClosedLoop))
+		{
+			return false;
+		}
+
+		Plan.RegularSampleCount = Count;
+		const double RangeLength = Plan.EndDistance - Plan.StartDistance;
+		if (RangeLength == 0.0 || (bFullClosedLoop && Count == 1))
+		{
+			Plan.FinalizeSampleDistances();
+			return true;
+		}
+		if (bFullClosedLoop)
+		{
+			Plan.Spacing = RangeLength / static_cast<double>(Count);
+		}
+		else if (!bIncludeEndpoints)
+		{
+			Plan.Spacing = RangeLength / (static_cast<double>(Count) + 1.0);
+			Plan.StartDistance += Plan.Spacing;
+		}
+		else if (Count == 1)
+		{
+			Plan.StartDistance += RangeLength * 0.5;
+		}
+		else
+		{
+			Plan.Spacing = RangeLength / static_cast<double>(Count - 1);
+			Plan.RegularSampleCount = Count - 1;
+			Plan.bAppendEndpoint = true;
+		}
+		Plan.FinalizeSampleDistances();
+		return true;
+	}
+
+	TArray<FVector> SampleSplineLocations(const USplineComponent* Spline, const FSplineSamplePlan& Plan,
+		const ESplineCoordinateSpace::Type CoordinateSpace)
+	{
+		TArray<FVector> Points;
+		Points.SetNumUninitialized(Plan.Num());
+		for (int32 Index = 0; Index < Points.Num(); ++Index)
+		{
+			const FVector Point = Spline->GetLocationAtDistanceAlongSpline(
+				Plan.GetDistance(Index), CoordinateSpace);
+			if (Point.ContainsNaN())
+			{
+				return {};
+			}
+			Points[Index] = Point;
+		}
+		return Points;
+	}
+
+	TArray<FTransform> SampleSplineTransforms(const USplineComponent* Spline, const FSplineSamplePlan& Plan,
+		const ESplineCoordinateSpace::Type CoordinateSpace, const bool bUseSplineScale,
+		const FQuat& RotationOffsetQuaternion, const FVector& ScaleMultiplier)
+	{
+		TArray<FTransform> Transforms;
+		Transforms.SetNumUninitialized(Plan.Num());
+		for (int32 Index = 0; Index < Transforms.Num(); ++Index)
+		{
+			FTransform Transform = Spline->GetTransformAtDistanceAlongSpline(
+				Plan.GetDistance(Index), CoordinateSpace, bUseSplineScale);
+			FQuat Rotation = Transform.GetRotation() * RotationOffsetQuaternion;
+			Rotation.Normalize();
+			Transform.SetRotation(Rotation);
+			Transform.SetScale3D(Transform.GetScale3D() * ScaleMultiplier);
+			if (Transform.ContainsNaN())
+			{
+				return {};
+			}
+			Transforms[Index] = Transform;
+		}
+		return Transforms;
+	}
+
+	FTransform BlendTransforms(const FTransform& A, const FTransform& B, const double Alpha)
+	{
+		FQuat Rotation = FQuat::Slerp(A.GetRotation(), B.GetRotation(), Alpha);
+		Rotation.Normalize();
+		return FTransform(Rotation,
+			FMath::Lerp(A.GetLocation(), B.GetLocation(), Alpha),
+			FMath::Lerp(A.GetScale3D(), B.GetScale3D(), Alpha));
+	}
+
+	template <typename ValueType, typename BlendType>
+	TArray<ValueType> EaseArrays(const TArray<ValueType>& From, const TArray<ValueType>& To, const float Alpha,
+		const EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas, BlendType Blend)
+	{
+		const bool bPerElement = !PerElementAlphas.IsEmpty();
+		if (From.Num() != To.Num() || !FMath::IsFinite(Alpha)
+			|| (bPerElement && PerElementAlphas.Num() != From.Num()))
+		{
+			return {};
+		}
+
+		const float SharedEasedAlpha = UDirectiveUtilMathFunctionLibrary::EaseAlpha(Alpha, EaseType);
+		TArray<ValueType> Result;
+		Result.SetNumUninitialized(From.Num());
+		for (int32 Index = 0; Index < From.Num(); ++Index)
+		{
+			float EasedAlpha = SharedEasedAlpha;
+			if (bPerElement)
+			{
+				if (!FMath::IsFinite(PerElementAlphas[Index]))
+				{
+					return {};
+				}
+				EasedAlpha = UDirectiveUtilMathFunctionLibrary::EaseAlpha(PerElementAlphas[Index], EaseType);
+			}
+			if (From[Index].ContainsNaN() || To[Index].ContainsNaN())
+			{
+				return {};
+			}
+			Result[Index] = Blend(From[Index], To[Index], static_cast<double>(EasedAlpha));
+		}
+		return Result;
+	}
+
+	template <typename PositionType>
+	bool TryFindArraySample(const int32 Count, const bool bClosedLoop, const float Alpha,
+		PositionType Position, int32& IndexA, int32& IndexB, double& SegmentAlpha)
+	{
+		IndexA = 0;
+		IndexB = 0;
+		SegmentAlpha = 0.0;
+		if (Count <= 0 || !FMath::IsFinite(Alpha))
+		{
+			return false;
+		}
+		if (Count == 1)
+		{
+			return true;
+		}
+
+		const int32 SegmentCount = bClosedLoop ? Count : Count - 1;
+		// Reuse capacity across samples on this thread; inline storage covers typical Blueprint paths.
+		static thread_local TArray<double, TInlineAllocator<128>> SegmentLengths;
+		SegmentLengths.SetNumUninitialized(SegmentCount, EAllowShrinking::No);
+		double TotalLength = 0.0;
+		for (int32 Index = 0; Index < SegmentCount; ++Index)
+		{
+			const int32 NextIndex = (!bClosedLoop || Index + 1 < Count) ? Index + 1 : 0;
+			const double Length = FVector::Distance(Position(Index), Position(NextIndex));
+			if (!FMath::IsFinite(Length))
+			{
+				return false;
+			}
+			SegmentLengths[Index] = Length;
+			TotalLength += Length;
+		}
+		if (TotalLength <= 0.0)
+		{
+			return true;
+		}
+
+		const double TargetAlpha = bClosedLoop
+			? static_cast<double>(Alpha) - FMath::FloorToDouble(Alpha)
+			: FMath::Clamp(static_cast<double>(Alpha), 0.0, 1.0);
+		double TargetDistance = TargetAlpha * TotalLength;
+		for (int32 Index = 0; Index < SegmentCount; ++Index)
+		{
+			const double Length = SegmentLengths[Index];
+			if (TargetDistance <= Length || Index == SegmentCount - 1)
+			{
+				IndexA = Index;
+				IndexB = (!bClosedLoop || Index + 1 < Count) ? Index + 1 : 0;
+				SegmentAlpha = Length > 0.0
+					? FMath::Clamp(TargetDistance / Length, 0.0, 1.0)
+					: 0.0;
+				return true;
+			}
+			TargetDistance -= Length;
+		}
+		return true;
+	}
+
+	// Perlin noise is exactly zero at every integer lattice point, so bias samples off the lattice.
+	constexpr double NoiseSampleBias = 0.6180339887498949;
+
+	bool TryOffsetLocationByNoise(const FVector& Location, const FVector& NormalizedDirection,
+		const double NoiseScale, const double Amplitude, const FVector& NoiseOffset, FVector& OffsetLocation)
+	{
+		if (Location.ContainsNaN())
+		{
+			return false;
+		}
+		const FVector SamplePosition = (Location + NoiseOffset) / NoiseScale + FVector(NoiseSampleBias);
+		const double Noise = FMath::PerlinNoise3D(SamplePosition);
+		OffsetLocation = Location + NormalizedDirection * (Noise * Amplitude);
+		return !OffsetLocation.ContainsNaN();
+	}
+
+	bool TryGetNoiseOffsetInputs(const double NoiseScale, const double Amplitude, const FVector& Direction,
+		const FVector& NoiseOffset, FVector& NormalizedDirection)
+	{
+		return FMath::IsFinite(NoiseScale) && NoiseScale > 0.0 && FMath::IsFinite(Amplitude)
+			&& !NoiseOffset.ContainsNaN() && TryGetNormalizedVector(Direction, NormalizedDirection);
 	}
 
 	double WrapDegreesAsRadians(const double AngleDegrees)
@@ -925,6 +1512,51 @@ TArray<FTransform> UDirectiveUtilMathFunctionLibrary::LocationsToTransforms(cons
 	return Transforms;
 }
 
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::LocationsToFacingTransforms(
+	const TArray<FVector>& Locations, const FVector Target, const FVector UpDirection,
+	const FRotator RotationOffset, const FVector Scale, const bool bFaceAway)
+{
+	if (Locations.IsEmpty())
+	{
+		return {};
+	}
+
+	FVector NormalizedUpDirection;
+	FQuat RotationOffsetQuaternion;
+	if (Target.ContainsNaN() || Scale.ContainsNaN()
+		|| !TryGetNormalizedVector(UpDirection, NormalizedUpDirection)
+		|| !TryGetRotationQuaternion(RotationOffset, RotationOffsetQuaternion))
+	{
+		return {};
+	}
+
+	TArray<FTransform> Transforms;
+	Transforms.SetNumUninitialized(Locations.Num());
+	for (int32 Index = 0; Index < Locations.Num(); ++Index)
+	{
+		const FVector& Location = Locations[Index];
+		if (Location.ContainsNaN())
+		{
+			return {};
+		}
+
+		const FVector Direction = bFaceAway ? Location - Target : Target - Location;
+		FQuat Rotation = RotationOffsetQuaternion;
+		if (Direction.SizeSquared() > UE_DOUBLE_SMALL_NUMBER)
+		{
+			FVector Forward;
+			if (!TryGetNormalizedVector(Direction, Forward)
+				|| !TryMakeFacingRotationFromNormalized(
+					Forward, NormalizedUpDirection, RotationOffsetQuaternion, Rotation))
+			{
+				return {};
+			}
+		}
+		Transforms[Index] = FTransform(Rotation, Location, Scale);
+	}
+	return Transforms;
+}
+
 bool UDirectiveUtilMathFunctionLibrary::MakeTransformsFromArrays(const TArray<FVector>& Locations,
 	const TArray<FRotator>& Rotations, const TArray<FVector>& Scales, TArray<FTransform>& Transforms)
 {
@@ -987,6 +1619,39 @@ bool UDirectiveUtilMathFunctionLibrary::MakeTransformsFromArrays(const TArray<FV
 	return true;
 }
 
+FVector UDirectiveUtilMathFunctionLibrary::SampleLocationArray(const TArray<FVector>& Locations,
+	const float Alpha, const bool bClosedLoop)
+{
+	int32 IndexA;
+	int32 IndexB;
+	double SegmentAlpha;
+	if (!TryFindArraySample(Locations.Num(), bClosedLoop, Alpha,
+		[&Locations](const int32 Index) { return Locations[Index]; }, IndexA, IndexB, SegmentAlpha))
+	{
+		return FVector::ZeroVector;
+	}
+
+	const FVector Result = FMath::Lerp(Locations[IndexA], Locations[IndexB], SegmentAlpha);
+	return Result.ContainsNaN() ? FVector::ZeroVector : Result;
+}
+
+FTransform UDirectiveUtilMathFunctionLibrary::SampleTransformArray(const TArray<FTransform>& Transforms,
+	const float Alpha, const bool bClosedLoop)
+{
+	int32 IndexA;
+	int32 IndexB;
+	double SegmentAlpha;
+	if (!TryFindArraySample(Transforms.Num(), bClosedLoop, Alpha,
+		[&Transforms](const int32 Index) { return Transforms[Index].GetLocation(); },
+		IndexA, IndexB, SegmentAlpha))
+	{
+		return FTransform::Identity;
+	}
+
+	const FTransform Result = BlendTransforms(Transforms[IndexA], Transforms[IndexB], SegmentAlpha);
+	return Result.ContainsNaN() ? FTransform::Identity : Result;
+}
+
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(const FVector& Origin,
 	const FRotator& Rotation, const FIntPoint Dimensions, const FVector2D& Spacing, const bool bCentered)
 {
@@ -1004,6 +1669,25 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateGridPoints3D(const FV
 	return GenerateGridPoints(Origin, Rotation, Dimensions, Spacing, bCentered);
 }
 
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms2D(const FVector& Origin,
+	const FRotator& Rotation, const FIntPoint Dimensions, const FVector2D& Spacing, const bool bCentered,
+	const FRotator InstanceRotation, const FVector Scale)
+{
+	if (!IsFiniteVector2D(Spacing))
+	{
+		return {};
+	}
+	return GenerateGridTransforms(Origin, Rotation, FIntVector(Dimensions.X, Dimensions.Y, 1),
+		FVector(Spacing.X, Spacing.Y, 0.0), bCentered, InstanceRotation, Scale);
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms3D(const FVector& Origin,
+	const FRotator& Rotation, const FIntVector Dimensions, const FVector& Spacing, const bool bCentered,
+	const FRotator InstanceRotation, const FVector Scale)
+{
+	return GenerateGridTransforms(Origin, Rotation, Dimensions, Spacing, bCentered, InstanceRotation, Scale);
+}
+
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateRectangularHexGrid(const FVector& Origin,
 	const FRotator& Rotation, const FIntPoint Dimensions, const double CellRadius,
 	const EDirectiveUtilHexOrientation Orientation, const double Gap, const bool bCentered)
@@ -1011,62 +1695,86 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateRectangularHexGrid(co
 	int32 PointCount;
 	FHexLayout Layout;
 	if (!TryGetGridPointCount(FIntVector(Dimensions.X, Dimensions.Y, 1), PointCount)
-		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout))
+		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout)
+		|| !TryApplyRectangularHexCentering(Layout, Dimensions, bCentered)
+		|| !TryValidateHexLayoutSpan(Layout, GetRectangularHexSpan(Dimensions), GetRectangularHexSpan(Dimensions)))
 	{
 		return {};
-	}
-
-	if (bCentered)
-	{
-		const double NeighborSpacing = UE_DOUBLE_SQRT_3 * Layout.LayoutRadius;
-		double CenterX;
-		double CenterY;
-		if (Orientation == EDirectiveUtilHexOrientation::PointyTop)
-		{
-			CenterX = NeighborSpacing * (Dimensions.X - 1 + (Dimensions.Y > 1 ? 0.5 : 0.0)) * 0.5;
-			CenterY = 1.5 * Layout.LayoutRadius * (Dimensions.Y - 1) * 0.5;
-		}
-		else
-		{
-			CenterX = 1.5 * Layout.LayoutRadius * (Dimensions.X - 1) * 0.5;
-			CenterY = NeighborSpacing * (Dimensions.Y - 1 + (Dimensions.X > 1 ? 0.5 : 0.0)) * 0.5;
-		}
-		Layout.Origin -= Layout.AxisX * CenterX + Layout.AxisY * CenterY;
-		if (Layout.Origin.ContainsNaN())
-		{
-			return {};
-		}
 	}
 
 	TArray<FVector> Points;
 	Points.SetNumUninitialized(PointCount);
 	int32 PointIndex = 0;
-	for (int32 Row = 0; Row < Dimensions.Y; ++Row)
-	{
-		for (int32 Column = 0; Column < Dimensions.X; ++Column)
+	if (!VisitRectangularHexCoordinates(Dimensions, Orientation,
+		[&Layout, &Points, &PointIndex](const int64 Q, const int64 R)
 		{
-			int64 Q;
-			int64 R;
-			if (Orientation == EDirectiveUtilHexOrientation::PointyTop)
-			{
-				Q = static_cast<int64>(Column) - (Row - (Row & 1)) / 2;
-				R = Row;
-			}
-			else
-			{
-				Q = Column;
-				R = static_cast<int64>(Row) - (Column - (Column & 1)) / 2;
-			}
-
-			const FVector Point = Layout.GetLocation(Q, R);
-			if (Point.ContainsNaN())
-			{
-				return {};
-			}
-			Points[PointIndex++] = Point;
-		}
+			WriteHexLocationUnchecked(Layout, Q, R, Points[PointIndex++]);
+			return true;
+		}))
+	{
+		return {};
 	}
 	return Points;
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateRectangularHexGridTransforms(const FVector& Origin,
+	const FRotator& Rotation, const FIntPoint Dimensions, const double CellRadius,
+	const EDirectiveUtilHexOrientation Orientation, const double Gap, const bool bCentered,
+	const FRotator InstanceRotation, const FVector Scale)
+{
+	int32 PointCount;
+	FHexLayout Layout;
+	FQuat InstanceQuaternion;
+	if (!IsFiniteVector(Scale)
+		|| !TryGetRotationQuaternion(InstanceRotation, InstanceQuaternion)
+		|| !TryGetGridPointCount(FIntVector(Dimensions.X, Dimensions.Y, 1), PointCount)
+		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout)
+		|| !TryApplyRectangularHexCentering(Layout, Dimensions, bCentered)
+		|| !TryValidateHexLayoutSpan(Layout, GetRectangularHexSpan(Dimensions), GetRectangularHexSpan(Dimensions)))
+	{
+		return {};
+	}
+
+	TArray<FTransform> Transforms;
+	Transforms.SetNumUninitialized(PointCount);
+	int32 PointIndex = 0;
+	if (!VisitRectangularHexCoordinates(Dimensions, Orientation,
+		[&Layout, &Transforms, &PointIndex, &InstanceQuaternion, &Scale](const int64 Q, const int64 R)
+		{
+			FVector Location;
+			WriteHexLocationUnchecked(Layout, Q, R, Location);
+			Transforms[PointIndex++] = FTransform(InstanceQuaternion, Location, Scale);
+			return true;
+		}))
+	{
+		return {};
+	}
+	return Transforms;
+}
+
+TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(const FIntPoint Dimensions,
+	const EDirectiveUtilHexOrientation Orientation)
+{
+	int32 PointCount;
+	if ((Orientation != EDirectiveUtilHexOrientation::PointyTop
+			&& Orientation != EDirectiveUtilHexOrientation::FlatTop)
+		|| !TryGetGridPointCount(FIntVector(Dimensions.X, Dimensions.Y, 1), PointCount))
+	{
+		return {};
+	}
+
+	TArray<FIntPoint> Coordinates;
+	Coordinates.SetNumUninitialized(PointCount);
+	int32 PointIndex = 0;
+	if (!VisitRectangularHexCoordinates(Dimensions, Orientation,
+		[&Coordinates, &PointIndex](const int64 Q, const int64 R)
+		{
+			return TryMakeHexCoordinate(Q, R, Coordinates[PointIndex++]);
+		}))
+	{
+		return {};
+	}
+	return Coordinates;
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateHexagonalHexGrid(const FVector& Origin,
@@ -1076,7 +1784,8 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateHexagonalHexGrid(cons
 	int32 PointCount;
 	FHexLayout Layout;
 	if (!TryGetHexagonalPointCount(GridRadius, PointCount)
-		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout))
+		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout)
+		|| !TryValidateHexLayoutSpan(Layout, GridRadius, GridRadius))
 	{
 		return {};
 	}
@@ -1084,22 +1793,50 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GenerateHexagonalHexGrid(cons
 	TArray<FVector> Points;
 	Points.SetNumUninitialized(PointCount);
 	int32 PointIndex = 0;
-	const int64 Radius = GridRadius;
-	for (int64 R = -Radius; R <= Radius; ++R)
-	{
-		const int64 MinimumQ = FMath::Max(-Radius, -R - Radius);
-		const int64 MaximumQ = FMath::Min(Radius, -R + Radius);
-		for (int64 Q = MinimumQ; Q <= MaximumQ; ++Q)
+	if (!VisitHexagonalCoordinates(GridRadius,
+		[&Layout, &Points, &PointIndex](const int64 Q, const int64 R)
 		{
-			const FVector Point = Layout.GetLocation(Q, R);
-			if (Point.ContainsNaN())
-			{
-				return {};
-			}
-			Points[PointIndex++] = Point;
-		}
+			WriteHexLocationUnchecked(Layout, Q, R, Points[PointIndex++]);
+			return true;
+		}))
+	{
+		return {};
 	}
 	return Points;
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateHexagonalHexGridTransforms(const FVector& Origin,
+	const FRotator& Rotation, const int32 GridRadius, const double CellRadius,
+	const EDirectiveUtilHexOrientation Orientation, const double Gap,
+	const FRotator InstanceRotation, const FVector Scale)
+{
+	int32 PointCount;
+	FHexLayout Layout;
+	FQuat InstanceQuaternion;
+	if (!IsFiniteVector(Scale)
+		|| !TryGetRotationQuaternion(InstanceRotation, InstanceQuaternion)
+		|| !TryGetHexagonalPointCount(GridRadius, PointCount)
+		|| !TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout)
+		|| !TryValidateHexLayoutSpan(Layout, GridRadius, GridRadius))
+	{
+		return {};
+	}
+
+	TArray<FTransform> Transforms;
+	Transforms.SetNumUninitialized(PointCount);
+	int32 PointIndex = 0;
+	if (!VisitHexagonalCoordinates(GridRadius,
+		[&Layout, &Transforms, &PointIndex, &InstanceQuaternion, &Scale](const int64 Q, const int64 R)
+		{
+			FVector Location;
+			WriteHexLocationUnchecked(Layout, Q, R, Location);
+			Transforms[PointIndex++] = FTransform(InstanceQuaternion, Location, Scale);
+			return true;
+		}))
+	{
+		return {};
+	}
+	return Transforms;
 }
 
 FVector UDirectiveUtilMathFunctionLibrary::HexCoordinateToLocation(const FIntPoint Coordinate,
@@ -1132,21 +1869,16 @@ FIntPoint UDirectiveUtilMathFunctionLibrary::LocationToHexCoordinate(const FVect
 
 TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexNeighbors(const FIntPoint Coordinate)
 {
-	static constexpr int32 Directions[6][2] = {
-		{ 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, 0 }, { -1, 1 }, { 0, 1 }
-	};
-
 	TArray<FIntPoint> Neighbors;
 	Neighbors.SetNumUninitialized(6);
 	for (int32 Index = 0; Index < 6; ++Index)
 	{
-		const int64 Q = static_cast<int64>(Coordinate.X) + Directions[Index][0];
-		const int64 R = static_cast<int64>(Coordinate.Y) + Directions[Index][1];
-		if (Q < MIN_int32 || Q > MAX_int32 || R < MIN_int32 || R > MAX_int32)
+		const int64 Q = static_cast<int64>(Coordinate.X) + HexDirections[Index][0];
+		const int64 R = static_cast<int64>(Coordinate.Y) + HexDirections[Index][1];
+		if (!TryMakeHexCoordinate(Q, R, Neighbors[Index]))
 		{
 			return {};
 		}
-		Neighbors[Index] = FIntPoint(static_cast<int32>(Q), static_cast<int32>(R));
 	}
 	return Neighbors;
 }
@@ -1156,6 +1888,131 @@ int64 UDirectiveUtilMathFunctionLibrary::GetHexDistance(const FIntPoint A, const
 	const int64 DeltaQ = static_cast<int64>(A.X) - B.X;
 	const int64 DeltaR = static_cast<int64>(A.Y) - B.Y;
 	return FMath::Max3(FMath::Abs(DeltaQ), FMath::Abs(DeltaR), FMath::Abs(DeltaQ + DeltaR));
+}
+
+TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexesInRange(const FIntPoint Center, const int32 Range)
+{
+	int32 PointCount;
+	if (!TryGetHexagonalPointCount(Range, PointCount))
+	{
+		return {};
+	}
+
+	TArray<FIntPoint> Hexes;
+	Hexes.SetNumUninitialized(PointCount);
+	int32 PointIndex = 0;
+	if (!VisitHexagonalCoordinates(Range,
+		[&Center, &Hexes, &PointIndex](const int64 DeltaQ, const int64 DeltaR)
+		{
+			return TryMakeHexCoordinate(Center.X + DeltaQ, Center.Y + DeltaR, Hexes[PointIndex++]);
+		}))
+	{
+		return {};
+	}
+	return Hexes;
+}
+
+TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexRing(const FIntPoint Center, const int32 Radius)
+{
+	if (Radius < 0 || Radius > MAX_int32 / 6)
+	{
+		return {};
+	}
+	if (Radius == 0)
+	{
+		return { Center };
+	}
+
+	TArray<FIntPoint> Ring;
+	Ring.SetNumUninitialized(6 * Radius);
+	int32 PointIndex = 0;
+	int64 Q = static_cast<int64>(Center.X) + static_cast<int64>(HexDirections[4][0]) * Radius;
+	int64 R = static_cast<int64>(Center.Y) + static_cast<int64>(HexDirections[4][1]) * Radius;
+	for (int32 Side = 0; Side < 6; ++Side)
+	{
+		for (int32 Step = 0; Step < Radius; ++Step)
+		{
+			if (!TryMakeHexCoordinate(Q, R, Ring[PointIndex++]))
+			{
+				return {};
+			}
+			Q += HexDirections[Side][0];
+			R += HexDirections[Side][1];
+		}
+	}
+	return Ring;
+}
+
+TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexLine(const FIntPoint Start, const FIntPoint End)
+{
+	const int64 Distance = GetHexDistance(Start, End);
+	if (Distance >= MAX_int32)
+	{
+		return {};
+	}
+
+	TArray<FIntPoint> Line;
+	Line.SetNumUninitialized(static_cast<int32>(Distance) + 1);
+	Line[0] = Start;
+	if (Distance == 0)
+	{
+		return Line;
+	}
+	Line.Last() = End;
+
+	// Nudging both endpoints off the cell edges makes ties round to a consistent side.
+	constexpr double Nudge = 1.e-6;
+	const double StartQ = static_cast<double>(Start.X) + Nudge;
+	const double StartR = static_cast<double>(Start.Y) + Nudge;
+	const double EndQ = static_cast<double>(End.X) + Nudge;
+	const double EndR = static_cast<double>(End.Y) + Nudge;
+	for (int64 Step = 1; Step < Distance; ++Step)
+	{
+		const double Alpha = static_cast<double>(Step) / static_cast<double>(Distance);
+		FIntPoint Coordinate;
+		if (!TryRoundHexCoordinate(
+			FMath::Lerp(StartQ, EndQ, Alpha), FMath::Lerp(StartR, EndR, Alpha), Coordinate))
+		{
+			return {};
+		}
+		Line[static_cast<int32>(Step)] = Coordinate;
+	}
+	return Line;
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GetHexCellCorners(const FIntPoint Coordinate,
+	const FVector& Origin, const FRotator& Rotation, const double CellRadius,
+	const EDirectiveUtilHexOrientation Orientation, const double Gap)
+{
+	FHexLayout Layout;
+	if (!TryMakeHexLayout(Origin, Rotation, CellRadius, Gap, Orientation, Layout))
+	{
+		return {};
+	}
+
+	const FVector Center = Layout.GetLocation(Coordinate.X, Coordinate.Y);
+	if (Center.ContainsNaN())
+	{
+		return {};
+	}
+
+	const double StartAngle = Orientation == EDirectiveUtilHexOrientation::PointyTop
+		? UE_DOUBLE_PI / 6.0
+		: 0.0;
+	TArray<FVector> Corners;
+	Corners.SetNumUninitialized(6);
+	for (int32 Index = 0; Index < 6; ++Index)
+	{
+		const double Angle = StartAngle + Index * (UE_DOUBLE_PI / 3.0);
+		const FVector Corner = Center
+			+ (Layout.AxisX * FMath::Cos(Angle) + Layout.AxisY * FMath::Sin(Angle)) * CellRadius;
+		if (Corner.ContainsNaN())
+		{
+			return {};
+		}
+		Corners[Index] = Corner;
+	}
+	return Corners;
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongDirection(const FVector& Origin,
@@ -1201,61 +2058,69 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsBetweenLocation
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(const USplineComponent* Spline,
-	const double Spacing, const bool bIncludeEndpoint)
+	const double Spacing, const bool bIncludeEndpoint, const EDirectiveUtilSplineSpacingMode SpacingMode,
+	const ESplineCoordinateSpace::Type CoordinateSpace, const double StartDistance, const double EndDistance)
 {
-	if (!IsValid(Spline) || Spline->GetNumberOfSplinePoints() <= 0
-		|| !FMath::IsFinite(Spacing) || Spacing <= 0.0)
+	FSplineSamplePlan Plan;
+	if (!IsValidSplineCoordinateSpace(CoordinateSpace)
+		|| !TryMakeSplineSpacingPlan(Spline, Spacing, SpacingMode, bIncludeEndpoint,
+			StartDistance, EndDistance, Plan))
 	{
 		return {};
 	}
+	return SampleSplineLocations(Spline, Plan, CoordinateSpace);
+}
 
-	const double SplineLength = Spline->GetSplineLength();
-	if (!FMath::IsFinite(SplineLength) || SplineLength < 0.0)
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+	const USplineComponent* Spline, const int32 Count, const bool bIncludeEndpoints,
+	const ESplineCoordinateSpace::Type CoordinateSpace, const double StartDistance, const double EndDistance)
+{
+	FSplineSamplePlan Plan;
+	if (!IsValidSplineCoordinateSpace(CoordinateSpace)
+		|| !TryMakeSplineCountPlan(Spline, Count, bIncludeEndpoints, StartDistance, EndDistance, Plan))
 	{
 		return {};
 	}
-	if (SplineLength == 0.0)
-	{
-		return MakeSinglePoint(Spline->GetLocationAtDistanceAlongSpline(
-			0.0f, ESplineCoordinateSpace::World));
-	}
+	return SampleSplineLocations(Spline, Plan, CoordinateSpace);
+}
 
-	const double SampleCountValue = FMath::CeilToDouble(SplineLength / Spacing);
-	if (!FMath::IsFinite(SampleCountValue) || SampleCountValue < 1.0 || SampleCountValue > MAX_int32)
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateTransformsAlongSpline(
+	const USplineComponent* Spline, const double Spacing, const bool bIncludeEndpoint,
+	const EDirectiveUtilSplineSpacingMode SpacingMode, const ESplineCoordinateSpace::Type CoordinateSpace,
+	const bool bUseSplineScale, const FRotator RotationOffset, const FVector ScaleMultiplier,
+	const double StartDistance, const double EndDistance)
+{
+	FSplineSamplePlan Plan;
+	FQuat RotationOffsetQuaternion;
+	if (ScaleMultiplier.ContainsNaN()
+		|| !IsValidSplineCoordinateSpace(CoordinateSpace)
+		|| !TryGetRotationQuaternion(RotationOffset, RotationOffsetQuaternion)
+		|| !TryMakeSplineSpacingPlan(Spline, Spacing, SpacingMode, bIncludeEndpoint,
+			StartDistance, EndDistance, Plan))
 	{
 		return {};
 	}
+	return SampleSplineTransforms(Spline, Plan, CoordinateSpace, bUseSplineScale,
+		RotationOffsetQuaternion, ScaleMultiplier);
+}
 
-	const int32 RegularPointCount = static_cast<int32>(SampleCountValue);
-	const bool bAppendEndpoint = bIncludeEndpoint && !Spline->IsClosedLoop();
-	if (bAppendEndpoint && RegularPointCount == MAX_int32)
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateTransformsAlongSplineByCount(
+	const USplineComponent* Spline, const int32 Count, const bool bIncludeEndpoints,
+	const ESplineCoordinateSpace::Type CoordinateSpace, const bool bUseSplineScale,
+	const FRotator RotationOffset, const FVector ScaleMultiplier,
+	const double StartDistance, const double EndDistance)
+{
+	FSplineSamplePlan Plan;
+	FQuat RotationOffsetQuaternion;
+	if (ScaleMultiplier.ContainsNaN()
+		|| !IsValidSplineCoordinateSpace(CoordinateSpace)
+		|| !TryGetRotationQuaternion(RotationOffset, RotationOffsetQuaternion)
+		|| !TryMakeSplineCountPlan(Spline, Count, bIncludeEndpoints, StartDistance, EndDistance, Plan))
 	{
 		return {};
 	}
-
-	TArray<FVector> Points;
-	Points.SetNumUninitialized(RegularPointCount + (bAppendEndpoint ? 1 : 0));
-	for (int32 Index = 0; Index < RegularPointCount; ++Index)
-	{
-		const float Distance = static_cast<float>(static_cast<double>(Index) * Spacing);
-		const FVector Point = Spline->GetLocationAtDistanceAlongSpline(Distance, ESplineCoordinateSpace::World);
-		if (Point.ContainsNaN())
-		{
-			return {};
-		}
-		Points[Index] = Point;
-	}
-	if (bAppendEndpoint)
-	{
-		const FVector Endpoint = Spline->GetLocationAtDistanceAlongSpline(
-			static_cast<float>(SplineLength), ESplineCoordinateSpace::World);
-		if (Endpoint.ContainsNaN())
-		{
-			return {};
-		}
-		Points.Last() = Endpoint;
-	}
-	return Points;
+	return SampleSplineTransforms(Spline, Plan, CoordinateSpace, bUseSplineScale,
+		RotationOffsetQuaternion, ScaleMultiplier);
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnCircle(const FVector& Center,
@@ -1268,6 +2133,19 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnCircle(const 
 	const double AbsoluteRadius = FMath::Abs(Radius);
 	return GeneratePlanarRadialPoints(Center, Rotation, Count, WrapDegreesAsRadians(StartAngleDegrees),
 		UE_DOUBLE_TWO_PI / Count, [AbsoluteRadius](const int32) { return AbsoluteRadius; });
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateTransformsOnCircle(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double StartAngleDegrees,
+	const EDirectiveUtilRadialOrientation Orientation, const FRotator RotationOffset, const FVector Scale)
+{
+	if (Count <= 0 || !FMath::IsFinite(StartAngleDegrees))
+	{
+		return {};
+	}
+	return GeneratePlanarRadialTransforms(Center, Rotation, Radius, Count,
+		WrapDegreesAsRadians(StartAngleDegrees), UE_DOUBLE_TWO_PI / Count, 1.0,
+		Orientation, RotationOffset, Scale);
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnArc(const FVector& Center,
@@ -1285,6 +2163,23 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnArc(const FVe
 	const double AbsoluteRadius = FMath::Abs(Radius);
 	return GeneratePlanarRadialPoints(Center, Rotation, Count, WrapDegreesAsRadians(StartAngleDegrees),
 		StepAngle, [AbsoluteRadius](const int32) { return AbsoluteRadius; });
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::GenerateTransformsOnArc(const FVector& Center,
+	const FRotator& Rotation, const double Radius, const int32 Count, const double StartAngleDegrees,
+	const double ArcAngleDegrees, const bool bIncludeEndpoint,
+	const EDirectiveUtilRadialOrientation Orientation, const FRotator RotationOffset, const FVector Scale)
+{
+	if (Count <= 0 || !FMath::IsFinite(StartAngleDegrees) || !FMath::IsFinite(ArcAngleDegrees))
+	{
+		return {};
+	}
+
+	const double Divisor = bIncludeEndpoint && Count > 1 ? Count - 1.0 : static_cast<double>(Count);
+	const double StepAngle = Count == 1 ? 0.0 : WrapDegreesAsRadians(ArcAngleDegrees / Divisor);
+	return GeneratePlanarRadialTransforms(Center, Rotation, Radius, Count,
+		WrapDegreesAsRadians(StartAngleDegrees), StepAngle, ArcAngleDegrees,
+		Orientation, RotationOffset, Scale);
 }
 
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnDisc(const FVector& Center,
@@ -1352,23 +2247,71 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(const 
 	return Points;
 }
 
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(const TArray<FVector>& Locations,
+	const double NoiseScale, const double Amplitude, const FVector Direction, const FVector NoiseOffset)
+{
+	FVector NormalizedDirection;
+	if (!TryGetNoiseOffsetInputs(NoiseScale, Amplitude, Direction, NoiseOffset, NormalizedDirection))
+	{
+		return {};
+	}
+
+	TArray<FVector> Result;
+	Result.SetNumUninitialized(Locations.Num());
+	for (int32 Index = 0; Index < Locations.Num(); ++Index)
+	{
+		if (!TryOffsetLocationByNoise(Locations[Index], NormalizedDirection, NoiseScale, Amplitude,
+			NoiseOffset, Result[Index]))
+		{
+			return {};
+		}
+	}
+	return Result;
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::OffsetTransformsByNoise(
+	const TArray<FTransform>& Transforms, const double NoiseScale, const double Amplitude,
+	const FVector Direction, const FVector NoiseOffset)
+{
+	FVector NormalizedDirection;
+	if (!TryGetNoiseOffsetInputs(NoiseScale, Amplitude, Direction, NoiseOffset, NormalizedDirection))
+	{
+		return {};
+	}
+
+	TArray<FTransform> Result;
+	Result.SetNumUninitialized(Transforms.Num());
+	for (int32 Index = 0; Index < Transforms.Num(); ++Index)
+	{
+		FVector OffsetLocation;
+		if (!TryOffsetLocationByNoise(Transforms[Index].GetLocation(), NormalizedDirection, NoiseScale,
+				Amplitude, NoiseOffset, OffsetLocation))
+		{
+			return {};
+		}
+		Result[Index] = Transforms[Index];
+		Result[Index].SetLocation(OffsetLocation);
+	}
+	return Result;
+}
+
 float UDirectiveUtilMathFunctionLibrary::EaseAlpha(const float Alpha, const EDirectiveUtilEaseType EaseType)
 {
 	const double t = static_cast<double>(FMath::Clamp(Alpha, 0.0f, 1.0f));
-	double Result = t;
 	switch (EaseType)
 	{
-	case EDirectiveUtilEaseType::BackIn: Result = EaseBackIn(t); break;
-	case EDirectiveUtilEaseType::BackOut: Result = EaseBackOut(t); break;
-	case EDirectiveUtilEaseType::BackInOut: Result = EaseBackInOut(t); break;
-	case EDirectiveUtilEaseType::ElasticIn: Result = EaseElasticIn(t); break;
-	case EDirectiveUtilEaseType::ElasticOut: Result = EaseElasticOut(t); break;
-	case EDirectiveUtilEaseType::ElasticInOut: Result = EaseElasticInOut(t); break;
-	case EDirectiveUtilEaseType::BounceIn: Result = EaseBounceIn(t); break;
-	case EDirectiveUtilEaseType::BounceOut: Result = EaseBounceOut(t); break;
-	case EDirectiveUtilEaseType::BounceInOut: Result = EaseBounceInOut(t); break;
+	case EDirectiveUtilEaseType::BackIn: return static_cast<float>(EaseBackIn(t));
+	case EDirectiveUtilEaseType::BackOut: return static_cast<float>(EaseBackOut(t));
+	case EDirectiveUtilEaseType::BackInOut: return static_cast<float>(EaseBackInOut(t));
+	case EDirectiveUtilEaseType::ElasticIn: return static_cast<float>(EaseElasticIn(t));
+	case EDirectiveUtilEaseType::ElasticOut: return static_cast<float>(EaseElasticOut(t));
+	case EDirectiveUtilEaseType::ElasticInOut: return static_cast<float>(EaseElasticInOut(t));
+	case EDirectiveUtilEaseType::BounceIn: return static_cast<float>(EaseBounceIn(t));
+	case EDirectiveUtilEaseType::BounceOut: return static_cast<float>(EaseBounceOut(t));
+	case EDirectiveUtilEaseType::BounceInOut: return static_cast<float>(EaseBounceInOut(t));
+	case EDirectiveUtilEaseType::Linear:
+	default: return static_cast<float>(t);
 	}
-	return static_cast<float>(Result);
 }
 
 float UDirectiveUtilMathFunctionLibrary::EaseFloat(const float A, const float B, const float Alpha, const EDirectiveUtilEaseType EaseType)
@@ -1389,6 +2332,30 @@ FRotator UDirectiveUtilMathFunctionLibrary::EaseRotator(const FRotator& A, const
 FLinearColor UDirectiveUtilMathFunctionLibrary::EaseColor(const FLinearColor& A, const FLinearColor& B, const float Alpha, const EDirectiveUtilEaseType EaseType)
 {
 	return FMath::Lerp(A, B, EaseAlpha(Alpha, EaseType));
+}
+
+FTransform UDirectiveUtilMathFunctionLibrary::EaseTransform(const FTransform& A, const FTransform& B,
+	const float Alpha, const EDirectiveUtilEaseType EaseType)
+{
+	return BlendTransforms(A, B, static_cast<double>(EaseAlpha(Alpha, EaseType)));
+}
+
+TArray<FVector> UDirectiveUtilMathFunctionLibrary::EaseLocationArrays(const TArray<FVector>& From,
+	const TArray<FVector>& To, const float Alpha, const EDirectiveUtilEaseType EaseType,
+	const TArray<float>& PerElementAlphas)
+{
+	return EaseArrays(From, To, Alpha, EaseType, PerElementAlphas,
+		[](const FVector& A, const FVector& B, const double EasedAlpha)
+		{
+			return FMath::Lerp(A, B, EasedAlpha);
+		});
+}
+
+TArray<FTransform> UDirectiveUtilMathFunctionLibrary::EaseTransformArrays(const TArray<FTransform>& From,
+	const TArray<FTransform>& To, const float Alpha, const EDirectiveUtilEaseType EaseType,
+	const TArray<float>& PerElementAlphas)
+{
+	return EaseArrays(From, To, Alpha, EaseType, PerElementAlphas, &BlendTransforms);
 }
 
 float UDirectiveUtilMathFunctionLibrary::RoundToDecimals(const float Value, int32 Decimals)

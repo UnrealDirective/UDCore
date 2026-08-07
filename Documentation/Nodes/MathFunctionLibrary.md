@@ -260,6 +260,23 @@ Tests a world-space point against a cone and an optional distance limit.
 
 **Returns:** True when the point lies inside or on the cone and within the enabled distance limit.
 
+## Sample Location Array
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Vector`
+
+```cpp
+static FVector SampleLocationArray(const TArray<FVector>& Locations, float Alpha, bool bClosedLoop = false);
+```
+
+Samples a location along the polyline through an array, with Alpha 0 at the first point and 1 at the last. Progress is distance-weighted, so equal alpha steps cover equal world distance. Feed it the output of any generator to move something along that shape without a spline component.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Locations | `const TArray<FVector>&` | The polyline points, in order. |
+| Alpha | `float` | Progress along the polyline. Clamped for open paths, wrapped for closed loops. |
+| ClosedLoop | `bool` | Adds the segment from the last point back to the first and wraps Alpha. |
+
+**Returns:** The sampled location. A single point returns itself; an empty array or non-finite input returns the zero vector.
+
 ## Locations To Transforms
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Transform`
 
@@ -275,6 +292,29 @@ Creates one transform for each location using a shared rotation and scale. The l
 | Locations | `const TArray<FVector>&` | Transform locations in output order. |
 | Rotation | `FRotator` | Rotation applied to every transform. |
 | Scale | `FVector` | Scale applied to every transform. |
+
+**Returns:** One transform per location. An empty location array or any non-finite input returns an empty array.
+
+## Locations To Facing Transforms
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Transform`
+
+```cpp
+static TArray<FTransform> LocationsToFacingTransforms(const TArray<FVector>& Locations,
+    FVector Target, FVector UpDirection = FVector(0.0, 0.0, 1.0),
+    FRotator RotationOffset = FRotator(0.0, 0.0, 0.0),
+    FVector Scale = FVector(1.0, 1.0, 1.0), bool bFaceAway = false);
+```
+
+Creates one transform per location with its local X axis facing toward or away from a target. The output order matches Locations. A location equal to Target uses Rotation Offset without an additional facing rotation.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Locations | `const TArray<FVector>&` | World-space transform locations in output order. |
+| Target | `FVector` | World-space location to face toward or away from. |
+| UpDirection | `FVector` | Preferred world-space local Z direction. Must be non-zero. |
+| RotationOffset | `FRotator` | Local rotation applied after the facing rotation. |
+| Scale | `FVector` | Scale applied to every transform. |
+| FaceAway | `bool` | Faces away from Target when true. |
 
 **Returns:** One transform per location. An empty location array or any non-finite input returns an empty array.
 
@@ -297,6 +337,23 @@ Creates transforms from aligned attribute arrays. Locations determine the output
 | Transforms | `TArray<FTransform>&` | The generated transforms. Cleared when validation fails. |
 
 **Returns:** True when the arrays and values are valid. A rotation or scale count other than zero, one, or the location count returns false. Non-finite input also returns false.
+
+## Sample Transform Array
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Transform`
+
+```cpp
+static FTransform SampleTransformArray(const TArray<FTransform>& Transforms, float Alpha, bool bClosedLoop = false);
+```
+
+Samples a transform along the path through an array, with Alpha 0 at the first transform and 1 at the last. Progress is distance-weighted by location. Rotation takes the shortest path and scale interpolates linearly between the two neighboring entries.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Transforms | `const TArray<FTransform>&` | The path transforms, in order. |
+| Alpha | `float` | Progress along the path. Clamped for open paths, wrapped for closed loops. |
+| ClosedLoop | `bool` | Adds the segment from the last transform back to the first and wraps Alpha. |
+
+**Returns:** The sampled transform. A single transform returns itself; an empty array or non-finite input returns the identity.
 
 ## Generate Grid Points 2D
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
@@ -338,6 +395,54 @@ Generates a rectangular 3D grid. Points are ordered by X, then Y, then Z.
 
 **Returns:** The generated points. Non-positive dimensions, non-finite input, coordinate overflow, or a point count above the array limit returns an empty array.
 
+## Generate Grid Transforms 2D
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateGridTransforms2D(const FVector& Origin, const FRotator& Rotation,
+    FIntPoint Dimensions, const FVector2D& Spacing, bool bCentered = true,
+    FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0),
+    FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms on a rectangular grid on the rotated local XY plane. Locations match Generate Grid Points 2D. Instance Rotation and Scale are shared across every transform. Transforms are ordered by X, then Y.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Origin | `const FVector&` | The first location, or the grid center when Centered is true. |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| Dimensions | `FIntPoint` | The number of points along the local X and Y axes. |
+| Spacing | `const FVector2D&` | Signed center-to-center spacing along the local X and Y axes. |
+| Centered | `bool` | Centers the grid on Origin when true. |
+| InstanceRotation | `FRotator` | Shared rotation applied to every transform. |
+| Scale | `FVector` | Shared scale applied to every transform. |
+
+**Returns:** The generated transforms. Non-positive dimensions, non-finite input, coordinate overflow, or a count above the array limit returns an empty array.
+
+## Generate Grid Transforms 3D
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateGridTransforms3D(const FVector& Origin, const FRotator& Rotation,
+    FIntVector Dimensions, const FVector& Spacing, bool bCentered = true,
+    FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0),
+    FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms on a rectangular 3D grid. Locations match Generate Grid Points 3D. Instance Rotation and Scale are shared across every transform. Transforms are ordered by X, then Y, then Z.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Origin | `const FVector&` | The first location, or the grid center when Centered is true. |
+| Rotation | `const FRotator&` | The grid rotation. |
+| Dimensions | `FIntVector` | The number of points along the local X, Y, and Z axes. |
+| Spacing | `const FVector&` | Signed center-to-center spacing along the local X, Y, and Z axes. |
+| Centered | `bool` | Centers the grid on Origin when true. |
+| InstanceRotation | `FRotator` | Shared rotation applied to every transform. |
+| Scale | `FVector` | Shared scale applied to every transform. |
+
+**Returns:** The generated transforms. Non-positive dimensions, non-finite input, coordinate overflow, or a count above the array limit returns an empty array.
+
 ## Generate Rectangular Hex Grid
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
@@ -362,6 +467,45 @@ Generates a rectangular set of hex cell centers on the rotated local XY plane. P
 
 **Returns:** The cell centers. Non-positive dimensions, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
 
+## Generate Rectangular Hex Grid Transforms
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FTransform> GenerateRectangularHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
+    FIntPoint Dimensions, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0, bool bCentered = true,
+    FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms at the cells of a rectangular hex grid, in the same cell order as Generate Rectangular Hex Grid. Every transform shares Instance Rotation and Scale.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| InstanceRotation | `FRotator` | Shared rotation applied to every transform. |
+| Scale | `FVector` | Shared scale applied to every transform. |
+
+Remaining parameters match Generate Rectangular Hex Grid.
+
+**Returns:** The cell transforms. Invalid input returns an empty array.
+
+## Get Rectangular Hex Grid Coordinates
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FIntPoint> GetRectangularHexGridCoordinates(FIntPoint Dimensions,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop);
+```
+
+Returns the axial coordinate of every cell of a rectangular hex grid, in the same cell order as Generate Rectangular Hex Grid. Pairing the two arrays by index binds grid state to cell locations.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Dimensions | `FIntPoint` | The number of columns and rows. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+
+**Returns:** The axial coordinates. Non-positive dimensions, an invalid orientation, or a count above the array limit returns an empty array.
+
 ## Generate Hexagonal Hex Grid
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
@@ -384,6 +528,28 @@ Generates a hexagon-shaped set of cell centers. Grid Radius is the number of rin
 | Gap | `double` | Signed edge-to-edge gap between neighboring cells. Negative values overlap cells. |
 
 **Returns:** `1 + 3 * GridRadius * (GridRadius + 1)` cell centers. A negative grid radius, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
+
+## Generate Hexagonal Hex Grid Transforms
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FTransform> GenerateHexagonalHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
+    int32 GridRadius, double CellRadius,
+    EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0,
+    FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms at the cells of a hexagon-shaped grid, in the same cell order as Generate Hexagonal Hex Grid. Every transform shares Instance Rotation and Scale.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| InstanceRotation | `FRotator` | Shared rotation applied to every transform. |
+| Scale | `FVector` | Shared scale applied to every transform. |
+
+Remaining parameters match Generate Hexagonal Hex Grid.
+
+**Returns:** The cell transforms. Invalid input returns an empty array.
 
 ## Hex Coordinate To Location
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
@@ -462,6 +628,76 @@ Returns the minimum number of neighbor steps between two axial coordinates. The 
 
 **Returns:** The hex-grid distance.
 
+## Get Hexes In Range
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FIntPoint> GetHexesInRange(FIntPoint Center, int32 Range);
+```
+
+Returns every axial coordinate within a number of neighbor steps of a center cell, ordered by axial R, then Q. With a zero center the order matches the cells of Generate Hexagonal Hex Grid, so the two arrays pair by index. Useful for movement ranges and areas of effect.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Center | `FIntPoint` | The center axial coordinate. |
+| Range | `int32` | The maximum number of steps from the center. |
+
+**Returns:** `1 + 3 * Range * (Range + 1)` coordinates. A negative range, coordinate overflow, or a count above the array limit returns an empty array.
+
+## Get Hex Ring
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FIntPoint> GetHexRing(FIntPoint Center, int32 Radius);
+```
+
+Returns the axial coordinates exactly Radius steps from a center cell. Consecutive entries are adjacent and trace the ring once. A radius of zero returns the center cell.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Center | `FIntPoint` | The center axial coordinate. |
+| Radius | `int32` | The exact number of steps from the center. |
+
+**Returns:** `6 * Radius` coordinates, or one for a zero radius. A negative radius or coordinate overflow returns an empty array.
+
+## Get Hex Line
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FIntPoint> GetHexLine(FIntPoint Start, FIntPoint End);
+```
+
+Returns the axial coordinates along the straight line between two cells, including both endpoints. Consecutive entries are adjacent. Useful for line of sight and path previews.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Start | `FIntPoint` | The first axial coordinate. |
+| End | `FIntPoint` | The last axial coordinate. |
+
+**Returns:** One coordinate per hex-grid step plus the start. A line length above the array limit returns an empty array.
+
+## Get Hex Cell Corners
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+
+```cpp
+static TArray<FVector> GetHexCellCorners(FIntPoint Coordinate, const FVector& Origin, const FRotator& Rotation,
+    double CellRadius, EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
+    double Gap = 0.0);
+```
+
+Returns the six corner locations of a hex cell on the rotated local XY plane, ordered counter-clockwise. Corners lie at Cell Radius from the cell center; Gap only moves the center. Useful for drawing cell outlines and building cell meshes.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Coordinate | `FIntPoint` | The axial coordinate of the cell. |
+| Origin | `const FVector&` | The location of cell (0, 0). |
+| Rotation | `const FRotator&` | The grid plane rotation. |
+| CellRadius | `double` | Distance from the cell center to a corner. Must be positive. |
+| Orientation | `EDirectiveUtilHexOrientation` | Pointy Top or Flat Top. |
+| Gap | `double` | Signed edge-to-edge gap between neighboring cells. |
+
+**Returns:** The six corner locations. Invalid layout input or coordinate overflow returns an empty array.
+
 ## Generate Points Along Direction
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
@@ -506,18 +742,106 @@ Generates evenly spaced points across a line segment. When endpoints are exclude
 
 ```cpp
 static TArray<FVector> GeneratePointsAlongSpline(const USplineComponent* Spline, double Spacing,
-    bool bIncludeEndpoint = true);
+    bool bIncludeEndpoint = true,
+    EDirectiveUtilSplineSpacingMode SpacingMode = EDirectiveUtilSplineSpacingMode::Fixed,
+    ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+    double StartDistance = 0.0, double EndDistance = -1.0);
 ```
 
-Samples world-space locations at fixed distances along a spline. The first point is always sampled at distance zero. An open spline can append its exact endpoint, which may make the final interval shorter than Spacing. Closed splines do not repeat their first point.
+Samples locations at fixed distances along a spline, starting at Start Distance. Fixed spacing samples every Spacing units, so appending the endpoint of an open range may make the final interval shorter. Even spacing shrinks the spacing so the samples divide the range evenly. A closed spline sampled over its full length does not repeat its first point.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | Spline | `const USplineComponent*` | Spline component to sample. |
 | Spacing | `double` | Distance between regular samples. Must be positive. |
-| IncludeEndpoint | `bool` | Appends the exact endpoint of an open spline when true. |
+| IncludeEndpoint | `bool` | Appends the exact end of an open sampling range when true. |
+| SpacingMode | `EDirectiveUtilSplineSpacingMode` | Keeps Spacing exactly, or shrinks it to divide the range evenly. |
+| CoordinateSpace | `ESplineCoordinateSpace::Type` | Space of the returned points. |
+| StartDistance | `double` | Distance where sampling starts. Clamped to the spline length. |
+| EndDistance | `double` | Distance where sampling ends. Negative means the end of the spline. |
 
-**Returns:** The sampled world-space points. A null or empty spline, non-positive or non-finite spacing, invalid spline length, coordinate overflow, or a point count above the array limit returns an empty array. A zero-length spline with at least one spline point returns one location.
+**Returns:** The sampled points. A null or empty spline, non-positive or non-finite spacing, invalid spline length, an end distance before the start distance, coordinate overflow, or a point count above the array limit returns an empty array. A zero-length sampling range returns one location.
+
+## Generate Points Along Spline by Count
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FVector> GeneratePointsAlongSplineByCount(const USplineComponent* Spline, int32 Count,
+    bool bIncludeEndpoints = true,
+    ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+    double StartDistance = 0.0, double EndDistance = -1.0);
+```
+
+Samples a fixed number of evenly spaced locations along a spline. A closed spline sampled over its full length spreads the points around the loop without repeating the first one. A count of one on an open range returns its midpoint.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Spline | `const USplineComponent*` | Spline component to sample. |
+| Count | `int32` | The number of points. |
+| IncludeEndpoints | `bool` | Includes both ends of an open sampling range when at least two points are generated. |
+| CoordinateSpace | `ESplineCoordinateSpace::Type` | Space of the returned points. |
+| StartDistance | `double` | Distance where sampling starts. Clamped to the spline length. |
+| EndDistance | `double` | Distance where sampling ends. Negative means the end of the spline. |
+
+**Returns:** The sampled points. A non-positive count, null or empty spline, invalid spline length, an end distance before the start distance, or coordinate overflow returns an empty array.
+
+## Generate Transforms Along Spline
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateTransformsAlongSpline(const USplineComponent* Spline,
+    double Spacing, bool bIncludeEndpoint = true,
+    EDirectiveUtilSplineSpacingMode SpacingMode = EDirectiveUtilSplineSpacingMode::Fixed,
+    ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+    bool bUseSplineScale = true, FRotator RotationOffset = FRotator(0.0, 0.0, 0.0),
+    FVector ScaleMultiplier = FVector(1.0, 1.0, 1.0),
+    double StartDistance = 0.0, double EndDistance = -1.0);
+```
+
+Samples transforms at fixed distances along a spline. Rotation follows the spline tangent and roll. Sampling behaves like Generate Points Along Spline, including the spacing mode and sampling range.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Spline | `const USplineComponent*` | Spline component to sample. |
+| Spacing | `double` | Distance between regular samples. Must be positive. |
+| IncludeEndpoint | `bool` | Appends the exact end of an open sampling range when true. |
+| SpacingMode | `EDirectiveUtilSplineSpacingMode` | Keeps Spacing exactly, or shrinks it to divide the range evenly. |
+| CoordinateSpace | `ESplineCoordinateSpace::Type` | Space of the returned transforms. |
+| UseSplineScale | `bool` | Includes the spline's interpolated scale when true. |
+| RotationOffset | `FRotator` | Local rotation applied after the spline rotation. |
+| ScaleMultiplier | `FVector` | Multiplies the selected spline scale. |
+| StartDistance | `double` | Distance where sampling starts. Clamped to the spline length. |
+| EndDistance | `double` | Distance where sampling ends. Negative means the end of the spline. |
+
+**Returns:** The sampled transforms. Invalid input or a point count above the array limit returns an empty array. A zero-length sampling range returns one transform.
+
+## Generate Transforms Along Spline by Count
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateTransformsAlongSplineByCount(const USplineComponent* Spline,
+    int32 Count, bool bIncludeEndpoints = true,
+    ESplineCoordinateSpace::Type CoordinateSpace = ESplineCoordinateSpace::World,
+    bool bUseSplineScale = true, FRotator RotationOffset = FRotator(0.0, 0.0, 0.0),
+    FVector ScaleMultiplier = FVector(1.0, 1.0, 1.0),
+    double StartDistance = 0.0, double EndDistance = -1.0);
+```
+
+Samples a fixed number of evenly spaced transforms along a spline. Rotation follows the spline tangent and roll. Sampling behaves like Generate Points Along Spline by Count.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Spline | `const USplineComponent*` | Spline component to sample. |
+| Count | `int32` | The number of transforms. |
+| IncludeEndpoints | `bool` | Includes both ends of an open sampling range when at least two transforms are generated. |
+| CoordinateSpace | `ESplineCoordinateSpace::Type` | Space of the returned transforms. |
+| UseSplineScale | `bool` | Includes the spline's interpolated scale when true. |
+| RotationOffset | `FRotator` | Local rotation applied after the spline rotation. |
+| ScaleMultiplier | `FVector` | Multiplies the selected spline scale. |
+| StartDistance | `double` | Distance where sampling starts. Clamped to the spline length. |
+| EndDistance | `double` | Distance where sampling ends. Negative means the end of the spline. |
+
+**Returns:** The sampled transforms. Invalid input returns an empty array.
 
 ## Generate Points On Circle
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
@@ -538,6 +862,33 @@ Generates evenly spaced points around a circle on the rotated local XY plane. Th
 | StartAngleDegrees | `double` | The first point's angle around local Z. |
 
 **Returns:** The generated points. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
+
+## Generate Transforms On Circle
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateTransformsOnCircle(const FVector& Center,
+    const FRotator& Rotation, double Radius, int32 Count,
+    double StartAngleDegrees = 0.0,
+    EDirectiveUtilRadialOrientation Orientation = EDirectiveUtilRadialOrientation::FaceCenter,
+    FRotator RotationOffset = FRotator(0.0, 0.0, 0.0),
+    FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms around a circle on the rotated local XY plane. Fixed uses Rotation for every transform. Face Center and Face Away From Center align local X radially. Follow Path and Face Against Path align local X with or against the counterclockwise point order.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Center | `const FVector&` | World-space center of the circle. |
+| Rotation | `const FRotator&` | Circle plane rotation and fixed orientation. |
+| Radius | `double` | Distance from Center. Negative values use their absolute value. |
+| Count | `int32` | Number of transforms. |
+| StartAngleDegrees | `double` | Angle of the first transform on the local XY plane. |
+| Orientation | `EDirectiveUtilRadialOrientation` | Fixed, radial, or path-relative orientation. |
+| RotationOffset | `FRotator` | Local rotation applied after the generated rotation. |
+| Scale | `FVector` | Scale applied to every transform. |
+
+**Returns:** The generated transforms without repeating the first location. Invalid input returns an empty array.
 
 ## Generate Points On Arc
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
@@ -561,6 +912,36 @@ Generates evenly spaced points along an arc on the rotated local XY plane. Posit
 | IncludeEndpoint | `bool` | Places the final point at the end of the angular span when true. |
 
 **Returns:** The generated points. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
+
+## Generate Transforms On Arc
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> GenerateTransformsOnArc(const FVector& Center,
+    const FRotator& Rotation, double Radius, int32 Count,
+    double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
+    bool bIncludeEndpoint = true,
+    EDirectiveUtilRadialOrientation Orientation = EDirectiveUtilRadialOrientation::FaceCenter,
+    FRotator RotationOffset = FRotator(0.0, 0.0, 0.0),
+    FVector Scale = FVector(1.0, 1.0, 1.0));
+```
+
+Generates transforms along an arc on the rotated local XY plane. Follow Path uses the sign of Arc Angle Degrees, so a negative arc reverses the generated forward direction. Face Against Path points in the opposite direction.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Center | `const FVector&` | World-space center of the arc. |
+| Rotation | `const FRotator&` | Arc plane rotation and fixed orientation. |
+| Radius | `double` | Distance from Center. Negative values use their absolute value. |
+| Count | `int32` | Number of transforms. |
+| StartAngleDegrees | `double` | Angle of the first transform on the local XY plane. |
+| ArcAngleDegrees | `double` | Signed angular span and path direction. |
+| IncludeEndpoint | `bool` | Places the final transform at Start Angle plus Arc Angle when true. |
+| Orientation | `EDirectiveUtilRadialOrientation` | Fixed, radial, or path-relative orientation. |
+| RotationOffset | `FRotator` | Local rotation applied after the generated rotation. |
+| Scale | `FVector` | Scale applied to every transform. |
+
+**Returns:** The generated transforms. Invalid input returns an empty array.
 
 ## Generate Points On Disc
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
@@ -601,6 +982,46 @@ Generates a deterministic Fibonacci distribution across a sphere surface. Negati
 | AngleOffsetDegrees | `double` | Rotates the distribution around local Z before applying Rotation. |
 
 **Returns:** Deterministic points with approximately even surface coverage. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
+
+## Offset Locations By Noise
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FVector> OffsetLocationsByNoise(const TArray<FVector>& Locations, double NoiseScale,
+    double Amplitude, FVector Direction = FVector(0.0, 0.0, 1.0),
+    FVector NoiseOffset = FVector(0.0, 0.0, 0.0));
+```
+
+Offsets each location along a direction by Perlin noise sampled at that location, varying smoothly between minus and plus Amplitude across the noise field. The result is deterministic for the same inputs. Feed it the output of any generator to add height variation or organic irregularity.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Locations | `const TArray<FVector>&` | The locations to offset. |
+| NoiseScale | `double` | World-space size of the noise features. Must be positive. |
+| Amplitude | `double` | Maximum offset distance along the direction. |
+| Direction | `FVector` | The offset direction. Its magnitude is ignored. |
+| NoiseOffset | `FVector` | World-space shift of the noise field, for varying the pattern between layers. |
+
+**Returns:** The offset locations. A non-positive or non-finite noise scale, non-finite amplitude, zero direction, or non-finite input returns an empty array.
+
+## Offset Transforms By Noise
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+
+```cpp
+static TArray<FTransform> OffsetTransformsByNoise(const TArray<FTransform>& Transforms, double NoiseScale,
+    double Amplitude, FVector Direction = FVector(0.0, 0.0, 1.0),
+    FVector NoiseOffset = FVector(0.0, 0.0, 0.0));
+```
+
+Offsets each transform location along a direction by Perlin noise sampled at that location. Rotation and scale are unchanged. Behaves like Offset Locations By Noise.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| Transforms | `const TArray<FTransform>&` | The transforms to offset. |
+
+Remaining parameters match Offset Locations By Noise.
+
+**Returns:** The offset transforms. Invalid input returns an empty array.
 
 ## Ease Alpha
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Easing`
@@ -689,6 +1110,63 @@ Eases a color from A to B using a Back/Elastic/Bounce easing curve.
 | EaseType | `EDirectiveUtilEaseType` | The easing curve to apply. |
 
 **Returns:** The eased color between A and B.
+
+## Ease (Transform)
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Easing`
+
+```cpp
+static FTransform EaseTransform(const FTransform& A, const FTransform& B, float Alpha, EDirectiveUtilEaseType EaseType);
+```
+
+Eases a transform from A to B. Rotation takes the shortest path; location and scale interpolate linearly before the eased alpha is applied.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| A | `const FTransform&` | The start transform (returned at Alpha 0). |
+| B | `const FTransform&` | The target transform (returned at Alpha 1). |
+| Alpha | `float` | The input alpha. Clamped to the [0, 1] range. |
+| EaseType | `EDirectiveUtilEaseType` | The easing curve to apply. |
+
+**Returns:** The eased transform between A and B.
+
+## Ease Location Arrays
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Easing`
+
+```cpp
+static TArray<FVector> EaseLocationArrays(const TArray<FVector>& From, const TArray<FVector>& To,
+    float Alpha, EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas);
+```
+
+Eases each location in From toward the same index in To. Generate two layouts with the same count and drive Alpha over time to blend one formation into another; the Linear ease type gives a plain blend.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| From | `const TArray<FVector>&` | The start locations (returned at Alpha 0). |
+| To | `const TArray<FVector>&` | The target locations (returned at Alpha 1). Must match the From count. |
+| Alpha | `float` | The shared input alpha. Clamped to the [0, 1] range. |
+| EaseType | `EDirectiveUtilEaseType` | The easing curve to apply. |
+| PerElementAlphas | `const TArray<float>&` | When non-empty, one alpha per element replaces Alpha for staggered blends. |
+
+**Returns:** The eased locations. Mismatched lengths, a per-element alpha count that differs from the location count, or non-finite input returns an empty array.
+
+## Ease Transform Arrays
+**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Easing`
+
+```cpp
+static TArray<FTransform> EaseTransformArrays(const TArray<FTransform>& From, const TArray<FTransform>& To,
+    float Alpha, EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas);
+```
+
+Eases each transform in From toward the same index in To. Rotation takes the shortest path; location and scale interpolate linearly before the eased alpha is applied. Behaves like Ease Location Arrays.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| From | `const TArray<FTransform>&` | The start transforms (returned at Alpha 0). |
+| To | `const TArray<FTransform>&` | The target transforms (returned at Alpha 1). Must match the From count. |
+
+Remaining parameters match Ease Location Arrays.
+
+**Returns:** The eased transforms. Invalid input returns an empty array.
 
 ## Round To Decimals
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Float`
@@ -1136,9 +1614,30 @@ Deterministic version of Random Point In Sphere that draws from and advances the
 
 ---
 
+## EDirectiveUtilRadialOrientation
+
+Rotation applied to transforms generated around a center point.
+
+| Value | Display Name | Description |
+|-------|--------------|-------------|
+| Fixed | Fixed | Uses the plane rotation plus Rotation Offset for every instance. |
+| FaceCenter | Face Center | Local X faces the center. |
+| FaceAwayFromCenter | Face Away From Center | Local X faces away from the center. |
+| FollowPath | Follow Path | Local X follows the path tangent around the circle or arc. |
+| FaceAgainstPath | Face Against Path | Local X faces against the path tangent. |
+
+## EDirectiveUtilSplineSpacingMode
+
+Spacing behavior for spline sample generation.
+
+| Value | Display Name | Description |
+|-------|--------------|-------------|
+| Fixed | Fixed | Samples every Spacing units. The final interval may be shorter. |
+| Even | Even | Shrinks Spacing so the samples divide the range evenly. |
+
 ## EDirectiveUtilEaseType
 
-Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the classic Penner Back, Elastic and Bounce curves.
+Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the classic Penner Back, Elastic and Bounce curves, plus Linear for un-eased interpolation.
 
 | Value | Display Name | Description |
 |-------|--------------|-------------|
@@ -1151,3 +1650,4 @@ Easing curves not provided by the engine's built-in Ease node (EEasingFunc): the
 | BounceIn | Bounce In | Bounces with increasing energy before easing in. |
 | BounceOut | Bounce Out | Bounces with decreasing energy after the end. |
 | BounceInOut | Bounce In Out | Bounces at both the start and the end. |
+| Linear | Linear | Interpolates at a constant rate without easing. |

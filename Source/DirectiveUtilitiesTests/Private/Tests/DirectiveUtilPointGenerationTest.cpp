@@ -92,6 +92,44 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 		UDirectiveUtilMathFunctionLibrary::GenerateGridPoints3D(
 			FVector::ZeroVector, FRotator::ZeroRotator, FIntVector(MAX_int32, 2, 2), FVector::OneVector, true).IsEmpty());
 
+	const FRotator GridInstanceRotation(10.0, 20.0, 30.0);
+	const FQuat GridInstanceQuaternion = GridInstanceRotation.Quaternion();
+	const FVector GridInstanceScale(0.25, 0.5, 0.75);
+	const TArray<FTransform> GridTransforms2D = UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms2D(
+		FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(3, 2), FVector2D(10.0, 20.0), true,
+		GridInstanceRotation, GridInstanceScale);
+	bool bGridTransforms2DValid = GridTransforms2D.Num() == Grid2D.Num();
+	for (int32 Index = 0; Index < GridTransforms2D.Num(); ++Index)
+	{
+		bGridTransforms2DValid &= GridTransforms2D[Index].GetLocation().Equals(Grid2D[Index], 1.e-9);
+		bGridTransforms2DValid &= GridTransforms2D[Index].GetRotation().Equals(GridInstanceQuaternion, 1.e-12);
+		bGridTransforms2DValid &= GridTransforms2D[Index].GetScale3D() == GridInstanceScale;
+	}
+	TestTrue(TEXT("2D grid transforms match point locations and broadcast rotation and scale"),
+		bGridTransforms2DValid);
+
+	const TArray<FTransform> GridTransforms3D = UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms3D(
+		FVector::ZeroVector, FRotator::ZeroRotator, FIntVector(2, 2, 2), FVector(2.0, 4.0, 6.0), true,
+		GridInstanceRotation, GridInstanceScale);
+	bool bGridTransforms3DValid = GridTransforms3D.Num() == Grid3D.Num();
+	for (int32 Index = 0; Index < GridTransforms3D.Num(); ++Index)
+	{
+		bGridTransforms3DValid &= GridTransforms3D[Index].GetLocation().Equals(Grid3D[Index], 1.e-9);
+		bGridTransforms3DValid &= GridTransforms3D[Index].GetRotation().Equals(GridInstanceQuaternion, 1.e-12);
+		bGridTransforms3DValid &= GridTransforms3D[Index].GetScale3D() == GridInstanceScale;
+	}
+	TestTrue(TEXT("3D grid transforms match point locations and broadcast rotation and scale"),
+		bGridTransforms3DValid);
+	TestTrue(TEXT("Grid transform generation rejects invalid dimensions and non-finite scale"),
+		UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms2D(
+			FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(2, 0), FVector2D(1.0), true).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms3D(
+			FVector::ZeroVector, FRotator::ZeroRotator, FIntVector(2, 2, 2), FVector::OneVector, true,
+			FRotator::ZeroRotator, FVector(std::numeric_limits<double>::infinity())).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GenerateGridTransforms3D(
+			FVector::ZeroVector, FRotator::ZeroRotator, FIntVector(MAX_int32, 2, 2), FVector::OneVector, true)
+			.IsEmpty());
+
 	const double HexRadius = 10.0;
 	const FVector PointyQ = UDirectiveUtilMathFunctionLibrary::HexCoordinateToLocation(
 		FIntPoint(1, 0), FVector::ZeroVector, FRotator::ZeroRotator, HexRadius,
@@ -194,6 +232,132 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 			EDirectiveUtilHexOrientation::PointyTop, -UE_DOUBLE_SQRT_3 * HexRadius).IsZero()
 		&& UDirectiveUtilMathFunctionLibrary::GetHexNeighbors(FIntPoint(MAX_int32, 0)).IsEmpty());
 
+	const TArray<FIntPoint> HexesInRange = UDirectiveUtilMathFunctionLibrary::GetHexesInRange(FIntPoint(2, -1), 1);
+	const TArray<FIntPoint> ExpectedHexesInRange = {
+		FIntPoint(2, -2), FIntPoint(3, -2), FIntPoint(1, -1), FIntPoint(2, -1),
+		FIntPoint(3, -1), FIntPoint(1, 0), FIntPoint(2, 0)
+	};
+	TestTrue(TEXT("Hexes in range cover the center and its neighbors ordered by R then Q"),
+		HexesInRange == ExpectedHexesInRange);
+	const TArray<FIntPoint> HexagonalGridCoordinates =
+		UDirectiveUtilMathFunctionLibrary::GetHexesInRange(FIntPoint::ZeroValue, 2);
+	bool bHexagonalOrderValid = HexagonalGridCoordinates.Num() == HexagonalGrid.Num();
+	for (int32 Index = 0; bHexagonalOrderValid && Index < HexagonalGrid.Num(); ++Index)
+	{
+		bHexagonalOrderValid &= HexagonalGrid[Index].Equals(
+			UDirectiveUtilMathFunctionLibrary::HexCoordinateToLocation(
+				HexagonalGridCoordinates[Index], FVector::ZeroVector, FRotator::ZeroRotator, HexRadius,
+				EDirectiveUtilHexOrientation::PointyTop), 1.e-9);
+	}
+	TestTrue(TEXT("Hexes in range around zero pair with hexagonal grid cells by index"), bHexagonalOrderValid);
+
+	const TArray<FIntPoint> RectangularCoordinates =
+		UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(
+			FIntPoint(2, 2), EDirectiveUtilHexOrientation::FlatTop);
+	bool bRectangularOrderValid = RectangularCoordinates.Num() == UncenteredHexGrid.Num();
+	for (int32 Index = 0; bRectangularOrderValid && Index < UncenteredHexGrid.Num(); ++Index)
+	{
+		bRectangularOrderValid &= UncenteredHexGrid[Index].Equals(
+			UDirectiveUtilMathFunctionLibrary::HexCoordinateToLocation(
+				RectangularCoordinates[Index], HexOrigin, FRotator::ZeroRotator, HexRadius,
+				EDirectiveUtilHexOrientation::FlatTop), 1.e-9);
+	}
+	TestTrue(TEXT("Rectangular hex grid coordinates pair with grid cells by index"), bRectangularOrderValid);
+
+	const TArray<FIntPoint> HexRing = UDirectiveUtilMathFunctionLibrary::GetHexRing(FIntPoint(1, 1), 2);
+	bool bRingValid = HexRing.Num() == 12;
+	for (int32 Index = 0; bRingValid && Index < HexRing.Num(); ++Index)
+	{
+		bRingValid &= UDirectiveUtilMathFunctionLibrary::GetHexDistance(FIntPoint(1, 1), HexRing[Index]) == 2;
+		bRingValid &= UDirectiveUtilMathFunctionLibrary::GetHexDistance(
+			HexRing[Index], HexRing[(Index + 1) % HexRing.Num()]) == 1;
+	}
+	TestTrue(TEXT("A hex ring traces adjacent cells at the requested radius"), bRingValid);
+	const TArray<FIntPoint> ZeroHexRing = UDirectiveUtilMathFunctionLibrary::GetHexRing(FIntPoint(4, 5), 0);
+	TestTrue(TEXT("A zero-radius hex ring returns the center"),
+		ZeroHexRing.Num() == 1 && ZeroHexRing[0] == FIntPoint(4, 5));
+
+	const TArray<FIntPoint> HexLine = UDirectiveUtilMathFunctionLibrary::GetHexLine(
+		FIntPoint(0, 0), FIntPoint(3, -3));
+	const TArray<FIntPoint> ExpectedHexLine = {
+		FIntPoint(0, 0), FIntPoint(1, -1), FIntPoint(2, -2), FIntPoint(3, -3)
+	};
+	TestTrue(TEXT("A hex line follows a straight axial direction"), HexLine == ExpectedHexLine);
+	const TArray<FIntPoint> DiagonalHexLine = UDirectiveUtilMathFunctionLibrary::GetHexLine(
+		FIntPoint(-1, 2), FIntPoint(1, 3));
+	bool bDiagonalLineValid = DiagonalHexLine.Num() == 4
+		&& DiagonalHexLine[0] == FIntPoint(-1, 2) && DiagonalHexLine.Last() == FIntPoint(1, 3);
+	for (int32 Index = 0; bDiagonalLineValid && Index < DiagonalHexLine.Num() - 1; ++Index)
+	{
+		bDiagonalLineValid &= UDirectiveUtilMathFunctionLibrary::GetHexDistance(
+			DiagonalHexLine[Index], DiagonalHexLine[Index + 1]) == 1;
+	}
+	TestTrue(TEXT("A hex line steps through adjacent cells between its endpoints"), bDiagonalLineValid);
+	const TArray<FIntPoint> SingleHexLine = UDirectiveUtilMathFunctionLibrary::GetHexLine(
+		FIntPoint(7, -2), FIntPoint(7, -2));
+	TestTrue(TEXT("A zero-length hex line returns its cell"),
+		SingleHexLine.Num() == 1 && SingleHexLine[0] == FIntPoint(7, -2));
+
+	const TArray<FVector> HexCorners = UDirectiveUtilMathFunctionLibrary::GetHexCellCorners(
+		FIntPoint::ZeroValue, FVector::ZeroVector, FRotator::ZeroRotator, HexRadius,
+		EDirectiveUtilHexOrientation::PointyTop);
+	bool bCornersValid = HexCorners.Num() == 6
+		&& HexCorners[0].Equals(FVector(UE_DOUBLE_SQRT_3 * 0.5 * HexRadius, 0.5 * HexRadius, 0.0), 1.e-9);
+	for (int32 Index = 0; bCornersValid && Index < 6; ++Index)
+	{
+		bCornersValid &= FMath::IsNearlyEqual(HexCorners[Index].Size(), HexRadius, 1.e-9);
+		bCornersValid &= FMath::IsNearlyEqual(
+			FVector::Distance(HexCorners[Index], HexCorners[(Index + 1) % 6]), HexRadius, 1.e-9);
+	}
+	TestTrue(TEXT("Pointy-top cell corners lie at the cell radius with matching side length"), bCornersValid);
+	const TArray<FVector> FlatHexCorners = UDirectiveUtilMathFunctionLibrary::GetHexCellCorners(
+		FIntPoint::ZeroValue, FVector::ZeroVector, FRotator::ZeroRotator, HexRadius,
+		EDirectiveUtilHexOrientation::FlatTop);
+	TestTrue(TEXT("Flat-top cell corners start on the local X axis"),
+		FlatHexCorners.Num() == 6 && FlatHexCorners[0].Equals(FVector(HexRadius, 0.0, 0.0), 1.e-9));
+	const TArray<FVector> GappedHexCorners = UDirectiveUtilMathFunctionLibrary::GetHexCellCorners(
+		FIntPoint(1, 0), FVector::ZeroVector, FRotator::ZeroRotator, HexRadius,
+		EDirectiveUtilHexOrientation::PointyTop, 2.0);
+	TestTrue(TEXT("Hex gap moves the cell center but not the corner distance"),
+		GappedHexCorners.Num() == 6
+		&& FMath::IsNearlyEqual(FVector::Distance(GappedHexCorners[0], GappedHex), HexRadius, 1.e-9));
+
+	TestTrue(TEXT("Hex queries reject invalid input"),
+		UDirectiveUtilMathFunctionLibrary::GetHexesInRange(FIntPoint::ZeroValue, -1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexesInRange(FIntPoint(MAX_int32, 0), 1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexRing(FIntPoint::ZeroValue, -1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexRing(FIntPoint(MAX_int32, 0), 1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexLine(
+			FIntPoint(MIN_int32, MIN_int32), FIntPoint(MAX_int32, MAX_int32)).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexCellCorners(FIntPoint(1, 1), FVector::ZeroVector,
+			FRotator::ZeroRotator, 0.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(FIntPoint(0, 3)).IsEmpty());
+
+	const TArray<FVector> NoiseBase = {
+		FVector::ZeroVector, FVector(37.0, 11.0, 5.0), FVector(250.0, -90.0, 40.0)
+	};
+	const TArray<FVector> NoisePoints = UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(
+		NoiseBase, 100.0, 25.0);
+	bool bNoiseValid = NoisePoints.Num() == 3;
+	bool bAnyNoiseOffset = false;
+	for (int32 Index = 0; bNoiseValid && Index < NoisePoints.Num(); ++Index)
+	{
+		const FVector NoiseDelta = NoisePoints[Index] - NoiseBase[Index];
+		bNoiseValid &= FMath::IsNearlyZero(NoiseDelta.X) && FMath::IsNearlyZero(NoiseDelta.Y)
+			&& FMath::Abs(NoiseDelta.Z) <= 25.0 + 1.e-6;
+		bAnyNoiseOffset |= !FMath::IsNearlyZero(NoiseDelta.Z);
+	}
+	TestTrue(TEXT("Noise offsets displace along the requested direction within the amplitude"),
+		bNoiseValid && bAnyNoiseOffset);
+	TestTrue(TEXT("Noise offsets are deterministic"),
+		UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(NoiseBase, 100.0, 25.0) == NoisePoints);
+	TestTrue(TEXT("A zero noise amplitude leaves locations unchanged"),
+		UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(NoiseBase, 100.0, 0.0) == NoiseBase);
+	TestTrue(TEXT("Noise offsets reject invalid input"),
+		UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(NoiseBase, 0.0, 25.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::OffsetLocationsByNoise(
+			NoiseBase, 100.0, 25.0, FVector::ZeroVector).IsEmpty());
+
 	const TArray<FVector> DirectionPoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongDirection(
 		FVector::ZeroVector, FVector(10.0, 0.0, 0.0), 4, 2.0, true);
 	const TArray<FVector> ExpectedDirectionPoints = {
@@ -236,7 +400,7 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 	Spline->SetSplinePointType(0, ESplinePointType::Linear, false);
 	Spline->SetSplinePointType(1, ESplinePointType::Linear, true);
 	const TArray<FVector> SplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
-		Spline, 30.0, true);
+		Spline, 30.0, true, EDirectiveUtilSplineSpacingMode::Fixed);
 	TestTrue(TEXT("Spline points use fixed spacing and append the exact open endpoint"),
 		SplinePoints.Num() == 5
 		&& SplinePoints[0].Equals(FVector::ZeroVector)
@@ -244,21 +408,71 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 		&& SplinePoints[3].Equals(FVector(90.0, 0.0, 0.0), 1.e-4)
 		&& SplinePoints[4].Equals(FVector(100.0, 0.0, 0.0), 1.e-4));
 	TestEqual(TEXT("Spline endpoint can be excluded"),
-		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, 30.0, false).Num(), 4);
+		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 30.0, false, EDirectiveUtilSplineSpacingMode::Fixed).Num(), 4);
+	const TArray<FVector> EvenSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+		Spline, 30.0, true, EDirectiveUtilSplineSpacingMode::Even);
+	TestTrue(TEXT("Even spline spacing divides the range without a short final interval"),
+		EvenSplinePoints.Num() == 5
+		&& EvenSplinePoints[1].Equals(FVector(25.0, 0.0, 0.0), 1.e-4)
+		&& EvenSplinePoints[3].Equals(FVector(75.0, 0.0, 0.0), 1.e-4)
+		&& EvenSplinePoints[4].Equals(FVector(100.0, 0.0, 0.0), 1.e-4));
+	const TArray<FVector> RangedSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+		Spline, 25.0, true, EDirectiveUtilSplineSpacingMode::Fixed, ESplineCoordinateSpace::World, 20.0, 80.0);
+	TestTrue(TEXT("Spline sampling honors a start and end distance"),
+		RangedSplinePoints.Num() == 4
+		&& RangedSplinePoints[0].Equals(FVector(20.0, 0.0, 0.0), 1.e-4)
+		&& RangedSplinePoints[1].Equals(FVector(45.0, 0.0, 0.0), 1.e-4)
+		&& RangedSplinePoints[3].Equals(FVector(80.0, 0.0, 0.0), 1.e-4));
+	TestEqual(TEXT("Spline sampling drops a regular sample that lands on the endpoint"),
+		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 25.0, true, EDirectiveUtilSplineSpacingMode::Fixed, ESplineCoordinateSpace::World,
+			0.0, 50.0 + 1.e-10).Num(), 3);
+	const TArray<FVector> CountedSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+		Spline, 5, true);
+	TestTrue(TEXT("Spline sampling by count includes both exact endpoints"),
+		CountedSplinePoints.Num() == 5
+		&& CountedSplinePoints[0].Equals(FVector::ZeroVector, 1.e-4)
+		&& CountedSplinePoints[2].Equals(FVector(50.0, 0.0, 0.0), 1.e-4)
+		&& CountedSplinePoints[4].Equals(FVector(100.0, 0.0, 0.0), 1.e-4));
+	const TArray<FVector> InteriorSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+		Spline, 4, false);
+	TestTrue(TEXT("Spline sampling by count can exclude both endpoints"),
+		InteriorSplinePoints.Num() == 4
+		&& InteriorSplinePoints[0].Equals(FVector(20.0, 0.0, 0.0), 1.e-4)
+		&& InteriorSplinePoints[3].Equals(FVector(80.0, 0.0, 0.0), 1.e-4));
+	const TArray<FVector> SingleSplinePoint = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+		Spline, 1, true);
+	TestTrue(TEXT("A single spline point by count is the range midpoint"),
+		SingleSplinePoint.Num() == 1 && SingleSplinePoint[0].Equals(FVector(50.0, 0.0, 0.0), 1.e-4));
 	Spline->SetClosedLoop(true, true);
 	const TArray<FVector> ClosedSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
-		Spline, 30.0, true);
+		Spline, 30.0, true, EDirectiveUtilSplineSpacingMode::Fixed);
 	TestTrue(TEXT("Closed spline sampling does not repeat its first point"),
 		ClosedSplinePoints.Num() > 1 && !ClosedSplinePoints[0].Equals(ClosedSplinePoints.Last(), 1.e-4));
+	const TArray<FVector> ClosedCountedPoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+		Spline, 4, true);
+	TestTrue(TEXT("Closed spline sampling by count spreads points around the loop"),
+		ClosedCountedPoints.Num() == 4
+		&& !ClosedCountedPoints[0].Equals(ClosedCountedPoints.Last(), 1.e-4));
 	USplineComponent* SinglePointSpline = NewObject<USplineComponent>();
 	SinglePointSpline->SetSplinePoints({ FVector(3.0, 4.0, 5.0) }, ESplineCoordinateSpace::Local, true);
 	const TArray<FVector> ZeroLengthSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
-		SinglePointSpline, 10.0, true);
+		SinglePointSpline, 10.0);
 	TestTrue(TEXT("A zero-length spline returns its only point"),
 		ZeroLengthSplinePoints.Num() == 1 && ZeroLengthSplinePoints[0].Equals(FVector(3.0, 4.0, 5.0)));
 	TestTrue(TEXT("Spline sampling rejects invalid input"),
-		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(nullptr, 10.0, true).IsEmpty()
-		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, 0.0, true).IsEmpty());
+		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(nullptr, 10.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, 0.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 10.0, true, static_cast<EDirectiveUtilSplineSpacingMode>(255)).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 10.0, true, EDirectiveUtilSplineSpacingMode::Fixed,
+			static_cast<ESplineCoordinateSpace::Type>(255)).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 10.0, true, EDirectiveUtilSplineSpacingMode::Fixed,
+			ESplineCoordinateSpace::World, 80.0, 20.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(Spline, 0).IsEmpty());
 
 	const TArray<FVector> CirclePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnCircle(
 		FVector::ZeroVector, FRotator::ZeroRotator, 10.0, 4, 0.0);
@@ -332,6 +546,39 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Sphere points are deterministic and remain on the surface"),
 		bSphereValid && SphereMean.Size() < 0.01 && PointsEqual(SpherePoints, RepeatedSpherePoints));
+
+	const FVector SphereCenter(-1200.0, 3400.0, -5600.0);
+	const FRotator SphereRotation(-37.0, 123.0, 71.0);
+	const FQuat SphereRotationQuaternion = SphereRotation.Quaternion();
+	const TArray<FVector> LocalSpherePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+		FVector::ZeroVector, FRotator::ZeroRotator, 17.0, 257, 23.5);
+	const TArray<FVector> RotatedSpherePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+		SphereCenter, SphereRotation, 17.0, 257, 23.5);
+	bool bSphereRotationValid = LocalSpherePoints.Num() == RotatedSpherePoints.Num();
+	for (int32 Index = 0; Index < LocalSpherePoints.Num() && bSphereRotationValid; ++Index)
+	{
+		const FVector ExpectedPoint = SphereCenter
+			+ SphereRotationQuaternion.RotateVector(LocalSpherePoints[Index]);
+		bSphereRotationValid &= RotatedSpherePoints[Index].Equals(ExpectedPoint, 1.e-8);
+	}
+	TestTrue(TEXT("Sphere rotation transforms every local distribution point"), bSphereRotationValid);
+
+	constexpr double SphereAngleOffset = 1153.25;
+	const TArray<FVector> UnoffsetSpherePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+		FVector::ZeroVector, FRotator::ZeroRotator, 17.0, 257, 0.0);
+	const TArray<FVector> OffsetSpherePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+		FVector::ZeroVector, FRotator::ZeroRotator, 17.0, 257, SphereAngleOffset);
+	const FQuat SphereOffsetRotation(FVector::UpVector,
+		FMath::DegreesToRadians(FMath::Fmod(SphereAngleOffset, 360.0)));
+	bool bSphereAngleOffsetValid = UnoffsetSpherePoints.Num() == OffsetSpherePoints.Num();
+	for (int32 Index = 0; Index < UnoffsetSpherePoints.Num() && bSphereAngleOffsetValid; ++Index)
+	{
+		bSphereAngleOffsetValid &= OffsetSpherePoints[Index].Equals(
+			SphereOffsetRotation.RotateVector(UnoffsetSpherePoints[Index]), 1.e-8);
+	}
+	TestTrue(TEXT("Sphere angle offset rotates the distribution around local Z"),
+		bSphereAngleOffsetValid);
+
 	const TArray<FVector> SingleSpherePoint = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
 		PlaneCenter, PlaneRotation, 25.0, 1, 27.0);
 	TestTrue(TEXT("A single sphere point follows the rotated local Z axis"),
@@ -452,7 +699,7 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 	TransformedSpline->SetSplinePointType(0, ESplinePointType::Linear, false);
 	TransformedSpline->SetSplinePointType(1, ESplinePointType::Linear, true);
 	const TArray<FVector> TransformedSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
-		TransformedSpline, 60.0, true);
+		TransformedSpline, 60.0);
 	TestEqual(TEXT("Scaled spline sampling produces the expected point count"), TransformedSplinePoints.Num(), 5);
 	if (TransformedSplinePoints.Num() == 5)
 	{
@@ -466,6 +713,12 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 			TransformedSplinePoints.Last().Equals(TransformedSpline->GetLocationAtDistanceAlongSpline(
 				TransformedSpline->GetSplineLength(), ESplineCoordinateSpace::World), 1.e-4));
 	}
+	const TArray<FVector> LocalSplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+		TransformedSpline, 60.0, true, EDirectiveUtilSplineSpacingMode::Fixed, ESplineCoordinateSpace::Local);
+	TestTrue(TEXT("Spline sampling can return local-space points"),
+		LocalSplinePoints.Num() == TransformedSplinePoints.Num()
+		&& LocalSplinePoints[0].Equals(FVector::ZeroVector, 1.e-4)
+		&& LocalSplinePoints.Last().Equals(FVector(100.0, 0.0, 0.0), 1.e-4));
 
 	const double Infinity = std::numeric_limits<double>::infinity();
 	const double NaN = std::numeric_limits<double>::quiet_NaN();
@@ -485,7 +738,12 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 			FVector::ZeroVector, FRotator::ZeroRotator, Infinity, 4, 0.0).IsEmpty()
 		&& UDirectiveUtilMathFunctionLibrary::GenerateRectangularHexGrid(
 			FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(2, 2), Infinity).IsEmpty()
-		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, Infinity, true).IsEmpty());
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, Infinity).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 10.0, true, EDirectiveUtilSplineSpacingMode::Fixed,
+			ESplineCoordinateSpace::World, Infinity, -1.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+			Spline, 2, true, ESplineCoordinateSpace::World, 0.0, NaN).IsEmpty());
 	TestTrue(TEXT("Every spatial generator rejects a non-finite origin or center"),
 		UDirectiveUtilMathFunctionLibrary::GenerateGridPoints3D(
 			FVector(NaN, 0.0, 0.0), FRotator::ZeroRotator, FIntVector(1), FVector::OneVector, true).IsEmpty()
@@ -496,7 +754,7 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 		&& UDirectiveUtilMathFunctionLibrary::GenerateHexagonalHexGrid(
 			FVector(Infinity, 0.0, 0.0), FRotator::ZeroRotator, 1, 1.0).IsEmpty());
 	TestTrue(TEXT("Spline sampling rejects negative spacing"),
-		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, -1.0, true).IsEmpty());
+		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(Spline, -1.0).IsEmpty());
 	TestTrue(TEXT("Point generators return empty arrays for non-positive counts"),
 		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongDirection(
 			FVector::ZeroVector, FVector::ForwardVector, 0, 1.0, false).IsEmpty()

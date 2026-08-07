@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Remove At Indices`, a stable wildcard array node that removes multiple indices in one pass.
 - Added `Remove All Occurrences`, a stable wildcard array node that removes matching values in one pass, with same-build comparisons against Unreal's `Remove Item`.
 - Added keyed runtime stopwatches for measuring elapsed real time in milliseconds from Blueprints.
+- Added transform variants for grid, hex, circle, arc, and spline point generation, plus facing transforms from locations.
+- Added distance-weighted sampling of location and transform arrays, including closed loops.
+- Added hex coordinate queries for rectangular grids, rings, ranges, lines, and cell corners.
+- Added Perlin noise offsets for location and transform arrays.
+- Added transform easing and element-wise location/transform array easing with optional per-element alphas.
+- Added `Linear` to `EDirectiveUtilEaseType` (appended so existing Blueprint ordinals stay stable).
+- Added `EDirectiveUtilSplineSpacingMode` (Fixed/Even) and `EDirectiveUtilRadialOrientation` for generated transforms.
+- Added spline sampling by count, coordinate space, and start/end distance range.
+- `Repeat with Interval` accepts `Count = -1` to repeat until Cancel; `Remaining` stays `-1` while running.
+
+### Changed
+- `Generate Points Along Spline` keeps `Include Endpoint` as the third pin; Spacing Mode and later options follow it so existing Blueprint and C++ call sites keep their meaning.
 
 ### Fixed
 - Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
