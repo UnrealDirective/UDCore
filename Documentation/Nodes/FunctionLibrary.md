@@ -179,7 +179,7 @@ Reads a key=value option (e.g. `MyKey` matching `-MyKey=Value`) from the process
 static bool StartStopwatch(FName Key, bool bRestartIfRunning = false);
 ```
 
-Starts a keyed stopwatch using monotonic real time. Stopwatches are stored per thread, so Start Stopwatch and Stop Stopwatch must execute on the same thread. They do not require a world and are unaffected by pause, time dilation, and level travel.
+Starts a process-wide keyed stopwatch using monotonic real time. A stopwatch may start and stop on different threads. Calls are synchronized, do not require a world, and are unaffected by pause, time dilation, and level travel.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

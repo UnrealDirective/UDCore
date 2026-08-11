@@ -243,7 +243,8 @@ void UDirectiveUtilTask_RepeatWithInterval::OnIteration()
 		return;
 	}
 
-	const int32 CurrentIndex = NextIndex++;
+	const int32 CurrentIndex = NextIndex;
+	NextIndex = NextIndex == MAX_int32 ? 0 : NextIndex + 1;
 	const int32 Remaining = Count == -1 ? -1 : Count - NextIndex;
 	Iteration.Broadcast(CurrentIndex, Remaining);
 	if (!ShouldBroadcastDelegates())

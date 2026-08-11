@@ -82,6 +82,13 @@ namespace DirectiveUtilRuntimePerformance
 	{
 		Prepare();
 		Operation();
+		const double WarmupStartSeconds = FPlatformTime::Seconds();
+		do
+		{
+			Prepare();
+			Operation();
+		}
+		while (FPlatformTime::Seconds() - WarmupStartSeconds < 0.01);
 
 		TArray<double> Samples;
 		Samples.Reserve(SampleCount);
@@ -915,7 +922,7 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	for (const int32 ElementCount : {16, 256, 1024, 4096, 16384})
+	for (const int32 ElementCount : {16, 256, 1024, 4096, 16384, 65536})
 	{
 		const TArray<int32> Source = MakeSequentialIntegers(ElementCount);
 		const int32 DenseDistinctCount = FMath::Max(1, FMath::Min(64, ElementCount / 4));
@@ -1048,6 +1055,17 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 
 	}
 
+	{
+		constexpr int32 ElementCount = 1000000;
+		const TArray<int32> Source = MakeSequentialIntegers(ElementCount);
+		int32 ItemToCount = ElementCount - 1;
+		int32 OccurrenceCount = 0;
+		Results.Add(Measure(
+			TEXT("CountOccurrences"), ElementCount, 0, SampleCount,
+			[&]() { TestObject->TestArray = Source; OccurrenceCount = 0; },
+			[&]() { OccurrenceCount = UDirectiveUtilArrayFunctionLibrary::GenericArray_CountOccurrences(&TestObject->TestArray, ArrayProperty, &ItemToCount); }));
+	}
+
 	for (const int32 ElementCount : {1000, 100000, 1000000})
 	{
 		const TArray<int32> Source = MakeSequentialIntegers(ElementCount);
@@ -1119,6 +1137,75 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 				[]() {},
 				[&]() { MedianResult = UDirectiveUtilMathFunctionLibrary::GetIntArrayMedian(ReverseValues); }));
 		}
+	}
+
+	for (const int32 ElementCount : {1000, 10000, 100000})
+	{
+		TArray<FVector> PointOutput;
+		TArray<FTransform> TransformOutput;
+		TArray<FIntPoint> CoordinateOutput;
+		TArray<FVector> EaseFromLocations;
+		TArray<FVector> EaseToLocations;
+		EaseFromLocations.Reserve(ElementCount);
+		EaseToLocations.Reserve(ElementCount);
+		for (int32 Index = 0; Index < ElementCount; ++Index)
+		{
+			const FVector Location(Index, Index * 0.5, -Index);
+			EaseFromLocations.Add(Location);
+			EaseToLocations.Add(Location + FVector(100.0, -50.0, 25.0));
+		}
+
+		Results.Add(Measure(
+			TEXT("GenerateGridPoints2D"), ElementCount, 0, SampleCount,
+			[&]() { PointOutput.Reset(); },
+			[&]() { PointOutput = UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(
+				FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(ElementCount, 1), FVector2D(100.0, 100.0)); }));
+		Results.Add(Measure(
+			TEXT("GetRectangularHexGridCoordinates"), ElementCount, 0, SampleCount,
+			[&]() { CoordinateOutput.Reset(); },
+			[&]() { CoordinateOutput = UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(
+				FIntPoint(ElementCount, 1)); }));
+		Results.Add(Measure(
+			TEXT("GeneratePointsOnCircle"), ElementCount, 0, SampleCount,
+			[&]() { PointOutput.Reset(); },
+			[&]() { PointOutput = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnCircle(
+				FVector::ZeroVector, FRotator::ZeroRotator, 1000.0, ElementCount); }));
+		Results.Add(Measure(
+			TEXT("GeneratePointsOnSphere"), ElementCount, 0, SampleCount,
+			[&]() { PointOutput.Reset(); },
+			[&]() { PointOutput = UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+				FVector::ZeroVector, FRotator::ZeroRotator, 1000.0, ElementCount); }));
+		Results.Add(Measure(
+			TEXT("GenerateTransformsOnCircle"), ElementCount, 0, SampleCount,
+			[&]() { TransformOutput.Reset(); },
+			[&]() { TransformOutput = UDirectiveUtilMathFunctionLibrary::GenerateTransformsOnCircle(
+				FVector::ZeroVector, FRotator::ZeroRotator, 1000.0, ElementCount); }));
+		Results.Add(Measure(
+			TEXT("EaseLocationArrays"), ElementCount, 0, SampleCount,
+			[&]() { PointOutput.Reset(); },
+			[&]() { PointOutput = UDirectiveUtilMathFunctionLibrary::EaseLocationArrays(
+			EaseFromLocations, EaseToLocations, 0.5f, EDirectiveUtilEaseType::BackInOut, {}); }));
+	}
+
+	{
+		constexpr int32 ElementCount = 1000000;
+		TArray<FVector> PointOutput;
+		Results.Add(Measure(
+			TEXT("GenerateGridPoints2D"), ElementCount, 0, SampleCount,
+			[&]() { PointOutput.Reset(); },
+			[&]() { PointOutput = UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(
+				FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(ElementCount, 1), FVector2D(100.0, 100.0)); }));
+	}
+
+	for (const int32 Radius : {10, 100, 250})
+	{
+		TArray<FIntPoint> HexOutput;
+		const int32 ElementCount = 1 + 3 * Radius * (Radius + 1);
+		Results.Add(Measure(
+			TEXT("GetHexesInRange"), ElementCount, Radius, SampleCount,
+			[&]() { HexOutput.Reset(); },
+			[&]() { HexOutput = UDirectiveUtilMathFunctionLibrary::GetHexesInRange(
+				FIntPoint::ZeroValue, Radius); }));
 	}
 
 	for (const int32 OperationCount : {1000, 100000})
@@ -1278,6 +1365,49 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	{
 		AddError(FString::Printf(TEXT("Unable to read performance baseline: %s"), *BaselinePath));
 		return false;
+	}
+	if (!BaselinePath.IsEmpty())
+	{
+		double MaximumRegressionPercent = 20.0;
+		double MinimumGatedMilliseconds = 0.5;
+		FParse::Value(
+			FCommandLine::Get(),
+			TEXT("DirectiveUtilitiesPerfMaxRegressionPercent="),
+			MaximumRegressionPercent);
+		FParse::Value(
+			FCommandLine::Get(),
+			TEXT("DirectiveUtilitiesPerfMinGateMilliseconds="),
+			MinimumGatedMilliseconds);
+		if (!FMath::IsFinite(MaximumRegressionPercent) || MaximumRegressionPercent < 0.0)
+		{
+			AddError(TEXT("DirectiveUtilitiesPerfMaxRegressionPercent must be finite and non-negative."));
+			return false;
+		}
+		if (!FMath::IsFinite(MinimumGatedMilliseconds) || MinimumGatedMilliseconds < 0.0)
+		{
+			AddError(TEXT("DirectiveUtilitiesPerfMinGateMilliseconds must be finite and non-negative."));
+			return false;
+		}
+
+		for (const FResult& Result : Results)
+		{
+			const double* Baseline = BaselineMedians.Find(Result.GetKey());
+			if (!Baseline || *Baseline < MinimumGatedMilliseconds)
+			{
+				continue;
+			}
+			const double RegressionPercent = ((Result.MedianMilliseconds - *Baseline) / *Baseline) * 100.0;
+			if (RegressionPercent > MaximumRegressionPercent)
+			{
+				AddError(FString::Printf(
+					TEXT("Performance regression for %s elements=%d parameter=%d: %.2f%% exceeds %.2f%%"),
+					*Result.Name,
+					Result.ElementCount,
+					Result.Parameter,
+					RegressionPercent,
+					MaximumRegressionPercent));
+			}
+		}
 	}
 
 	for (const FResult& Result : Results)

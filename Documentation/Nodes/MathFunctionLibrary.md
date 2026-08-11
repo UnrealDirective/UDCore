@@ -355,8 +355,10 @@ Samples a transform along the path through an array, with Alpha 0 at the first t
 
 **Returns:** The sampled transform. A single transform returns itself; an empty array or non-finite input returns the identity.
 
+Collection generators use execution pins so Blueprint controls when allocation happens. They return an empty array when the result would exceed 1,000,000 elements.
+
 ## Generate Grid Points 2D
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GenerateGridPoints2D(const FVector& Origin, const FRotator& Rotation,
@@ -376,7 +378,7 @@ Generates a rectangular grid on the rotated local XY plane. Points are ordered b
 **Returns:** The generated points. Non-positive dimensions, non-finite input, coordinate overflow, or a point count above the array limit returns an empty array.
 
 ## Generate Grid Points 3D
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GenerateGridPoints3D(const FVector& Origin, const FRotator& Rotation,
@@ -396,7 +398,7 @@ Generates a rectangular 3D grid. Points are ordered by X, then Y, then Z.
 **Returns:** The generated points. Non-positive dimensions, non-finite input, coordinate overflow, or a point count above the array limit returns an empty array.
 
 ## Generate Grid Transforms 2D
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FTransform> GenerateGridTransforms2D(const FVector& Origin, const FRotator& Rotation,
@@ -420,7 +422,7 @@ Generates transforms on a rectangular grid on the rotated local XY plane. Locati
 **Returns:** The generated transforms. Non-positive dimensions, non-finite input, coordinate overflow, or a count above the array limit returns an empty array.
 
 ## Generate Grid Transforms 3D
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FTransform> GenerateGridTransforms3D(const FVector& Origin, const FRotator& Rotation,
@@ -444,7 +446,7 @@ Generates transforms on a rectangular 3D grid. Locations match Generate Grid Poi
 **Returns:** The generated transforms. Non-positive dimensions, non-finite input, coordinate overflow, or a count above the array limit returns an empty array.
 
 ## Generate Rectangular Hex Grid
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FVector> GenerateRectangularHexGrid(const FVector& Origin, const FRotator& Rotation,
@@ -468,7 +470,7 @@ Generates a rectangular set of hex cell centers on the rotated local XY plane. P
 **Returns:** The cell centers. Non-positive dimensions, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
 
 ## Generate Rectangular Hex Grid Transforms
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FTransform> GenerateRectangularHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
@@ -490,7 +492,7 @@ Remaining parameters match Generate Rectangular Hex Grid.
 **Returns:** The cell transforms. Invalid input returns an empty array.
 
 ## Get Rectangular Hex Grid Coordinates
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FIntPoint> GetRectangularHexGridCoordinates(FIntPoint Dimensions,
@@ -507,7 +509,7 @@ Returns the axial coordinate of every cell of a rectangular hex grid, in the sam
 **Returns:** The axial coordinates. Non-positive dimensions, an invalid orientation, or a count above the array limit returns an empty array.
 
 ## Generate Hexagonal Hex Grid
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FVector> GenerateHexagonalHexGrid(const FVector& Origin, const FRotator& Rotation,
@@ -530,7 +532,7 @@ Generates a hexagon-shaped set of cell centers. Grid Radius is the number of rin
 **Returns:** `1 + 3 * GridRadius * (GridRadius + 1)` cell centers. A negative grid radius, invalid layout input, a non-positive center spacing, coordinate overflow, or a point count above the array limit returns an empty array.
 
 ## Generate Hexagonal Hex Grid Transforms
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FTransform> GenerateHexagonalHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
@@ -629,7 +631,7 @@ Returns the minimum number of neighbor steps between two axial coordinates. The 
 **Returns:** The hex-grid distance.
 
 ## Get Hexes In Range
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FIntPoint> GetHexesInRange(FIntPoint Center, int32 Range);
@@ -645,7 +647,7 @@ Returns every axial coordinate within a number of neighbor steps of a center cel
 **Returns:** `1 + 3 * Range * (Range + 1)` coordinates. A negative range, coordinate overflow, or a count above the array limit returns an empty array.
 
 ## Get Hex Ring
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FIntPoint> GetHexRing(FIntPoint Center, int32 Radius);
@@ -661,7 +663,7 @@ Returns the axial coordinates exactly Radius steps from a center cell. Consecuti
 **Returns:** `6 * Radius` coordinates, or one for a zero radius. A negative radius or coordinate overflow returns an empty array.
 
 ## Get Hex Line
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Hex Grid`
 
 ```cpp
 static TArray<FIntPoint> GetHexLine(FIntPoint Start, FIntPoint End);
@@ -699,7 +701,7 @@ Returns the six corner locations of a hex cell on the rotated local XY plane, or
 **Returns:** The six corner locations. Invalid layout input or coordinate overflow returns an empty array.
 
 ## Generate Points Along Direction
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsAlongDirection(const FVector& Origin, const FVector& Direction,
@@ -719,7 +721,7 @@ Generates a line of points with fixed center-to-center spacing. Direction is nor
 **Returns:** The generated points. A non-positive count, zero direction, non-finite input, or coordinate overflow returns an empty array.
 
 ## Generate Points Between Locations
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsBetweenLocations(const FVector& Start, const FVector& End,
@@ -844,7 +846,7 @@ Samples a fixed number of evenly spaced transforms along a spline. Rotation foll
 **Returns:** The sampled transforms. Invalid input returns an empty array.
 
 ## Generate Points On Circle
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsOnCircle(const FVector& Center, const FRotator& Rotation,
@@ -864,7 +866,7 @@ Generates evenly spaced points around a circle on the rotated local XY plane. Th
 **Returns:** The generated points. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
 
 ## Generate Transforms On Circle
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FTransform> GenerateTransformsOnCircle(const FVector& Center,
@@ -891,7 +893,7 @@ Generates transforms around a circle on the rotated local XY plane. Fixed uses R
 **Returns:** The generated transforms without repeating the first location. Invalid input returns an empty array.
 
 ## Generate Points On Arc
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsOnArc(const FVector& Center, const FRotator& Rotation,
@@ -914,7 +916,7 @@ Generates evenly spaced points along an arc on the rotated local XY plane. Posit
 **Returns:** The generated points. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
 
 ## Generate Transforms On Arc
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FTransform> GenerateTransformsOnArc(const FVector& Center,
@@ -944,7 +946,7 @@ Generates transforms along an arc on the rotated local XY plane. Follow Path use
 **Returns:** The generated transforms. Invalid input returns an empty array.
 
 ## Generate Points On Disc
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsOnDisc(const FVector& Center, const FRotator& Rotation,
@@ -964,7 +966,7 @@ Generates a deterministic sunflower distribution across a disc on the rotated lo
 **Returns:** Deterministic points with approximately even area coverage. A non-positive count, non-finite input, or coordinate overflow returns an empty array.
 
 ## Generate Points On Sphere
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Point Generation`
 
 ```cpp
 static TArray<FVector> GeneratePointsOnSphere(const FVector& Center, const FRotator& Rotation,

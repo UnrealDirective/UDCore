@@ -24,12 +24,12 @@ class IDirectiveUtilTestInterface
 	GENERATED_BODY()
 };
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FDirectiveUtilCollisionValue
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
 	int32 Value = 0;
 
 	bool operator==(const FDirectiveUtilCollisionValue& Other) const
@@ -75,7 +75,7 @@ public:
 	UPROPERTY()
 	TArray<int32> TestArray;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
 	TArray<FString> TestStringArray;
 
 	UPROPERTY()
@@ -84,17 +84,56 @@ public:
 	UPROPERTY()
 	TArray<FText> TestTextArray;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
 	TArray<bool> TestBoolArray;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
 	TArray<FDirectiveUtilCollisionValue> TestCollisionArray;
 
 	UPROPERTY()
 	TArray<FDirectiveUtilPodValue> TestPodArray;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
 	TArray<TObjectPtr<UObject>> TestObjectArray;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TArray<bool> TestBoolSourceArray;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TArray<FString> TestStringSourceArray;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TArray<FDirectiveUtilCollisionValue> TestCollisionSourceArray;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TArray<TObjectPtr<UObject>> TestObjectSourceArray;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TArray<int32> TestIndices;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	bool TestBoolItem = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	FString TestStringItem;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	FDirectiveUtilCollisionValue TestCollisionItem;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	TObjectPtr<UObject> TestObjectItem;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	bool TestInsertResult = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	int32 TestRemovedCount = 0;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Directive Utilities|Tests")
+	bool TestRemoveAllResult = false;
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void RunArrayThunkScenario();
 
 	UPROPERTY()
 	TMap<int32, int32> TestMap;

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-11
+
 ### Added
 - Added `Append Array Optimized`, a wildcard array node that bulk-copies plain-data elements and retains Unreal's property-aware path for managed values.
 - Added `Insert Array Optimized`, a wildcard array node that inserts a source array with one structural move.
@@ -21,15 +23,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Linear` to `EDirectiveUtilEaseType` (appended so existing Blueprint ordinals stay stable).
 - Added `EDirectiveUtilSplineSpacingMode` (Fixed/Even) and `EDirectiveUtilRadialOrientation` for generated transforms.
 - Added spline sampling by count, coordinate space, and start/end distance range.
+- Added a local release gate for Python checks, Fab validation, UE 5.6-5.8 editor and packaged tests, Shipping coverage, performance regression checks, and release-text scanning.
 - `Repeat with Interval` accepts `Count = -1` to repeat until Cancel; `Remaining` stays `-1` while running.
 
 ### Changed
-- Seeded random nodes and the in-place array nodes are marked thread safe, so they can be called from thread-safe Blueprint functions and PCG Blueprint elements. The unseeded random nodes stay game-thread only because they draw from the global random stream.
+- Callable array, random-stream, and collection-generator nodes no longer carry ineffective `BlueprintThreadSafe` metadata. Pure functions retain thread-safe metadata where Unreal can use it.
 - `Generate Points Along Spline` keeps `Include Endpoint` as the third pin; Spacing Mode and later options follow it so existing Blueprint and C++ call sites keep their meaning.
+- Point, transform, grid, and multi-cell hex generators use execution pins so their allocation cost stays explicit in Blueprint graphs.
+- Keyed stopwatches share synchronized state across threads.
+- Math formatting, statistics, easing, and random implementations build in focused translation units without changing the public Blueprint library.
 
 ### Fixed
 - Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
 - Plugin metadata now declares its target platforms, documentation, and editor-only dependency scope.
+- Generated collections reject requests above 1,000,000 elements before allocating or iterating.
+- Infinite interval repeats wrap their Blueprint index to zero after `MAX_int32` without signed overflow.
+- Delta-angle and angle-interpolation nodes remove any number of full turns consistently on UE 5.6-5.8.
+- Wildcard append, insert, indexed removal, and value removal now run through compiled Blueprint VM tests for Boolean, string, object, and struct arrays.
 
 ## [2.1.0] - 2026-07-22
 
@@ -162,7 +172,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gameplay Tag nodes that query the tag manager no longer claim worker-thread safety.
 - Duplicate asset searches return each matching asset path once when directories overlap.
 - Async action factories handle null world contexts without emitting engine-level warnings.
-- CI runs the Directive Utilities automation suite for every supported engine version.
 
 ## [1.3] and earlier
 

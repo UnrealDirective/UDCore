@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Unreal Directive. Licensed under the MIT License.
 
 #include "Libraries/DirectiveUtilFunctionLibrary.h"
+#include "Async/Async.h"
 #include "Engine/World.h"
 #include "HAL/PlatformProcess.h"
 #include "Misc/AutomationTest.h"
@@ -313,6 +314,20 @@ bool FDirectiveUtilFunctionLibraryTest::RunTest(const FString& Parameters)
 		"StopStopwatch should stop the elapsed-time test key",
 		UDirectiveUtilFunctionLibrary::StopStopwatch(TimedStopwatchKey, ElapsedMilliseconds));
 	TestTrue("StopStopwatch should measure elapsed real time in milliseconds", ElapsedMilliseconds >= 5.0);
+
+	const FName CrossThreadStopwatchKey(TEXT("DirectiveUtilCrossThreadStopwatch"));
+	TestTrue(
+		"StartStopwatch should start a key that will stop on another thread",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(CrossThreadStopwatchKey));
+	double CrossThreadElapsedMilliseconds = 0.0;
+	TFuture<bool> CrossThreadStop = Async(EAsyncExecution::ThreadPool, [&CrossThreadElapsedMilliseconds, CrossThreadStopwatchKey]()
+	{
+		return UDirectiveUtilFunctionLibrary::StopStopwatch(
+			CrossThreadStopwatchKey,
+			CrossThreadElapsedMilliseconds);
+	});
+	TestTrue("StopStopwatch should find a key started on another thread", CrossThreadStop.Get());
+	TestTrue("Cross-thread stopwatch duration should be non-negative", CrossThreadElapsedMilliseconds >= 0.0);
 
 	const UFunction* StartStopwatchFunction = UDirectiveUtilFunctionLibrary::StaticClass()->FindFunctionByName(
 		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilFunctionLibrary, StartStopwatch));

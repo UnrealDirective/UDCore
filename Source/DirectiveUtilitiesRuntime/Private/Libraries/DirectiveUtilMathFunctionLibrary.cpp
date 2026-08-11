@@ -13,103 +13,9 @@ namespace
 	constexpr double DirectionDotTolerance = 8.0 * std::numeric_limits<double>::epsilon();
 	constexpr double ProjectionTolerance = 32.0 * std::numeric_limits<double>::epsilon();
 
-	double EaseBackIn(double t)
+	bool IsSupportedGeneratedElementCount(const int64 Count)
 	{
-		const double s = 1.70158;
-		return t * t * ((s + 1.0) * t - s);
-	}
-
-	double EaseBackOut(double t)
-	{
-		const double s = 1.70158;
-		t -= 1.0;
-		return t * t * ((s + 1.0) * t + s) + 1.0;
-	}
-
-	double EaseBackInOut(double t)
-	{
-		const double s = 1.70158 * 1.525;
-		t *= 2.0;
-		if (t < 1.0)
-		{
-			return 0.5 * (t * t * ((s + 1.0) * t - s));
-		}
-		t -= 2.0;
-		return 0.5 * (t * t * ((s + 1.0) * t + s) + 2.0);
-	}
-
-	double EaseElasticIn(double t)
-	{
-		if (t <= 0.0) { return 0.0; }
-		if (t >= 1.0) { return 1.0; }
-		const double p = 0.3;
-		const double s = p / 4.0;
-		t -= 1.0;
-		return -(FMath::Pow(2.0, 10.0 * t) * FMath::Sin((t - s) * (2.0 * PI) / p));
-	}
-
-	double EaseElasticOut(double t)
-	{
-		if (t <= 0.0) { return 0.0; }
-		if (t >= 1.0) { return 1.0; }
-		const double p = 0.3;
-		const double s = p / 4.0;
-		return FMath::Pow(2.0, -10.0 * t) * FMath::Sin((t - s) * (2.0 * PI) / p) + 1.0;
-	}
-
-	double EaseElasticInOut(double t)
-	{
-		if (t <= 0.0) { return 0.0; }
-		if (t >= 1.0) { return 1.0; }
-		const double p = 0.3 * 1.5;
-		const double s = p / 4.0;
-		t *= 2.0;
-		if (t < 1.0)
-		{
-			t -= 1.0;
-			return -0.5 * (FMath::Pow(2.0, 10.0 * t) * FMath::Sin((t - s) * (2.0 * PI) / p));
-		}
-		t -= 1.0;
-		return FMath::Pow(2.0, -10.0 * t) * FMath::Sin((t - s) * (2.0 * PI) / p) * 0.5 + 1.0;
-	}
-
-	double EaseBounceOut(double t)
-	{
-		const double n1 = 7.5625;
-		const double d1 = 2.75;
-		if (t < 1.0 / d1)
-		{
-			return n1 * t * t;
-		}
-		if (t < 2.0 / d1)
-		{
-			t -= 1.5 / d1;
-			return n1 * t * t + 0.75;
-		}
-		if (t < 2.5 / d1)
-		{
-			t -= 2.25 / d1;
-			return n1 * t * t + 0.9375;
-		}
-		t -= 2.625 / d1;
-		return n1 * t * t + 0.984375;
-	}
-
-	double EaseBounceIn(double t)
-	{
-		return 1.0 - EaseBounceOut(1.0 - t);
-	}
-
-	double EaseBounceInOut(double t)
-	{
-		return t < 0.5
-			? (1.0 - EaseBounceOut(1.0 - 2.0 * t)) * 0.5
-			: (1.0 + EaseBounceOut(2.0 * t - 1.0)) * 0.5;
-	}
-
-	float GetUsableWeight(const float Weight)
-	{
-		return FMath::IsFinite(Weight) && Weight > 0.0f ? Weight : 0.0f;
+		return Count > 0 && Count <= UDirectiveUtilMathFunctionLibrary::MaximumGeneratedElementCount;
 	}
 
 	bool IsFiniteVector2D(const FVector2D& Value)
@@ -193,35 +99,6 @@ namespace
 			FVector::DotProduct(NormalizedDirection, NormalizedConeDirection), -1.0, 1.0);
 		const double ClampedHalfAngle = FMath::Clamp(static_cast<double>(ConeHalfAngleDegrees), 0.0, 180.0);
 		return Dot + DirectionDotTolerance >= FMath::Cos(FMath::DegreesToRadians(ClampedHalfAngle));
-	}
-
-	FVector2D MakePointInAnnulus(const double InnerRadius, const double OuterRadius,
-		const double AngleSample, const double RadiusSample)
-	{
-		const double Angle = AngleSample * UE_TWO_PI;
-		const double Radius = FMath::Sqrt(FMath::Lerp(
-			InnerRadius * InnerRadius,
-			OuterRadius * OuterRadius,
-			RadiusSample));
-		return FVector2D(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius);
-	}
-
-	template <typename RandomFractionFunction>
-	FVector MakePointInSphere(const double Radius, RandomFractionFunction&& RandomFraction)
-	{
-		FVector Point;
-		double SizeSquared;
-		do
-		{
-			const double X = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
-			const double Y = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
-			const double Z = static_cast<double>(RandomFraction()) * 2.0 - 1.0;
-			Point = FVector(X, Y, Z);
-			SizeSquared = Point.SizeSquared();
-		}
-		while (SizeSquared > 1.0);
-
-		return Point * Radius;
 	}
 
 	bool TryGetRotationQuaternion(const FRotator& Rotation, FQuat& Quaternion)
@@ -495,7 +372,12 @@ namespace
 		{
 			return false;
 		}
-		PointCount = static_cast<int32>(1 + Radius * Multiplier);
+		const int64 Count = 1 + Radius * Multiplier;
+		if (!IsSupportedGeneratedElementCount(Count))
+		{
+			return false;
+		}
+		PointCount = static_cast<int32>(Count);
 		return true;
 	}
 
@@ -507,7 +389,7 @@ namespace
 			return false;
 		}
 
-		constexpr int64 MaximumPointCount = TNumericLimits<int32>::Max();
+		constexpr int64 MaximumPointCount = UDirectiveUtilMathFunctionLibrary::MaximumGeneratedElementCount;
 		int64 Count = Dimensions.X;
 		if (Count > MaximumPointCount / Dimensions.Y)
 		{
@@ -635,7 +517,8 @@ namespace
 	TArray<FVector> GenerateLinearPoints(const FVector& Origin, const FVector& Step,
 		const int32 Count, const double FirstStep)
 	{
-		if (Count <= 0 || !FMath::IsFinite(FirstStep) || Origin.ContainsNaN() || Step.ContainsNaN())
+		if (!IsSupportedGeneratedElementCount(Count)
+			|| !FMath::IsFinite(FirstStep) || Origin.ContainsNaN() || Step.ContainsNaN())
 		{
 			return {};
 		}
@@ -700,7 +583,8 @@ namespace
 		FVector AxisX;
 		FVector AxisY;
 		FVector AxisZ;
-		if (Count <= 0 || Center.ContainsNaN() || !FMath::IsFinite(StartAngle) || !FMath::IsFinite(StepAngle)
+		if (!IsSupportedGeneratedElementCount(Count)
+			|| Center.ContainsNaN() || !FMath::IsFinite(StartAngle) || !FMath::IsFinite(StepAngle)
 			|| !TryGetRotatedAxes(Rotation, AxisX, AxisY, AxisZ))
 		{
 			return {};
@@ -780,7 +664,7 @@ namespace
 	{
 		FQuat PlaneRotation;
 		FQuat RotationOffsetQuaternion;
-		if (Count <= 0 || Center.ContainsNaN() || Scale.ContainsNaN()
+		if (!IsSupportedGeneratedElementCount(Count) || Center.ContainsNaN() || Scale.ContainsNaN()
 			|| !FMath::IsFinite(Radius) || !FMath::IsFinite(StartAngle) || !FMath::IsFinite(StepAngle)
 			|| !FMath::IsFinite(PathDirection) || !IsValidRadialOrientation(Orientation)
 			|| !TryGetRotationQuaternion(PlaneRotator, PlaneRotation)
@@ -903,7 +787,8 @@ namespace
 		}
 
 		const double SampleCountValue = FMath::CeilToDouble(RangeLength / Spacing);
-		if (!FMath::IsFinite(SampleCountValue) || SampleCountValue < 1.0 || SampleCountValue >= MAX_int32)
+		if (!FMath::IsFinite(SampleCountValue) || SampleCountValue < 1.0
+			|| SampleCountValue > UDirectiveUtilMathFunctionLibrary::MaximumGeneratedElementCount)
 		{
 			return false;
 		}
@@ -922,6 +807,10 @@ namespace
 				--Plan.RegularSampleCount;
 			}
 		}
+		if (!IsSupportedGeneratedElementCount(Plan.Num()))
+		{
+			return false;
+		}
 		Plan.FinalizeSampleDistances();
 		return true;
 	}
@@ -931,7 +820,7 @@ namespace
 		FSplineSamplePlan& Plan)
 	{
 		bool bFullClosedLoop = false;
-		if (Count <= 0
+		if (!IsSupportedGeneratedElementCount(Count)
 			|| !TryResolveSplineSampleRange(Spline, StartDistance, EndDistance, Plan, bFullClosedLoop))
 		{
 			return false;
@@ -1015,40 +904,6 @@ namespace
 		return FTransform(Rotation,
 			FMath::Lerp(A.GetLocation(), B.GetLocation(), Alpha),
 			FMath::Lerp(A.GetScale3D(), B.GetScale3D(), Alpha));
-	}
-
-	template <typename ValueType, typename BlendType>
-	TArray<ValueType> EaseArrays(const TArray<ValueType>& From, const TArray<ValueType>& To, const float Alpha,
-		const EDirectiveUtilEaseType EaseType, const TArray<float>& PerElementAlphas, BlendType Blend)
-	{
-		const bool bPerElement = !PerElementAlphas.IsEmpty();
-		if (From.Num() != To.Num() || !FMath::IsFinite(Alpha)
-			|| (bPerElement && PerElementAlphas.Num() != From.Num()))
-		{
-			return {};
-		}
-
-		const float SharedEasedAlpha = UDirectiveUtilMathFunctionLibrary::EaseAlpha(Alpha, EaseType);
-		TArray<ValueType> Result;
-		Result.SetNumUninitialized(From.Num());
-		for (int32 Index = 0; Index < From.Num(); ++Index)
-		{
-			float EasedAlpha = SharedEasedAlpha;
-			if (bPerElement)
-			{
-				if (!FMath::IsFinite(PerElementAlphas[Index]))
-				{
-					return {};
-				}
-				EasedAlpha = UDirectiveUtilMathFunctionLibrary::EaseAlpha(PerElementAlphas[Index], EaseType);
-			}
-			if (From[Index].ContainsNaN() || To[Index].ContainsNaN())
-			{
-				return {};
-			}
-			Result[Index] = Blend(From[Index], To[Index], static_cast<double>(EasedAlpha));
-		}
-		return Result;
 	}
 
 	template <typename PositionType>
@@ -1137,87 +992,20 @@ namespace
 		return FMath::DegreesToRadians(FMath::Fmod(AngleDegrees, 360.0));
 	}
 
-	template <typename ValueType>
-	ValueType SelectNth(TArray<ValueType>& Values, const int32 NthIndex)
+	double FindWrappedDeltaDegrees(const double From, const double To)
 	{
-		int32 Left = 0;
-		int32 Right = Values.Num() - 1;
-		int32 RemainingDepth = FMath::FloorLog2(static_cast<uint32>(Values.Num())) * 2;
-		while (Left < Right)
+		double Delta = FMath::Fmod(To - From, 360.0);
+		if (Delta > 180.0)
 		{
-			if (RemainingDepth-- <= 0)
-			{
-				Values.Sort();
-				return Values[NthIndex];
-			}
-
-			const int32 Middle = Left + (Right - Left) / 2;
-			if (Values[Middle] < Values[Left])
-			{
-				Values.Swap(Middle, Left);
-			}
-			if (Values[Right] < Values[Left])
-			{
-				Values.Swap(Right, Left);
-			}
-			if (Values[Right] < Values[Middle])
-			{
-				Values.Swap(Right, Middle);
-			}
-			const ValueType Pivot = Values[Middle];
-
-			int32 LessEnd = Left;
-			int32 Current = Left;
-			int32 GreaterStart = Right;
-			while (Current <= GreaterStart)
-			{
-				if (Values[Current] < Pivot)
-				{
-					Values.Swap(LessEnd++, Current++);
-				}
-				else if (Pivot < Values[Current])
-				{
-					Values.Swap(Current, GreaterStart--);
-				}
-				else
-				{
-					++Current;
-				}
-			}
-
-			if (NthIndex < LessEnd)
-			{
-				Right = LessEnd - 1;
-			}
-			else if (NthIndex > GreaterStart)
-			{
-				Left = GreaterStart + 1;
-			}
-			else
-			{
-				return Values[NthIndex];
-			}
+			Delta -= 360.0;
 		}
-		return Values[Left];
+		else if (Delta < -180.0)
+		{
+			Delta += 360.0;
+		}
+		return Delta;
 	}
 
-	template <typename ValueType>
-	double CalculateMedian(TArray<ValueType>& Values)
-	{
-		const int32 Middle = Values.Num() / 2;
-		const ValueType UpperMiddle = SelectNth(Values, Middle);
-		if (Values.Num() % 2 != 0)
-		{
-			return static_cast<double>(UpperMiddle);
-		}
-
-		ValueType LowerMiddle = Values[0];
-		for (int32 Index = 1; Index < Middle; ++Index)
-		{
-			LowerMiddle = FMath::Max(LowerMiddle, Values[Index]);
-		}
-		return (static_cast<double>(LowerMiddle) + static_cast<double>(UpperMiddle)) * 0.5;
-	}
 }
 
 float UDirectiveUtilMathFunctionLibrary::PerlinNoise2D(const FVector2D Position)
@@ -1263,7 +1051,7 @@ float UDirectiveUtilMathFunctionLibrary::DeltaAngle(const float From, const floa
 		return 0.0f;
 	}
 
-	return static_cast<float>(FMath::FindDeltaAngleDegrees(static_cast<double>(From), static_cast<double>(To)));
+	return static_cast<float>(FindWrappedDeltaDegrees(From, To));
 }
 
 float UDirectiveUtilMathFunctionLibrary::LerpAngle(const float A, const float B, const float Alpha)
@@ -1274,7 +1062,7 @@ float UDirectiveUtilMathFunctionLibrary::LerpAngle(const float A, const float B,
 	}
 
 	const double Result = static_cast<double>(A)
-		+ FMath::FindDeltaAngleDegrees(static_cast<double>(A), static_cast<double>(B)) * static_cast<double>(Alpha);
+		+ FindWrappedDeltaDegrees(A, B) * static_cast<double>(Alpha);
 	return static_cast<float>(FMath::Wrap(Result, -180.0, 180.0));
 }
 
@@ -1914,7 +1702,8 @@ TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexesInRange(const FIntP
 
 TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexRing(const FIntPoint Center, const int32 Radius)
 {
-	if (Radius < 0 || Radius > MAX_int32 / 6)
+	const int64 PointCount = static_cast<int64>(Radius) * 6;
+	if (Radius < 0 || (Radius > 0 && !IsSupportedGeneratedElementCount(PointCount)))
 	{
 		return {};
 	}
@@ -1924,7 +1713,7 @@ TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexRing(const FIntPoint 
 	}
 
 	TArray<FIntPoint> Ring;
-	Ring.SetNumUninitialized(6 * Radius);
+	Ring.SetNumUninitialized(static_cast<int32>(PointCount));
 	int32 PointIndex = 0;
 	int64 Q = static_cast<int64>(Center.X) + static_cast<int64>(HexDirections[4][0]) * Radius;
 	int64 R = static_cast<int64>(Center.Y) + static_cast<int64>(HexDirections[4][1]) * Radius;
@@ -1946,7 +1735,7 @@ TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexRing(const FIntPoint 
 TArray<FIntPoint> UDirectiveUtilMathFunctionLibrary::GetHexLine(const FIntPoint Start, const FIntPoint End)
 {
 	const int64 Distance = GetHexDistance(Start, End);
-	if (Distance >= MAX_int32)
+	if (!IsSupportedGeneratedElementCount(Distance + 1))
 	{
 		return {};
 	}
@@ -2207,7 +1996,8 @@ TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnDisc(const FV
 TArray<FVector> UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(const FVector& Center,
 	const FRotator& Rotation, const double Radius, const int32 Count, const double AngleOffsetDegrees)
 {
-	if (Count <= 0 || Center.ContainsNaN() || !FMath::IsFinite(Radius) || !FMath::IsFinite(AngleOffsetDegrees))
+	if (!IsSupportedGeneratedElementCount(Count)
+		|| Center.ContainsNaN() || !FMath::IsFinite(Radius) || !FMath::IsFinite(AngleOffsetDegrees))
 	{
 		return {};
 	}
@@ -2293,727 +2083,4 @@ TArray<FTransform> UDirectiveUtilMathFunctionLibrary::OffsetTransformsByNoise(
 		Result[Index].SetLocation(OffsetLocation);
 	}
 	return Result;
-}
-
-float UDirectiveUtilMathFunctionLibrary::EaseAlpha(const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	const double t = static_cast<double>(FMath::Clamp(Alpha, 0.0f, 1.0f));
-	switch (EaseType)
-	{
-	case EDirectiveUtilEaseType::BackIn: return static_cast<float>(EaseBackIn(t));
-	case EDirectiveUtilEaseType::BackOut: return static_cast<float>(EaseBackOut(t));
-	case EDirectiveUtilEaseType::BackInOut: return static_cast<float>(EaseBackInOut(t));
-	case EDirectiveUtilEaseType::ElasticIn: return static_cast<float>(EaseElasticIn(t));
-	case EDirectiveUtilEaseType::ElasticOut: return static_cast<float>(EaseElasticOut(t));
-	case EDirectiveUtilEaseType::ElasticInOut: return static_cast<float>(EaseElasticInOut(t));
-	case EDirectiveUtilEaseType::BounceIn: return static_cast<float>(EaseBounceIn(t));
-	case EDirectiveUtilEaseType::BounceOut: return static_cast<float>(EaseBounceOut(t));
-	case EDirectiveUtilEaseType::BounceInOut: return static_cast<float>(EaseBounceInOut(t));
-	case EDirectiveUtilEaseType::Linear:
-	default: return static_cast<float>(t);
-	}
-}
-
-float UDirectiveUtilMathFunctionLibrary::EaseFloat(const float A, const float B, const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	return FMath::Lerp(A, B, EaseAlpha(Alpha, EaseType));
-}
-
-FVector UDirectiveUtilMathFunctionLibrary::EaseVector(const FVector& A, const FVector& B, const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	return FMath::Lerp(A, B, static_cast<double>(EaseAlpha(Alpha, EaseType)));
-}
-
-FRotator UDirectiveUtilMathFunctionLibrary::EaseRotator(const FRotator& A, const FRotator& B, const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	return FQuat::Slerp(A.Quaternion(), B.Quaternion(), EaseAlpha(Alpha, EaseType)).Rotator();
-}
-
-FLinearColor UDirectiveUtilMathFunctionLibrary::EaseColor(const FLinearColor& A, const FLinearColor& B, const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	return FMath::Lerp(A, B, EaseAlpha(Alpha, EaseType));
-}
-
-FTransform UDirectiveUtilMathFunctionLibrary::EaseTransform(const FTransform& A, const FTransform& B,
-	const float Alpha, const EDirectiveUtilEaseType EaseType)
-{
-	return BlendTransforms(A, B, static_cast<double>(EaseAlpha(Alpha, EaseType)));
-}
-
-TArray<FVector> UDirectiveUtilMathFunctionLibrary::EaseLocationArrays(const TArray<FVector>& From,
-	const TArray<FVector>& To, const float Alpha, const EDirectiveUtilEaseType EaseType,
-	const TArray<float>& PerElementAlphas)
-{
-	return EaseArrays(From, To, Alpha, EaseType, PerElementAlphas,
-		[](const FVector& A, const FVector& B, const double EasedAlpha)
-		{
-			return FMath::Lerp(A, B, EasedAlpha);
-		});
-}
-
-TArray<FTransform> UDirectiveUtilMathFunctionLibrary::EaseTransformArrays(const TArray<FTransform>& From,
-	const TArray<FTransform>& To, const float Alpha, const EDirectiveUtilEaseType EaseType,
-	const TArray<float>& PerElementAlphas)
-{
-	return EaseArrays(From, To, Alpha, EaseType, PerElementAlphas, &BlendTransforms);
-}
-
-float UDirectiveUtilMathFunctionLibrary::RoundToDecimals(const float Value, int32 Decimals)
-{
-	Decimals = FMath::Clamp(Decimals, 0, 10);
-	if (Decimals == 0)
-	{
-		return FMath::RoundHalfFromZero(Value);
-	}
-	const double Factor = FMath::Pow(10.0, static_cast<double>(Decimals));
-	return static_cast<float>(FMath::RoundHalfFromZero(static_cast<double>(Value) * Factor) / Factor);
-}
-
-FText UDirectiveUtilMathFunctionLibrary::RoundToDecimalsAsText(const float Value, int32 Decimals)
-{
-	Decimals = FMath::Clamp(Decimals, 0, 10);
-	FNumberFormattingOptions Options;
-	Options.MinimumFractionalDigits = 0;
-	Options.MaximumFractionalDigits = Decimals;
-	Options.RoundingMode = ERoundingMode::HalfFromZero;
-	return FText::AsNumber(Value, &Options);
-}
-
-FText UDirectiveUtilMathFunctionLibrary::FormatBytes(const int64 Bytes, int32 Decimals)
-{
-	Decimals = FMath::Clamp(Decimals, 0, 3);
-
-	static const TCHAR* Suffixes[] = { TEXT("B"), TEXT("KB"), TEXT("MB"), TEXT("GB"), TEXT("TB"), TEXT("PB") };
-	const bool bNegative = Bytes < 0;
-	double Value = FMath::Abs(static_cast<double>(Bytes));
-	int32 SuffixIndex = 0;
-	while (Value >= 1024.0 && SuffixIndex < UE_ARRAY_COUNT(Suffixes) - 1)
-	{
-		Value /= 1024.0;
-		++SuffixIndex;
-	}
-
-	return FText::FromString(FString::Printf(TEXT("%s%.*f %s"),
-		bNegative ? TEXT("-") : TEXT(""), SuffixIndex == 0 ? 0 : Decimals, Value, Suffixes[SuffixIndex]));
-}
-
-FText UDirectiveUtilMathFunctionLibrary::FormatDuration(const float Seconds, const bool bIncludeSeconds)
-{
-	if (!FMath::IsFinite(Seconds))
-	{
-		return FText::FromString(TEXT("0s"));
-	}
-
-	const double AbsoluteSeconds = FMath::Abs(static_cast<double>(Seconds));
-	const int64 TotalSeconds = AbsoluteSeconds >= static_cast<double>(TNumericLimits<int64>::Max())
-		? TNumericLimits<int64>::Max()
-		: static_cast<int64>(AbsoluteSeconds);
-	const int64 VisibleSeconds = bIncludeSeconds ? TotalSeconds : (TotalSeconds / 60) * 60;
-	const bool bNegative = Seconds < 0.0f && VisibleSeconds > 0;
-
-	const int64 UnitValues[] = { TotalSeconds / 86400, (TotalSeconds / 3600) % 24, (TotalSeconds / 60) % 60, TotalSeconds % 60 };
-	static const TCHAR* UnitSuffixes[] = { TEXT("d"), TEXT("h"), TEXT("m"), TEXT("s") };
-	const int32 NumUnits = bIncludeSeconds ? 4 : 3;
-
-	int32 FirstUnit = NumUnits - 1;
-	for (int32 Index = 0; Index < NumUnits; ++Index)
-	{
-		if (UnitValues[Index] != 0)
-		{
-			FirstUnit = Index;
-			break;
-		}
-	}
-	int32 LastUnit = FirstUnit;
-	for (int32 Index = NumUnits - 1; Index >= FirstUnit; --Index)
-	{
-		if (UnitValues[Index] != 0)
-		{
-			LastUnit = Index;
-			break;
-		}
-	}
-
-	FString Result = bNegative ? TEXT("-") : TEXT("");
-	for (int32 Index = FirstUnit; Index <= LastUnit; ++Index)
-	{
-		if (Index == FirstUnit)
-		{
-			Result += FString::Printf(TEXT("%lld%s"), UnitValues[Index], UnitSuffixes[Index]);
-		}
-		else
-		{
-			Result += FString::Printf(TEXT(" %02lld%s"), UnitValues[Index], UnitSuffixes[Index]);
-		}
-	}
-	return FText::FromString(Result);
-}
-
-FText UDirectiveUtilMathFunctionLibrary::FormatRelativeTime(const FDateTime& Timestamp)
-{
-	const FTimespan Delta = FDateTime::Now() - Timestamp;
-	const bool bFuture = Delta.GetTicks() < 0;
-	// Round to whole seconds so clock-adjacent inputs (e.g. Now() + 2 hours) land in the intended bucket.
-	const int64 SecondsAbs = static_cast<int64>(FMath::RoundToDouble(FMath::Abs(Delta.GetTotalSeconds())));
-
-	if (SecondsAbs < 60)
-	{
-		return FText::FromString(TEXT("just now"));
-	}
-
-	int64 Count;
-	const TCHAR* Unit;
-	if (SecondsAbs < 3600)
-	{
-		Count = SecondsAbs / 60;
-		Unit = TEXT("minute");
-	}
-	else if (SecondsAbs < 86400)
-	{
-		Count = SecondsAbs / 3600;
-		Unit = TEXT("hour");
-	}
-	else
-	{
-		Count = SecondsAbs / 86400;
-		Unit = TEXT("day");
-	}
-
-	const FString Quantity = FString::Printf(TEXT("%lld %s%s"), Count, Unit, Count == 1 ? TEXT("") : TEXT("s"));
-	return FText::FromString(bFuture
-		? FString::Printf(TEXT("in %s"), *Quantity)
-		: FString::Printf(TEXT("%s ago"), *Quantity));
-}
-
-int64 UDirectiveUtilMathFunctionLibrary::GetIntArraySum(const TArray<int32>& Values)
-{
-	int64 Sum = 0;
-	for (const int32 Value : Values)
-	{
-		Sum += Value;
-	}
-	return Sum;
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetIntArrayAverage(const TArray<int32>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-	return static_cast<float>(static_cast<double>(GetIntArraySum(Values)) / Values.Num());
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetIntArrayMedian(const TArray<int32>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-
-	TArray<int32> WorkingValues = Values;
-	return static_cast<float>(CalculateMedian(WorkingValues));
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetIntArrayStandardDeviation(const TArray<int32>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-
-	const double Mean = static_cast<double>(GetIntArraySum(Values)) / Values.Num();
-	double SquaredDeltaSum = 0.0;
-	for (const int32 Value : Values)
-	{
-		const double Delta = static_cast<double>(Value) - Mean;
-		SquaredDeltaSum += Delta * Delta;
-	}
-	return static_cast<float>(FMath::Sqrt(SquaredDeltaSum / Values.Num()));
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetFloatArraySum(const TArray<float>& Values)
-{
-	double Sum = 0.0;
-	for (const float Value : Values)
-	{
-		Sum += static_cast<double>(Value);
-	}
-	return static_cast<float>(Sum);
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetFloatArrayAverage(const TArray<float>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-
-	double Sum = 0.0;
-	for (const float Value : Values)
-	{
-		Sum += static_cast<double>(Value);
-	}
-	return static_cast<float>(Sum / Values.Num());
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetFloatArrayMedian(const TArray<float>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-
-	TArray<float> WorkingValues = Values;
-	if (WorkingValues.ContainsByPredicate([](const float Value) { return FMath::IsNaN(Value); }))
-	{
-		return std::numeric_limits<float>::quiet_NaN();
-	}
-	return static_cast<float>(CalculateMedian(WorkingValues));
-}
-
-float UDirectiveUtilMathFunctionLibrary::GetFloatArrayStandardDeviation(const TArray<float>& Values)
-{
-	if (Values.IsEmpty())
-	{
-		return 0.0f;
-	}
-
-	double Sum = 0.0;
-	for (const float Value : Values)
-	{
-		Sum += static_cast<double>(Value);
-	}
-	const double Mean = Sum / Values.Num();
-
-	double SquaredDeltaSum = 0.0;
-	for (const float Value : Values)
-	{
-		const double Delta = static_cast<double>(Value) - Mean;
-		SquaredDeltaSum += Delta * Delta;
-	}
-	return static_cast<float>(FMath::Sqrt(SquaredDeltaSum / Values.Num()));
-}
-
-bool UDirectiveUtilMathFunctionLibrary::GetAngleArrayAverage(const TArray<float>& Angles,
-	float& AverageAngle, float& ResultantStrength)
-{
-	AverageAngle = 0.0f;
-	ResultantStrength = 0.0f;
-	if (Angles.IsEmpty())
-	{
-		return false;
-	}
-
-	double SineSum = 0.0;
-	double CosineSum = 0.0;
-	for (const float Angle : Angles)
-	{
-		if (!FMath::IsFinite(Angle))
-		{
-			return false;
-		}
-
-		const double Radians = FMath::DegreesToRadians(FMath::Fmod(static_cast<double>(Angle), 360.0));
-		SineSum += FMath::Sin(Radians);
-		CosineSum += FMath::Cos(Radians);
-	}
-
-	const double Magnitude = FMath::Sqrt(SineSum * SineSum + CosineSum * CosineSum);
-	ResultantStrength = static_cast<float>(FMath::Clamp(Magnitude / Angles.Num(), 0.0, 1.0));
-	if (ResultantStrength <= UE_DOUBLE_SMALL_NUMBER)
-	{
-		ResultantStrength = 0.0f;
-		return false;
-	}
-
-	AverageAngle = static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(SineSum, CosineSum)));
-	return true;
-}
-
-bool UDirectiveUtilMathFunctionLibrary::GetWeightedFloatArrayAverage(const TArray<float>& Values,
-	const TArray<float>& Weights, float& Average)
-{
-	Average = 0.0f;
-	if (Values.IsEmpty() || Values.Num() != Weights.Num())
-	{
-		return false;
-	}
-
-	double WeightedSum = 0.0;
-	double WeightSum = 0.0;
-	for (int32 Index = 0; Index < Values.Num(); ++Index)
-	{
-		if (!FMath::IsFinite(Values[Index]))
-		{
-			return false;
-		}
-
-		const double Weight = GetUsableWeight(Weights[Index]);
-		WeightedSum += static_cast<double>(Values[Index]) * Weight;
-		WeightSum += Weight;
-	}
-
-	if (WeightSum <= 0.0)
-	{
-		return false;
-	}
-
-	Average = static_cast<float>(WeightedSum / WeightSum);
-	return FMath::IsFinite(Average);
-}
-
-bool UDirectiveUtilMathFunctionLibrary::GetWeightedVectorArrayAverage(const TArray<FVector>& Values,
-	const TArray<float>& Weights, FVector& Average)
-{
-	Average = FVector::ZeroVector;
-	if (Values.IsEmpty() || Values.Num() != Weights.Num())
-	{
-		return false;
-	}
-
-	FVector RunningAverage = FVector::ZeroVector;
-	double WeightSum = 0.0;
-	for (int32 Index = 0; Index < Values.Num(); ++Index)
-	{
-		if (Values[Index].ContainsNaN())
-		{
-			return false;
-		}
-
-		const double Weight = GetUsableWeight(Weights[Index]);
-		if (Weight > 0.0)
-		{
-			const double NewWeightSum = WeightSum + Weight;
-			RunningAverage = FMath::LerpStable(RunningAverage, Values[Index], Weight / NewWeightSum);
-			WeightSum = NewWeightSum;
-		}
-	}
-
-	if (WeightSum <= 0.0 || RunningAverage.ContainsNaN())
-	{
-		return false;
-	}
-
-	Average = RunningAverage;
-	return true;
-}
-
-bool UDirectiveUtilMathFunctionLibrary::NormalizeFloatArrayToRange(const TArray<float>& Values,
-	const float OutputMinimum, const float OutputMaximum, TArray<float>& NormalizedValues)
-{
-	TArray<float> ValuesCopy;
-	const TArray<float>* SourceValues = &Values;
-	if (&Values == &NormalizedValues)
-	{
-		ValuesCopy = Values;
-		SourceValues = &ValuesCopy;
-	}
-
-	NormalizedValues.Reset();
-	if (SourceValues->IsEmpty() || !FMath::IsFinite(OutputMinimum) || !FMath::IsFinite(OutputMaximum))
-	{
-		return false;
-	}
-
-	float InputMinimum = (*SourceValues)[0];
-	float InputMaximum = (*SourceValues)[0];
-	for (const float Value : *SourceValues)
-	{
-		if (!FMath::IsFinite(Value))
-		{
-			return false;
-		}
-		InputMinimum = FMath::Min(InputMinimum, Value);
-		InputMaximum = FMath::Max(InputMaximum, Value);
-	}
-
-	NormalizedValues.SetNumUninitialized(SourceValues->Num());
-	if (InputMinimum == InputMaximum)
-	{
-		NormalizedValues.Init(OutputMinimum, SourceValues->Num());
-		return true;
-	}
-
-	const double Scale = (static_cast<double>(OutputMaximum) - OutputMinimum)
-		/ (static_cast<double>(InputMaximum) - InputMinimum);
-	for (int32 Index = 0; Index < SourceValues->Num(); ++Index)
-	{
-		NormalizedValues[Index] = static_cast<float>(OutputMinimum
-			+ (static_cast<double>((*SourceValues)[Index]) - InputMinimum) * Scale);
-	}
-	return true;
-}
-
-bool UDirectiveUtilMathFunctionLibrary::NormalizeWeights(const TArray<float>& Weights,
-	TArray<float>& NormalizedWeights)
-{
-	TArray<float> WeightsCopy;
-	const TArray<float>* SourceWeights = &Weights;
-	if (&Weights == &NormalizedWeights)
-	{
-		WeightsCopy = Weights;
-		SourceWeights = &WeightsCopy;
-	}
-
-	NormalizedWeights.Reset();
-	if (SourceWeights->IsEmpty())
-	{
-		return false;
-	}
-
-	double WeightSum = 0.0;
-	for (const float Weight : *SourceWeights)
-	{
-		WeightSum += GetUsableWeight(Weight);
-	}
-	if (WeightSum <= 0.0)
-	{
-		return false;
-	}
-
-	NormalizedWeights.SetNumUninitialized(SourceWeights->Num());
-	for (int32 Index = 0; Index < SourceWeights->Num(); ++Index)
-	{
-		NormalizedWeights[Index] = static_cast<float>(GetUsableWeight((*SourceWeights)[Index]) / WeightSum);
-	}
-	return true;
-}
-
-bool UDirectiveUtilMathFunctionLibrary::GetFloatArrayPercentile(const TArray<float>& Values,
-	const float Percentile, float& Value)
-{
-	Value = 0.0f;
-	if (Values.IsEmpty() || !FMath::IsFinite(Percentile))
-	{
-		return false;
-	}
-
-	for (const float Candidate : Values)
-	{
-		if (!FMath::IsFinite(Candidate))
-		{
-			return false;
-		}
-	}
-	TArray<float> WorkingValues = Values;
-
-	const double Position = FMath::Clamp(static_cast<double>(Percentile), 0.0, 100.0)
-		* 0.01 * (WorkingValues.Num() - 1);
-	const int32 LowerIndex = FMath::FloorToInt(Position);
-	const int32 UpperIndex = FMath::CeilToInt(Position);
-	const float LowerValue = SelectNth(WorkingValues, LowerIndex);
-	if (LowerIndex == UpperIndex)
-	{
-		Value = LowerValue;
-		return true;
-	}
-	const float UpperValue = SelectNth(WorkingValues, UpperIndex);
-	Value = static_cast<float>(FMath::Lerp(
-		static_cast<double>(LowerValue),
-		static_cast<double>(UpperValue),
-		Position - LowerIndex));
-	return true;
-}
-
-bool UDirectiveUtilMathFunctionLibrary::GetFloatArrayRootMeanSquare(const TArray<float>& Values,
-	float& RootMeanSquare)
-{
-	RootMeanSquare = 0.0f;
-	if (Values.IsEmpty())
-	{
-		return false;
-	}
-
-	double SquaredSum = 0.0;
-	for (const float Value : Values)
-	{
-		if (!FMath::IsFinite(Value))
-		{
-			return false;
-		}
-		SquaredSum += static_cast<double>(Value) * Value;
-	}
-
-	RootMeanSquare = static_cast<float>(FMath::Sqrt(SquaredSum / Values.Num()));
-	return FMath::IsFinite(RootMeanSquare);
-}
-
-int32 UDirectiveUtilMathFunctionLibrary::GetRandomIndexFromWeights(const TArray<float>& Weights)
-{
-	double Total = 0.0;
-	for (const float Weight : Weights)
-	{
-		Total += GetUsableWeight(Weight);
-	}
-
-	if (Total <= 0.0)
-	{
-		return INDEX_NONE;
-	}
-
-	const double Roll = static_cast<double>(FMath::FRand()) * Total;
-	double Accumulated = 0.0;
-	int32 LastPositiveIndex = INDEX_NONE;
-	for (int32 Index = 0; Index < Weights.Num(); ++Index)
-	{
-		const float Weight = GetUsableWeight(Weights[Index]);
-		if (Weight <= 0.0f)
-		{
-			continue;
-		}
-		LastPositiveIndex = Index;
-		Accumulated += Weight;
-		if (Roll < Accumulated)
-		{
-			return Index;
-		}
-	}
-
-	return LastPositiveIndex;
-}
-
-int32 UDirectiveUtilMathFunctionLibrary::GetRandomIndexFromWeightsFromStream(FRandomStream& Stream, const TArray<float>& Weights)
-{
-	double Total = 0.0;
-	for (const float Weight : Weights)
-	{
-		Total += GetUsableWeight(Weight);
-	}
-
-	if (Total <= 0.0)
-	{
-		return INDEX_NONE;
-	}
-
-	const double Roll = static_cast<double>(Stream.FRand()) * Total;
-	double Accumulated = 0.0;
-	int32 LastPositiveIndex = INDEX_NONE;
-	for (int32 Index = 0; Index < Weights.Num(); ++Index)
-	{
-		const float Weight = GetUsableWeight(Weights[Index]);
-		if (Weight <= 0.0f)
-		{
-			continue;
-		}
-		LastPositiveIndex = Index;
-		Accumulated += Weight;
-		if (Roll < Accumulated)
-		{
-			return Index;
-		}
-	}
-
-	return LastPositiveIndex;
-}
-
-FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInCircle(const float Radius)
-{
-	if (!FMath::IsFinite(Radius))
-	{
-		return FVector2D::ZeroVector;
-	}
-
-	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
-	if (AbsoluteRadius == 0.0)
-	{
-		return FVector2D::ZeroVector;
-	}
-	const double AngleSample = FMath::FRand();
-	const double RadiusSample = FMath::FRand();
-	return MakePointInAnnulus(0.0, AbsoluteRadius, AngleSample, RadiusSample);
-}
-
-FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(FRandomStream& Stream, const float Radius)
-{
-	if (!FMath::IsFinite(Radius))
-	{
-		return FVector2D::ZeroVector;
-	}
-
-	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
-	if (AbsoluteRadius == 0.0)
-	{
-		return FVector2D::ZeroVector;
-	}
-	const double AngleSample = Stream.FRand();
-	const double RadiusSample = Stream.FRand();
-	return MakePointInAnnulus(0.0, AbsoluteRadius, AngleSample, RadiusSample);
-}
-
-FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulus(const float InnerRadius, const float OuterRadius)
-{
-	if (!FMath::IsFinite(InnerRadius) || !FMath::IsFinite(OuterRadius))
-	{
-		return FVector2D::ZeroVector;
-	}
-
-	const double FirstRadius = FMath::Abs(static_cast<double>(InnerRadius));
-	const double SecondRadius = FMath::Abs(static_cast<double>(OuterRadius));
-	const double Inner = FMath::Min(FirstRadius, SecondRadius);
-	const double Outer = FMath::Max(FirstRadius, SecondRadius);
-	if (Outer == 0.0)
-	{
-		return FVector2D::ZeroVector;
-	}
-	const double AngleSample = FMath::FRand();
-	const double RadiusSample = FMath::FRand();
-	return MakePointInAnnulus(Inner, Outer, AngleSample, RadiusSample);
-}
-
-FVector2D UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(FRandomStream& Stream,
-	const float InnerRadius, const float OuterRadius)
-{
-	if (!FMath::IsFinite(InnerRadius) || !FMath::IsFinite(OuterRadius))
-	{
-		return FVector2D::ZeroVector;
-	}
-
-	const double FirstRadius = FMath::Abs(static_cast<double>(InnerRadius));
-	const double SecondRadius = FMath::Abs(static_cast<double>(OuterRadius));
-	const double Inner = FMath::Min(FirstRadius, SecondRadius);
-	const double Outer = FMath::Max(FirstRadius, SecondRadius);
-	if (Outer == 0.0)
-	{
-		return FVector2D::ZeroVector;
-	}
-	const double AngleSample = Stream.FRand();
-	const double RadiusSample = Stream.FRand();
-	return MakePointInAnnulus(Inner, Outer, AngleSample, RadiusSample);
-}
-
-FVector UDirectiveUtilMathFunctionLibrary::RandomPointInSphere(const float Radius)
-{
-	if (!FMath::IsFinite(Radius))
-	{
-		return FVector::ZeroVector;
-	}
-
-	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
-	if (AbsoluteRadius == 0.0)
-	{
-		return FVector::ZeroVector;
-	}
-	return MakePointInSphere(AbsoluteRadius, []
-	{
-		return FMath::FRand();
-	});
-}
-
-FVector UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(FRandomStream& Stream, const float Radius)
-{
-	if (!FMath::IsFinite(Radius))
-	{
-		return FVector::ZeroVector;
-	}
-
-	const double AbsoluteRadius = FMath::Abs(static_cast<double>(Radius));
-	if (AbsoluteRadius == 0.0)
-	{
-		return FVector::ZeroVector;
-	}
-	return MakePointInSphere(AbsoluteRadius, [&Stream]
-	{
-		return Stream.FRand();
-	});
 }

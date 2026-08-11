@@ -19,6 +19,7 @@ class DIRECTIVEUTILITIESRUNTIME_API UDirectiveUtilMathFunctionLibrary : public U
 	GENERATED_BODY()
 
 public:
+	static constexpr int32 MaximumGeneratedElementCount = 1000000;
 
 	/**
 	* Returns a perlin noise value between -1 and 1 at the given position.
@@ -198,7 +199,7 @@ public:
 	 * @param bCentered - Whether to center the grid on Origin.
 	 * @returns Points ordered by X, then Y, or an empty array for invalid input or an unsupported point count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Points 2D", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Grid Points 2D"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GenerateGridPoints2D(const FVector& Origin, const FRotator& Rotation,
 		FIntPoint Dimensions, const FVector2D& Spacing, bool bCentered = true);
 
@@ -211,7 +212,7 @@ public:
 	 * @param bCentered - Whether to center the grid on Origin.
 	 * @returns Points ordered by X, then Y, then Z, or an empty array for invalid input or an unsupported point count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Points 3D", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Grid Points 3D"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GenerateGridPoints3D(const FVector& Origin, const FRotator& Rotation,
 		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true);
 
@@ -226,7 +227,7 @@ public:
 	 * @param Scale - Shared scale applied to every transform.
 	 * @returns Transforms ordered by X, then Y, or an empty array for invalid input or an unsupported count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Transforms 2D", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Grid Transforms 2D", AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FTransform> GenerateGridTransforms2D(const FVector& Origin, const FRotator& Rotation,
 		FIntPoint Dimensions, const FVector2D& Spacing, bool bCentered = true,
 		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
@@ -242,7 +243,7 @@ public:
 	 * @param Scale - Shared scale applied to every transform.
 	 * @returns Transforms ordered by X, then Y, then Z, or an empty array for invalid input or an unsupported count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Grid Transforms 3D", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Grid Transforms 3D", AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FTransform> GenerateGridTransforms3D(const FVector& Origin, const FRotator& Rotation,
 		FIntVector Dimensions, const FVector& Spacing, bool bCentered = true,
 		FRotator InstanceRotation = FRotator(0.0, 0.0, 0.0), FVector Scale = FVector(1.0, 1.0, 1.0));
@@ -258,7 +259,7 @@ public:
 	 * @param bCentered - Whether to center the grid bounds on Origin.
 	 * @returns Points ordered by row, then column, or an empty array for invalid input or an unsupported point count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Rectangular Hex Grid", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Rectangular Hex Grid"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FVector> GenerateRectangularHexGrid(const FVector& Origin, const FRotator& Rotation,
 		FIntPoint Dimensions, double CellRadius,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
@@ -268,7 +269,7 @@ public:
 	 * Generates transforms for a rectangular hex grid with a shared instance rotation and scale.
 	 * Cell order matches Generate Rectangular Hex Grid.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Rectangular Hex Grid Transforms", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Rectangular Hex Grid Transforms", AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FTransform> GenerateRectangularHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
 		FIntPoint Dimensions, double CellRadius,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
@@ -280,7 +281,7 @@ public:
 	 * Generate Rectangular Hex Grid.
 	 * @returns The coordinates, or an empty array for invalid input or an unsupported count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Rectangular Hex Grid Coordinates", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Rectangular Hex Grid Coordinates"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FIntPoint> GetRectangularHexGridCoordinates(FIntPoint Dimensions,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop);
 
@@ -294,7 +295,7 @@ public:
 	 * @param Gap - The signed edge-to-edge gap between adjacent cells. Negative values overlap cells.
 	 * @returns Points ordered by axial R, then Q, or an empty array for invalid input or an unsupported point count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Hexagonal Hex Grid", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Hexagonal Hex Grid"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FVector> GenerateHexagonalHexGrid(const FVector& Origin, const FRotator& Rotation,
 		int32 GridRadius, double CellRadius,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
@@ -304,7 +305,7 @@ public:
 	 * Generates transforms for a hexagon-shaped grid with a shared instance rotation and scale.
 	 * Cell order matches Generate Hexagonal Hex Grid.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Hexagonal Hex Grid Transforms", BlueprintThreadSafe, AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Hexagonal Hex Grid Transforms", AdvancedDisplay = "InstanceRotation,Scale"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FTransform> GenerateHexagonalHexGridTransforms(const FVector& Origin, const FRotator& Rotation,
 		int32 GridRadius, double CellRadius,
 		EDirectiveUtilHexOrientation Orientation = EDirectiveUtilHexOrientation::PointyTop,
@@ -346,7 +347,7 @@ public:
 	 * With a zero center the order matches the cells of Generate Hexagonal Hex Grid.
 	 * @returns The coordinates, or an empty array for a negative range, coordinate overflow, or an unsupported count.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hexes In Range", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Hexes In Range"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FIntPoint> GetHexesInRange(FIntPoint Center, int32 Range);
 
 	/**
@@ -354,14 +355,14 @@ public:
 	 * Consecutive entries are adjacent and trace the ring once. A radius of zero returns the center.
 	 * @returns The ring coordinates, or an empty array for a negative radius or coordinate overflow.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Ring", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Hex Ring"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FIntPoint> GetHexRing(FIntPoint Center, int32 Radius);
 
 	/**
 	 * Returns the axial coordinates along the straight line between two cells, including both endpoints.
 	 * @returns The line coordinates, or an empty array for an unsupported length.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Get Hex Line", BlueprintThreadSafe), Category = "Directive Utilities|Math|Hex Grid")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Hex Line"), Category = "Directive Utilities|Math|Hex Grid")
 	static TArray<FIntPoint> GetHexLine(FIntPoint Start, FIntPoint End);
 
 	/**
@@ -383,7 +384,7 @@ public:
 	 * @param bCentered - Whether to center the formation on Origin.
 	 * @returns The generated points, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points Along Direction", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Along Direction"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsAlongDirection(const FVector& Origin, const FVector& Direction,
 		int32 Count, double Spacing, bool bCentered = false);
 
@@ -395,7 +396,7 @@ public:
 	 * @param bIncludeEndpoints - Whether the generated points include Start and End.
 	 * @returns The generated points, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points Between Locations", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points Between Locations"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsBetweenLocations(const FVector& Start, const FVector& End,
 		int32 Count, bool bIncludeEndpoints = true);
 
@@ -461,12 +462,12 @@ public:
 	 * Generates evenly spaced points around a circle on the rotated local XY plane.
 	 * @returns The generated points without repeating the first point, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Circle", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points On Circle"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnCircle(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0);
 
 	/** Generates transforms around a circle with fixed, radial, or path-relative orientation. */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Transforms On Circle", BlueprintThreadSafe, AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Transforms On Circle", AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FTransform> GenerateTransformsOnCircle(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0,
 		EDirectiveUtilRadialOrientation Orientation = EDirectiveUtilRadialOrientation::FaceCenter,
@@ -477,13 +478,13 @@ public:
 	 * @param bIncludeEndpoint - Whether the final point lies at Start Angle plus Arc Angle.
 	 * @returns The generated points, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Arc", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points On Arc"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnArc(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
 		bool bIncludeEndpoint = true);
 
 	/** Generates transforms along an arc with fixed, radial, or path-relative orientation. */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Transforms On Arc", BlueprintThreadSafe, AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Transforms On Arc", AdvancedDisplay = "RotationOffset,Scale"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FTransform> GenerateTransformsOnArc(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double StartAngleDegrees = 0.0, double ArcAngleDegrees = 90.0,
 		bool bIncludeEndpoint = true,
@@ -494,7 +495,7 @@ public:
 	 * Generates a deterministic sunflower distribution across a disc on the rotated local XY plane.
 	 * @returns Approximately even area coverage, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Disc", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points On Disc"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnDisc(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double AngleOffsetDegrees = 0.0);
 
@@ -502,7 +503,7 @@ public:
 	 * Generates a deterministic Fibonacci distribution across a sphere surface.
 	 * @returns Approximately even surface coverage, or an empty array for invalid input.
 	 */
-	UFUNCTION(BlueprintPure, meta = (DisplayName = "Generate Points On Sphere", BlueprintThreadSafe), Category = "Directive Utilities|Math|Point Generation")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Generate Points On Sphere"), Category = "Directive Utilities|Math|Point Generation")
 	static TArray<FVector> GeneratePointsOnSphere(const FVector& Center, const FRotator& Rotation,
 		double Radius, int32 Count, double AngleOffsetDegrees = 0.0);
 
@@ -806,7 +807,7 @@ public:
 	 * @param Weights - The per-index weights. Negative and non-finite weights are treated as zero.
 	 * @returns The selected index, or INDEX_NONE (-1) if the array is empty or all weights are zero.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Random Index From Weights (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Get Random Index From Weights (Stream)"), Category = "Directive Utilities|Math|Random")
 	static int32 GetRandomIndexFromWeightsFromStream(UPARAM(ref) FRandomStream& Stream, const TArray<float>& Weights);
 
 	/** Returns a uniformly distributed random point inside a circle. */
@@ -814,7 +815,7 @@ public:
 	static FVector2D RandomPointInCircle(float Radius);
 
 	/** Returns a deterministic uniformly distributed random point inside a circle. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Circle (Stream)"), Category = "Directive Utilities|Math|Random")
 	static FVector2D RandomPointInCircleFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
 
 	/** Returns a uniformly distributed random point inside a 2D annulus. */
@@ -822,7 +823,7 @@ public:
 	static FVector2D RandomPointInAnnulus(float InnerRadius, float OuterRadius);
 
 	/** Returns a deterministic uniformly distributed random point inside a 2D annulus. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Annulus (Stream)"), Category = "Directive Utilities|Math|Random")
 	static FVector2D RandomPointInAnnulusFromStream(UPARAM(ref) FRandomStream& Stream, float InnerRadius, float OuterRadius);
 
 	/** Returns a uniformly distributed random point inside a sphere. */
@@ -830,6 +831,6 @@ public:
 	static FVector RandomPointInSphere(float Radius);
 
 	/** Returns a deterministic uniformly distributed random point inside a sphere. Invalid or zero radii do not advance the stream. */
-	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere (Stream)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Random")
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Random Point In Sphere (Stream)"), Category = "Directive Utilities|Math|Random")
 	static FVector RandomPointInSphereFromStream(UPARAM(ref) FRandomStream& Stream, float Radius);
 };

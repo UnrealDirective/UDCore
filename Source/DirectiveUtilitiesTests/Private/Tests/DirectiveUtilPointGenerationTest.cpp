@@ -4,6 +4,7 @@
 
 #include "Components/SplineComponent.h"
 #include "Misc/AutomationTest.h"
+#include "UObject/Class.h"
 
 #include <limits>
 
@@ -62,6 +63,45 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 {
+	const FName CallableGeneratorNames[] = {
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateGridPoints2D),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateGridPoints3D),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateGridTransforms2D),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateGridTransforms3D),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateRectangularHexGrid),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateRectangularHexGridTransforms),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GetRectangularHexGridCoordinates),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateHexagonalHexGrid),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateHexagonalHexGridTransforms),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GetHexesInRange),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GetHexRing),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GetHexLine),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsAlongDirection),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsBetweenLocations),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsOnCircle),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateTransformsOnCircle),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsOnArc),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GenerateTransformsOnArc),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsOnDisc),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GeneratePointsOnSphere)
+	};
+	for (const FName FunctionName : CallableGeneratorNames)
+	{
+		const UFunction* Function = UDirectiveUtilMathFunctionLibrary::StaticClass()->FindFunctionByName(FunctionName);
+		TestNotNull(*FString::Printf(TEXT("%s should be exposed to Blueprint"), *FunctionName.ToString()), Function);
+		if (Function)
+		{
+			TestTrue(*FString::Printf(TEXT("%s should be callable"), *FunctionName.ToString()),
+				Function->HasAnyFunctionFlags(FUNC_BlueprintCallable));
+			TestFalse(*FString::Printf(TEXT("%s should not execute as a pure node"), *FunctionName.ToString()),
+				Function->HasAnyFunctionFlags(FUNC_BlueprintPure));
+#if WITH_EDITOR
+			TestFalse(*FString::Printf(TEXT("%s should not advertise inert Blueprint thread safety"), *FunctionName.ToString()),
+				Function->HasMetaData(TEXT("BlueprintThreadSafe")));
+#endif
+		}
+	}
+
 	const TArray<FVector> Grid2D = UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(
 		FVector::ZeroVector, FRotator::ZeroRotator, FIntPoint(3, 2), FVector2D(10.0, 20.0), true);
 	const TArray<FVector> ExpectedGrid2D = {
@@ -333,6 +373,27 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 			FRotator::ZeroRotator, 0.0).IsEmpty()
 		&& UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(FIntPoint(0, 3)).IsEmpty());
 
+	const int32 MaximumGeneratedElementCount = UDirectiveUtilMathFunctionLibrary::MaximumGeneratedElementCount;
+	TestEqual(
+		TEXT("The maximum supported rectangular grid size remains available"),
+		UDirectiveUtilMathFunctionLibrary::GetRectangularHexGridCoordinates(FIntPoint(1000, 1000)).Num(),
+		MaximumGeneratedElementCount);
+	TestTrue(TEXT("Generated collections reject the first unsupported count"),
+		UDirectiveUtilMathFunctionLibrary::GenerateGridPoints2D(
+			FVector::ZeroVector, FRotator::ZeroRotator,
+			FIntPoint(MaximumGeneratedElementCount + 1, 1), FVector2D(1.0, 1.0)).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexesInRange(FIntPoint::ZeroValue, 577).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexRing(
+			FIntPoint::ZeroValue, MaximumGeneratedElementCount / 6 + 1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GetHexLine(
+			FIntPoint::ZeroValue, FIntPoint(MaximumGeneratedElementCount, 0)).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongDirection(
+			FVector::ZeroVector, FVector::ForwardVector,
+			MaximumGeneratedElementCount + 1, 1.0).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsOnSphere(
+			FVector::ZeroVector, FRotator::ZeroRotator, 1.0,
+			MaximumGeneratedElementCount + 1).IsEmpty());
+
 	const TArray<FVector> NoiseBase = {
 		FVector::ZeroVector, FVector(37.0, 11.0, 5.0), FVector(250.0, -90.0, 40.0)
 	};
@@ -399,6 +460,15 @@ bool FDirectiveUtilPointGenerationTest::RunTest(const FString& Parameters)
 		ESplineCoordinateSpace::Local, false);
 	Spline->SetSplinePointType(0, ESplinePointType::Linear, false);
 	Spline->SetSplinePointType(1, ESplinePointType::Linear, true);
+	TestTrue(TEXT("Spline generators reject unsupported sample counts"),
+		UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSplineByCount(
+			Spline, MaximumGeneratedElementCount + 1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GenerateTransformsAlongSplineByCount(
+			Spline, MaximumGeneratedElementCount + 1).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
+			Spline, 0.00005).IsEmpty()
+		&& UDirectiveUtilMathFunctionLibrary::GenerateTransformsAlongSpline(
+			Spline, 0.00005).IsEmpty());
 	const TArray<FVector> SplinePoints = UDirectiveUtilMathFunctionLibrary::GeneratePointsAlongSpline(
 		Spline, 30.0, true, EDirectiveUtilSplineSpacingMode::Fixed);
 	TestTrue(TEXT("Spline points use fixed spacing and append the exact open endpoint"),

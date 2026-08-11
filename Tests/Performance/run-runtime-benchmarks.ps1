@@ -8,7 +8,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputFile,
 
-    [string]$BaselineFile = ""
+    [string]$BaselineFile = "",
+
+    [long]$ProcessorAffinity = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +24,13 @@ if (-not (Test-Path $ProjectFile -PathType Leaf)) {
 }
 if ($BaselineFile -and -not (Test-Path $BaselineFile -PathType Leaf)) {
     throw "Baseline file not found: $BaselineFile"
+}
+if ($ProcessorAffinity -lt 0) {
+    throw "Processor affinity must be zero or a positive bitmask."
+}
+if ($ProcessorAffinity -eq 0) {
+    $AffinityProcessorCount = [Math]::Min([Environment]::ProcessorCount, 16)
+    $ProcessorAffinity = ([long]1 -shl $AffinityProcessorCount) - 1
 }
 
 $ProjectFile = [System.IO.Path]::GetFullPath($ProjectFile)
@@ -45,6 +54,18 @@ $AppendComparisonFile = if ($OutputDirectory) {
     Join-Path $OutputDirectory $AppendComparisonFileName
 } else {
     Join-Path (Get-Location) $AppendComparisonFileName
+}
+$InsertComparisonFileName = "$([System.IO.Path]::GetFileNameWithoutExtension($OutputFile))-insert-comparison.csv"
+$InsertComparisonFile = if ($OutputDirectory) {
+    Join-Path $OutputDirectory $InsertComparisonFileName
+} else {
+    Join-Path (Get-Location) $InsertComparisonFileName
+}
+$RemoveIndicesComparisonFileName = "$([System.IO.Path]::GetFileNameWithoutExtension($OutputFile))-remove-indices-comparison.csv"
+$RemoveIndicesComparisonFile = if ($OutputDirectory) {
+    Join-Path $OutputDirectory $RemoveIndicesComparisonFileName
+} else {
+    Join-Path (Get-Location) $RemoveIndicesComparisonFileName
 }
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $Revision = ""
@@ -73,8 +94,25 @@ if ($BaselineFile) {
     $Arguments += "-DirectiveUtilitiesPerfBaseline=$BaselineFile"
 }
 
-& $EditorCommand $Arguments
-if ($LASTEXITCODE -ne 0) {
+$ArgumentString = ($Arguments | ForEach-Object {
+    if ($_ -match '[\s"]') {
+        '"' + ($_ -replace '"', '\"') + '"'
+    } else {
+        $_
+    }
+}) -join ' '
+$EditorProcess = Start-Process -FilePath $EditorCommand -ArgumentList $ArgumentString -PassThru
+try {
+    $EditorProcess.ProcessorAffinity = [IntPtr]$ProcessorAffinity
+    $EditorProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
+    $EditorProcess.WaitForExit()
+    $EditorExitCode = $EditorProcess.ExitCode
+} finally {
+    if (-not $EditorProcess.HasExited) {
+        $EditorProcess.Kill()
+    }
+}
+if ($EditorExitCode -ne 0) {
     throw "Runtime performance suite failed. Log: $LogFile"
 }
 if (-not (Test-Path $OutputFile -PathType Leaf)) {
@@ -86,6 +124,12 @@ if (-not (Test-Path $ComparisonFile -PathType Leaf)) {
 if (-not (Test-Path $AppendComparisonFile -PathType Leaf)) {
     throw "Append comparison results were not generated: $AppendComparisonFile"
 }
+if (-not (Test-Path $InsertComparisonFile -PathType Leaf)) {
+    throw "Insert comparison results were not generated: $InsertComparisonFile"
+}
+if (-not (Test-Path $RemoveIndicesComparisonFile -PathType Leaf)) {
+    throw "Remove At Indices comparison results were not generated: $RemoveIndicesComparisonFile"
+}
 if (-not (Select-String -Path $LogFile -Pattern 'Test Completed\. Result=\{Success\} Name=\{Runtime\} Path=\{Performance\.DirectiveUtilities\.Runtime\}' -Quiet)) {
     throw "Runtime performance suite did not complete successfully. Log: $LogFile"
 }
@@ -93,4 +137,6 @@ if (-not (Select-String -Path $LogFile -Pattern 'Test Completed\. Result=\{Succe
 Write-Host "Runtime performance results: $OutputFile"
 Write-Host "Remove All comparison results: $ComparisonFile"
 Write-Host "Append comparison results: $AppendComparisonFile"
+Write-Host "Insert comparison results: $InsertComparisonFile"
+Write-Host "Remove At Indices comparison results: $RemoveIndicesComparisonFile"
 Write-Host "Automation log: $LogFile"

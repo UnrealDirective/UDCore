@@ -3,20 +3,23 @@
 
 #include "Libraries/DirectiveUtilFunctionLibrary.h"
 #include "Engine/World.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformTime.h"
-#include "HAL/ThreadSingleton.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
 
 namespace
 {
-	class FDirectiveUtilStopwatchState : public TThreadSingleton<FDirectiveUtilStopwatchState>
+	struct FDirectiveUtilStopwatchState
 	{
-	public:
+		FCriticalSection Lock;
 		TMap<FName, double> StartTimesByKey;
 	};
+
+	FDirectiveUtilStopwatchState StopwatchState;
 
 	EDirectiveUtilWorldType ToDirectiveWorldType(const EWorldType::Type WorldType)
 	{
@@ -170,13 +173,13 @@ bool UDirectiveUtilFunctionLibrary::StartStopwatch(const FName Key, const bool b
 		return false;
 	}
 
-	TMap<FName, double>& StartTimesByKey = FDirectiveUtilStopwatchState::Get().StartTimesByKey;
-	if (!bRestartIfRunning && StartTimesByKey.Contains(Key))
+	FScopeLock Lock(&StopwatchState.Lock);
+	if (!bRestartIfRunning && StopwatchState.StartTimesByKey.Contains(Key))
 	{
 		return false;
 	}
 
-	StartTimesByKey.Add(Key, FPlatformTime::Seconds());
+	StopwatchState.StartTimesByKey.Add(Key, FPlatformTime::Seconds());
 	return true;
 }
 
@@ -189,9 +192,12 @@ bool UDirectiveUtilFunctionLibrary::StopStopwatch(const FName Key, double& Elaps
 	}
 
 	double StartTime = 0.0;
-	if (!FDirectiveUtilStopwatchState::Get().StartTimesByKey.RemoveAndCopyValue(Key, StartTime))
 	{
-		return false;
+		FScopeLock Lock(&StopwatchState.Lock);
+		if (!StopwatchState.StartTimesByKey.RemoveAndCopyValue(Key, StartTime))
+		{
+			return false;
+		}
 	}
 
 	ElapsedMilliseconds = FMath::Max((FPlatformTime::Seconds() - StartTime) * 1000.0, 0.0);

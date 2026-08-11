@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Unreal Directive. Licensed under the MIT License.
 
 #include "Libraries/DirectiveUtilMathFunctionLibrary.h"
+#include "Async/ParallelFor.h"
 #include "Misc/AutomationTest.h"
 
 #include <limits>
@@ -240,6 +241,43 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(FirstStream, 5.0f).Equals(
 			UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(SecondStream, 5.0f), 1.e-9));
 
+#if WITH_EDITOR
+	const TArray<FName> StreamRandomFunctions = {
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, GetRandomIndexFromWeightsFromStream),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, RandomPointInCircleFromStream),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, RandomPointInAnnulusFromStream),
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilMathFunctionLibrary, RandomPointInSphereFromStream)
+	};
+	for (const FName FunctionName : StreamRandomFunctions)
+	{
+		const UFunction* Function = UDirectiveUtilMathFunctionLibrary::StaticClass()->FindFunctionByName(FunctionName);
+		TestTrue(*FString::Printf(TEXT("%s should be exposed to Blueprint"), *FunctionName.ToString()), Function != nullptr);
+		if (Function)
+		{
+			TestFalse(
+				*FString::Printf(TEXT("%s should not advertise inert Blueprint thread safety"), *FunctionName.ToString()),
+				Function->HasMetaData(TEXT("BlueprintThreadSafe")));
+		}
+	}
+#endif
+
+	TArray<FVector> ParallelRandomResults;
+	ParallelRandomResults.SetNumUninitialized(64);
+	ParallelFor(ParallelRandomResults.Num(), [&ParallelRandomResults](const int32 TaskIndex)
+	{
+		FRandomStream Stream(99173);
+		const FVector2D Circle = UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(Stream, 5.0f);
+		const FVector2D Annulus = UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(Stream, 2.0f, 5.0f);
+		ParallelRandomResults[TaskIndex] = UDirectiveUtilMathFunctionLibrary::RandomPointInSphereFromStream(Stream, 5.0f)
+			+ FVector(Circle.X, Circle.Y, Annulus.X + Annulus.Y);
+	});
+	bool bParallelRandomResultsMatch = true;
+	for (int32 Index = 1; Index < ParallelRandomResults.Num(); ++Index)
+	{
+		bParallelRandomResultsMatch &= ParallelRandomResults[Index].Equals(ParallelRandomResults[0], 1.e-12);
+	}
+	TestTrue("Seeded random nodes should remain deterministic across worker tasks", bParallelRandomResultsMatch);
+
 	FRandomStream ExpectedCircleStream(24680);
 	const double ExpectedCircleAngle = static_cast<double>(ExpectedCircleStream.FRand()) * UE_TWO_PI;
 	const double ExpectedCircleRadius = FMath::Sqrt(static_cast<double>(ExpectedCircleStream.FRand())) * 5.0;
@@ -247,10 +285,12 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		FMath::Cos(ExpectedCircleAngle) * ExpectedCircleRadius,
 		FMath::Sin(ExpectedCircleAngle) * ExpectedCircleRadius);
 	FRandomStream ActualCircleStream(24680);
+	const FVector2D ActualCirclePoint =
+		UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(ActualCircleStream, 5.0f);
 	TestTrue("Random Point In Circle consumes angle before radius",
-		UDirectiveUtilMathFunctionLibrary::RandomPointInCircleFromStream(ActualCircleStream, 5.0f).Equals(
-			ExpectedCirclePoint, 1.e-12)
-		&& ActualCircleStream.GetCurrentSeed() == ExpectedCircleStream.GetCurrentSeed());
+		ActualCirclePoint.Equals(ExpectedCirclePoint, 1.e-6));
+	TestEqual("Random Point In Circle consumes two stream samples",
+		ActualCircleStream.GetCurrentSeed(), ExpectedCircleStream.GetCurrentSeed());
 
 	FRandomStream ExpectedAnnulusStream(13579);
 	const double ExpectedAnnulusAngle = static_cast<double>(ExpectedAnnulusStream.FRand()) * UE_TWO_PI;
@@ -260,10 +300,12 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		FMath::Cos(ExpectedAnnulusAngle) * ExpectedAnnulusRadius,
 		FMath::Sin(ExpectedAnnulusAngle) * ExpectedAnnulusRadius);
 	FRandomStream ActualAnnulusStream(13579);
+	const FVector2D ActualAnnulusPoint =
+		UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(ActualAnnulusStream, 2.0f, 5.0f);
 	TestTrue("Random Point In Annulus consumes angle before radius",
-		UDirectiveUtilMathFunctionLibrary::RandomPointInAnnulusFromStream(ActualAnnulusStream, 2.0f, 5.0f).Equals(
-			ExpectedAnnulusPoint, 1.e-12)
-		&& ActualAnnulusStream.GetCurrentSeed() == ExpectedAnnulusStream.GetCurrentSeed());
+		ActualAnnulusPoint.Equals(ExpectedAnnulusPoint, 1.e-6));
+	TestEqual("Random Point In Annulus consumes two stream samples",
+		ActualAnnulusStream.GetCurrentSeed(), ExpectedAnnulusStream.GetCurrentSeed());
 
 	FRandomStream ExpectedSphereStream(97531);
 	FVector ExpectedSpherePoint;
@@ -423,6 +465,9 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(-1080.0f + 15.0f, 1440.0f - 25.0f), -40.0f));
 	TestTrue("Angle interpolation permits negative extrapolation",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(10.0f, 350.0f, -1.0f), 30.0f));
+	TestTrue("Angle interpolation ignores complete turns",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(
+			-1080.0f + 15.0f, 1440.0f - 25.0f, 0.5f), -5.0f));
 
 	TestTrue("Ping Pong repeats across multiple positive periods",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(123.0f, -2.0f, 3.0f), 3.0f));

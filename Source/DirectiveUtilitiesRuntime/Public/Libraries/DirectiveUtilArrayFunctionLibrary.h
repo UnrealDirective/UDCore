@@ -50,7 +50,7 @@ public:
 	 * Removes duplicate elements from the array in-place.
 	 * @param TargetArray - The array to remove duplicates from.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove Duplicates", CompactNodeTitle = "REMOVE DUPLICATES", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove Duplicates", CompactNodeTitle = "REMOVE DUPLICATES", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
 	static void Array_RemoveDuplicates(UPARAM(ref) TArray<int32>& TargetArray);
 
 	/**
@@ -58,7 +58,7 @@ public:
 	 * @param TargetArray - The array to append to.
 	 * @param SourceArray - The array to append.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Append Array Optimized", CompactNodeTitle = "APPEND", Keywords = "append merge concatenate bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Append Array Optimized", CompactNodeTitle = "APPEND", Keywords = "append merge concatenate bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray"), Category="Directive Utilities|Array")
 	static void Array_AppendOptimized(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& SourceArray);
 
 	/**
@@ -68,7 +68,7 @@ public:
 	 * @param Index - The index at which to insert the source array.
 	 * @returns True if one or more elements were inserted.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Insert Array Optimized", CompactNodeTitle = "INSERT ARRAY", Keywords = "insert splice merge bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Insert Array Optimized", CompactNodeTitle = "INSERT ARRAY", Keywords = "insert splice merge bulk", ArrayParm = "TargetArray,SourceArray", ArrayTypeDependentParams = "SourceArray"), Category="Directive Utilities|Array")
 	static bool Array_InsertOptimized(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& SourceArray, const int32 Index);
 
 	/**
@@ -123,7 +123,7 @@ public:
 	 * @param OutItem - [out] A copy of the removed element, or the default value if the array is empty.
 	 * @returns True if an element was removed.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Pop", ArrayParm = "TargetArray", ArrayTypeDependentParams = "OutItem", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Pop", ArrayParm = "TargetArray", ArrayTypeDependentParams = "OutItem"), Category="Directive Utilities|Array")
 	static bool Array_Pop(UPARAM(ref) TArray<int32>& TargetArray, int32& OutItem);
 
 	/**
@@ -132,7 +132,7 @@ public:
 	 * @param OutItem - [out] A copy of the removed element, or the default value if the array is empty.
 	 * @returns True if an element was removed.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Pop First", ArrayParm = "TargetArray", ArrayTypeDependentParams = "OutItem", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Pop First", ArrayParm = "TargetArray", ArrayTypeDependentParams = "OutItem"), Category="Directive Utilities|Array")
 	static bool Array_PopFirst(UPARAM(ref) TArray<int32>& TargetArray, int32& OutItem);
 
 	/**
@@ -142,7 +142,7 @@ public:
 	 * @param Index - The index to remove.
 	 * @returns True if the index was valid and an element was removed.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Swap", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Swap", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
 	static bool Array_RemoveAtSwap(UPARAM(ref) TArray<int32>& TargetArray, const int32 Index);
 
 	/**
@@ -152,7 +152,7 @@ public:
 	 * @param Indices - The indices to remove.
 	 * @returns The number of elements removed.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Indices", CompactNodeTitle = "REMOVE INDICES", Keywords = "remove delete batch multiple", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove At Indices", CompactNodeTitle = "REMOVE INDICES", Keywords = "remove delete batch multiple", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
 	static int32 Array_RemoveAtIndices(UPARAM(ref) TArray<int32>& TargetArray, const TArray<int32>& Indices);
 
 	/**
@@ -161,7 +161,7 @@ public:
 	 * @param Item - The item to remove.
 	 * @returns True if one or more items were removed.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove All Occurrences", CompactNodeTitle = "REMOVE ALL", Keywords = "remove item delete matching", ArrayParm = "TargetArray", ArrayTypeDependentParams = "Item", AutoCreateRefTerm = "Item", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Remove All Occurrences", CompactNodeTitle = "REMOVE ALL", Keywords = "remove item delete matching", ArrayParm = "TargetArray", ArrayTypeDependentParams = "Item", AutoCreateRefTerm = "Item"), Category="Directive Utilities|Array")
 	static bool Array_RemoveAllOccurrences(UPARAM(ref) TArray<int32>& TargetArray, const int32& Item);
 
 	/**
@@ -179,7 +179,7 @@ public:
 	 * @param TargetArray - The array to rotate.
 	 * @param Shift - The number of positions to rotate. Positive rotates toward the end; negative toward the start.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Rotate", ArrayParm = "TargetArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Rotate", ArrayParm = "TargetArray"), Category="Directive Utilities|Array")
 	static void Array_Rotate(UPARAM(ref) TArray<int32>& TargetArray, const int32 Shift);
 
 	/**
@@ -228,7 +228,7 @@ public:
 	 * @param RandomStream The stream used to select elements.
 	 * @param OutArray The sampled elements.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Sample Array from Stream", ArrayParm = "TargetArray,OutArray", ArrayTypeDependentParams = "OutArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Sample Array from Stream", ArrayParm = "TargetArray,OutArray", ArrayTypeDependentParams = "OutArray"), Category="Directive Utilities|Array")
 	static void Array_SampleFromStream(const TArray<int32>& TargetArray, int32 Count, bool bWithReplacement, UPARAM(ref) FRandomStream& RandomStream, TArray<int32>& OutArray);
 
 	/**
@@ -253,7 +253,7 @@ public:
 	 * @param OutArray The sampled elements.
 	 * @returns True when the inputs were valid and the sample was produced.
 	 */
-	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Sample Weighted Array from Stream", ArrayParm = "TargetArray,OutArray", ArrayTypeDependentParams = "OutArray", BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, CustomThunk, meta=(DisplayName = "Sample Weighted Array from Stream", ArrayParm = "TargetArray,OutArray", ArrayTypeDependentParams = "OutArray"), Category="Directive Utilities|Array")
 	static bool Array_SampleWeightedFromStream(const TArray<int32>& TargetArray, const TArray<float>& Weights, int32 Count, bool bWithReplacement, UPARAM(ref) FRandomStream& RandomStream, TArray<int32>& OutArray);
 
 	/**
@@ -269,11 +269,11 @@ public:
 	static bool Array_GetPage(const TArray<int32>& TargetArray, int32 PageIndex, int32 PageSize, TArray<int32>& OutArray, int32& OutPageCount);
 
 	/** Sorts strings in natural order so embedded numbers are compared numerically. */
-	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, Category="Directive Utilities|Array")
 	static void NaturalSortStringArray(UPARAM(ref) TArray<FString>& TargetArray, bool bDescending = false);
 
 	/** Sorts names in natural order so embedded numbers are compared numerically. */
-	UFUNCTION(BlueprintCallable, meta=(BlueprintThreadSafe), Category="Directive Utilities|Array")
+	UFUNCTION(BlueprintCallable, Category="Directive Utilities|Array")
 	static void NaturalSortNameArray(UPARAM(ref) TArray<FName>& TargetArray, bool bDescending = false);
 
 

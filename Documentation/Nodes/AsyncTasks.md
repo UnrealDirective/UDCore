@@ -62,7 +62,7 @@ static UDirectiveUtilTask_RepeatWithInterval* RepeatWithInterval(
     float InitialDelay = 0.0f);
 ```
 
-Runs a fixed number of iterations, or forever when Count is `-1`. Zero intervals run once per world tick, and longer intervals fire at most once per frame. The first index is zero. For a finite count, `Remaining` is the iterations left after the current one; for `-1` it stays `-1`. Game pause stops the timer, and time dilation scales it.
+Runs a fixed number of iterations, or forever when Count is `-1`. Zero intervals run once per world tick, and longer intervals fire at most once per frame. The first index is zero. An infinite repeat wraps the index to zero after `MAX_int32`. For a finite count, `Remaining` is the iterations left after the current one; for `-1` it stays `-1`. Game pause stops the timer, and time dilation scales it.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

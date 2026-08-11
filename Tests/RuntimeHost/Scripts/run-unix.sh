@@ -128,8 +128,9 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 		echo "Packaged game app not found under $ARCHIVE_ROOT" >&2
 		exit 1
 	fi
-	GAME_COMMAND="$GAME_APP/Contents/MacOS/DirectiveUtilitiesRuntimeHost"
-	if [[ ! -x "$GAME_COMMAND" ]]; then
+	GAME_EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$GAME_APP/Contents/Info.plist" 2>/dev/null || true)"
+	GAME_COMMAND="$GAME_APP/Contents/MacOS/$GAME_EXECUTABLE"
+	if [[ -z "$GAME_EXECUTABLE" ]] || [[ ! -f "$GAME_COMMAND" ]] || [[ ! -x "$GAME_COMMAND" ]]; then
 		echo "Packaged game executable not found in $GAME_APP" >&2
 		exit 1
 	fi
@@ -147,6 +148,11 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 		-nosound
 		-NullRHI
 	)
+	if [[ "$ENGINE_VERSION" == "UE_5.8" ]]; then
+		GAME_ARGUMENTS+=(
+			-LLM
+		)
+	fi
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		MAC_APPEND_OUTPUT="$MAC_LOG_ROOT/$APPEND_OUTPUT_NAME"
 		rm -f "$MAC_APPEND_OUTPUT"

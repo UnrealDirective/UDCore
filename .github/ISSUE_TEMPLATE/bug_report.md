@@ -1,33 +1,28 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a reproducible Directive Utilities problem
 title: ''
 labels: ''
 assignees: ''
 
 ---
 
-## Description
-<!-- Provide a concise summary of the issue. Include what you were trying to achieve and what happened instead. -->
+## Problem
+<!-- What happened? -->
 
-## Steps to Reproduce
-1. **Step 1**: <!-- e.g., Open the project in Unreal Engine 5 -->
-2. **Step 2**: <!-- e.g., Attempt to use the UDCore module -->
-3. **Step 3**: <!-- e.g., Notice the error in the console -->
+## Steps to reproduce
+1. <!-- First step -->
+2. <!-- Next step -->
+3. <!-- Result -->
 
-**Expected Behavior:**
-<!-- What you expected to happen -->
-
-**Actual Behavior:**
-<!-- What actually happened -->
+## Expected behavior
+<!-- What should have happened? -->
 
 ## Environment
-- **UDCore Version:** <!-- e.g., v1.2.3 -->
-- **Unreal Engine Version:** <!-- e.g., 5.2 -->
-- **Operating System:** <!-- e.g., Windows 10, macOS Ventura -->
+- Directive Utilities version:
+- Unreal Engine version (5.6, 5.7, or 5.8):
+- Operating system:
+- Editor or packaged build:
 
-## Screenshots / Logs
-<!-- If applicable, add screenshots or copy-paste relevant log output here. -->
-
-## Additional Context
-<!-- Add any other context about the issue here, such as possible causes or additional findings. -->
+## Logs or sample project
+<!-- Paste the relevant log section or link a minimal reproduction project. Remove private paths and credentials. -->

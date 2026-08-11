@@ -36,6 +36,8 @@ OUTPUT_FILE="$(cd "$(dirname "$OUTPUT_FILE")" && pwd)/$(basename "$OUTPUT_FILE")
 LOG_FILE="${OUTPUT_FILE%.*}.log"
 COMPARISON_FILE="${OUTPUT_FILE%.*}-remove-all-comparison.csv"
 APPEND_COMPARISON_FILE="${OUTPUT_FILE%.*}-append-comparison.csv"
+INSERT_COMPARISON_FILE="${OUTPUT_FILE%.*}-insert-comparison.csv"
+REMOVE_INDICES_COMPARISON_FILE="${OUTPUT_FILE%.*}-remove-indices-comparison.csv"
 REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REVISION="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD 2>/dev/null || true)"
 if [[ -n "$REVISION" ]] && [[ -n "$(git -C "$REPOSITORY_ROOT" status --porcelain 2>/dev/null)" ]]; then
@@ -72,6 +74,7 @@ EDITOR_EXIT_CODE=$?
 set -e
 
 if [[ "$EDITOR_EXIT_CODE" -ne 0 ]] || [[ ! -f "$OUTPUT_FILE" ]] || [[ ! -f "$COMPARISON_FILE" ]] || [[ ! -f "$APPEND_COMPARISON_FILE" ]] || \
+	[[ ! -f "$INSERT_COMPARISON_FILE" ]] || [[ ! -f "$REMOVE_INDICES_COMPARISON_FILE" ]] || \
 	! grep -q 'Test Completed. Result={Success} Name={Runtime} Path={Performance.DirectiveUtilities.Runtime}' "$LOG_FILE"; then
 	tail -n 100 "$LOG_FILE" >&2
 	echo "Runtime performance suite failed. Log: $LOG_FILE" >&2
@@ -81,4 +84,6 @@ fi
 echo "Runtime performance results: $OUTPUT_FILE"
 echo "Remove All comparison results: $COMPARISON_FILE"
 echo "Append comparison results: $APPEND_COMPARISON_FILE"
+echo "Insert comparison results: $INSERT_COMPARISON_FILE"
+echo "Remove At Indices comparison results: $REMOVE_INDICES_COMPARISON_FILE"
 echo "Automation log: $LOG_FILE"

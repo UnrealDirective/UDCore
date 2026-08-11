@@ -8,13 +8,15 @@ Directive Utilities follows a rolling **"latest three engine versions"** support
 
 | Engine | Status | Notes |
 |--------|--------|-------|
-| 5.8 | Supported | Primary local build/test target. |
-| 5.7 | Supported | Built by CI. |
-| 5.6 | Supported | Built by CI. |
+| 5.8 | Supported | Local editor, packaged Development, and Shipping benchmark gate. |
+| 5.7 | Supported | Local editor and packaged Development gate. |
+| 5.6 | Supported | Local editor and packaged Development gate. |
 
 UE 5.5 and earlier are **not supported**. The workaround for the `UEditorActorSubsystem` regression tracked in [#6](https://github.com/UnrealDirective/DirectiveUtilities/issues/6) was removed when 5.5 dropped out of the support window.
 
 The repository descriptor omits `EngineVersion` so Git installations work across the supported range. Release packages set the engine version in their copied descriptor.
+
+The project uses a local release gate instead of hosted CI. Run `Tools/Release/run-local-release-gate.sh` on macOS or Linux, or `Tools/Release/run-local-release-gate.ps1` on Windows, before publishing. On Windows, pass `-IncludeLinux` to compile the plugin for Linux with Epic's v25 and v26 cross-toolchains. This checks Linux compilation; packaged Linux execution still requires a Linux Unreal installation.
 
 ## Platforms
 

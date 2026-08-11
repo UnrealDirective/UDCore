@@ -93,6 +93,10 @@ public:
 	virtual bool IsActive() const override;
 	virtual bool ShouldBroadcastDelegates() const override;
 
+#if WITH_DEV_AUTOMATION_TESTS
+	void SetNextIndexForTesting(int32 Index) { NextIndex = Index; }
+#endif
+
 	UPROPERTY(BlueprintAssignable)
 	FOnRepeatIteration Iteration;
 

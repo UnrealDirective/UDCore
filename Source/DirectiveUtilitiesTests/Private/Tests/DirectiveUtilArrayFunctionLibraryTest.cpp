@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Unreal Directive. Licensed under the MIT License.
 
 #include "Libraries/DirectiveUtilArrayFunctionLibrary.h"
+#include "Async/ParallelFor.h"
 #include "Tests/DirectiveUtilTestObject.h"
 
 #include <limits>
@@ -527,7 +528,30 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		{
 			TestFalse(*FString::Printf(TEXT("%s should expose TargetArray as mutable"), *FunctionName.ToString()), TargetArrayProperty->HasAnyPropertyFlags(CPF_ConstParm));
 		}
+#if WITH_EDITOR
+		if (Function)
+		{
+			TestFalse(
+				*FString::Printf(TEXT("%s should not advertise inert Blueprint thread safety"), *FunctionName.ToString()),
+				Function->HasMetaData(TEXT("BlueprintThreadSafe")));
+		}
+#endif
 	}
+
+	TArray<int32> ParallelResults;
+	ParallelResults.SetNumZeroed(64);
+	ParallelFor(ParallelResults.Num(), [&ParallelResults, ArrayProperty](const int32 TaskIndex)
+	{
+		const int32 RemovedValue = TaskIndex + 1000;
+		TArray<int32> Values = {RemovedValue, 7, RemovedValue, 11};
+		const TArray<int32> Appended = {13, RemovedValue};
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+			&Values, ArrayProperty, &Appended, ArrayProperty);
+		const bool bRemoved = UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+			&Values, ArrayProperty, &RemovedValue);
+		ParallelResults[TaskIndex] = bRemoved && Values == TArray<int32>({7, 11, 13}) ? 1 : 0;
+	});
+	TestTrue("Independent array operations should remain correct on worker tasks", ParallelResults.Find(0) == INDEX_NONE);
 
 	TestObject->TestArray = {10, 20, 30, 40, 50};
 	TArray<int32> SampledValues;

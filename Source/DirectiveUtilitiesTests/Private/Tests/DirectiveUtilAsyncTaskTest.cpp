@@ -113,7 +113,12 @@ namespace DirectiveUtilAsyncTaskTestHelpers
 		return Listener;
 	}
 
-	UDirectiveUtilDelegateListener* StartRepeatScenario(int32 Count, float Interval, float InitialDelay, bool bCancel)
+	UDirectiveUtilDelegateListener* StartRepeatScenario(
+		int32 Count,
+		float Interval,
+		float InitialDelay,
+		bool bCancel,
+		int32 NextIndex = 0)
 	{
 		UDirectiveUtilDelegateListener* Listener = CreateScenarioListener();
 		if (!Listener)
@@ -129,6 +134,9 @@ namespace DirectiveUtilAsyncTaskTestHelpers
 		Listener->Keepalive = Task;
 		Task->Iteration.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnRepeatIteration);
 		Task->Completed.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnCompleted);
+#if WITH_DEV_AUTOMATION_TESTS
+		Task->SetNextIndexForTesting(NextIndex);
+#endif
 		Task->Activate();
 		if (bCancel)
 		{
@@ -600,6 +608,42 @@ DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(
 	UDirectiveUtilDelegateListener*, Listener,
 	int32, FramesRemaining);
 
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(
+	FDirectiveUtilTickRepeatRolloverScenario,
+	FAutomationTestBase*, Test,
+	UDirectiveUtilDelegateListener*, Listener,
+	int32, FramesRemaining);
+
+bool FDirectiveUtilTickRepeatRolloverScenario::Update()
+{
+	if (!Listener)
+	{
+		return true;
+	}
+
+	if (UWorld* World = Listener->ScenarioWorld.Get())
+	{
+		World->GetTimerManager().Tick(0.1f);
+	}
+
+	if (Listener->IterationCount < 2 && --FramesRemaining > 0)
+	{
+		return false;
+	}
+
+	Test->TestTrue(
+		TEXT("An infinite Repeat with Interval wraps its index without signed overflow"),
+		Listener->IterationIndices.Num() >= 2
+			&& Listener->IterationIndices[0] == MAX_int32
+			&& Listener->IterationIndices[1] == 0);
+	if (UDirectiveUtilTask_RepeatWithInterval* Task = Cast<UDirectiveUtilTask_RepeatWithInterval>(Listener->Keepalive))
+	{
+		Task->Cancel();
+	}
+	DirectiveUtilAsyncTaskTestHelpers::DestroyScenario(Listener);
+	return true;
+}
+
 bool FDirectiveUtilTickInfiniteRepeatScenario::Update()
 {
 	if (!Listener)
@@ -738,6 +782,18 @@ bool FDirectiveUtilRepeatWithIntervalTaskTest::RunTest(const FString& Parameters
 	{
 		AddError(TEXT("Failed to create the infinite Repeat with Interval scenario."));
 	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	if (UDirectiveUtilDelegateListener* Rollover = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(
+		-1, 0.0f, 0.0f, false, MAX_int32))
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickRepeatRolloverScenario(this, Rollover, 5));
+	}
+	else
+	{
+		AddError(TEXT("Failed to create the repeat-index rollover scenario."));
+	}
+#endif
 
 	if (UDirectiveUtilDelegateListener* NegativeCount = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(-4, 0.1f, 0.1f, false))
 	{
