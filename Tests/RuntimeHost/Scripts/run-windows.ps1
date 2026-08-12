@@ -12,7 +12,7 @@ Set-StrictMode -Version Latest
 $ScriptRoot = $PSScriptRoot
 $RepositoryRoot = (Resolve-Path (Join-Path $ScriptRoot "..\..\..")).Path
 $EngineVersion = Split-Path $EngineRoot -Leaf
-$WorkRoot = Join-Path $RepositoryRoot "Build\RuntimeHost\$EngineVersion"
+$WorkRoot = Join-Path $RepositoryRoot "Build\RuntimeHost\$EngineVersion\$ClientConfiguration"
 $ProjectRoot = Join-Path $WorkRoot "Project"
 $ProjectFile = Join-Path $ProjectRoot "DirectiveUtilitiesRuntimeHost.uproject"
 $PluginRoot = Join-Path $ProjectRoot "Plugins\DirectiveUtilities"
@@ -25,6 +25,11 @@ $PerformanceRoot = Join-Path $WorkRoot "Performance"
 $BuildScript = Join-Path $EngineRoot "Engine\Build\BatchFiles\Build.bat"
 $RunUAT = Join-Path $EngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
 $EditorCommand = Join-Path $EngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+$LongestActionPath = Join-Path $ProjectRoot "Plugins\DirectiveUtilities\Intermediate\Build\Win64\x64\UnrealEditor\Development\DirectiveUtilitiesBlueprintNodes\UnrealEditor-DirectiveUtilitiesBlueprintNodes.dll.rsp"
+
+if ($LongestActionPath.Length -ge 260) {
+    throw "The Windows RuntimeHost path would exceed Unreal's 260-character action-path limit. Move the repository to a shorter path."
+}
 
 foreach ($RequiredFile in @($BuildScript, $RunUAT, $EditorCommand)) {
     if (-not (Test-Path $RequiredFile -PathType Leaf)) {
@@ -126,6 +131,7 @@ $GameArguments = @(
 if ($ClientConfiguration -eq "Shipping") {
     New-Item $PerformanceRoot -ItemType Directory -Force | Out-Null
     $AppendOutput = Join-Path $PerformanceRoot "shipping-append-comparison.csv"
+    $SmokeOutput = Join-Path $PerformanceRoot "shipping-smoke.csv"
     $Revision = ""
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $Revision = (& git -C $RepositoryRoot rev-parse HEAD 2>$null)
@@ -135,6 +141,7 @@ if ($ClientConfiguration -eq "Shipping") {
     }
     $GameArguments += @(
         "-DirectiveUtilitiesAppendShippingBenchmarkOutput=$AppendOutput",
+        "-DirectiveUtilitiesShippingSmokeOutput=$SmokeOutput",
         "-DirectiveUtilitiesPerfRevision=$Revision"
     )
 } else {
@@ -164,8 +171,8 @@ if (-not (Test-Path $EditorReportPath -PathType Leaf)) {
 }
 
 $EditorReport = Get-Content $EditorReportPath -Raw | ConvertFrom-Json
-if ($EditorReport.failed -ne 0 -or $EditorReport.notRun -ne 0) {
-    throw "Editor automation tests failed. Report: $EditorReportPath"
+if ($EditorReport.failed -ne 0 -or $EditorReport.succeededWithWarnings -ne 0 -or $EditorReport.notRun -ne 0) {
+    throw "Editor automation tests failed or produced warnings. Report: $EditorReportPath"
 }
 
 if ($ClientConfiguration -eq "Shipping") {
@@ -180,6 +187,18 @@ if ($ClientConfiguration -eq "Shipping") {
             throw "Packaged benchmark did not report all $ElementType scenarios: $AppendOutput"
         }
     }
+    if (-not (Test-Path $SmokeOutput -PathType Leaf)) {
+        throw "Packaged Shipping smoke result was not generated: $SmokeOutput"
+    }
+    if (-not (Select-String -Path $SmokeOutput -Pattern '^#configuration,Shipping$' -Quiet)) {
+        throw "Packaged smoke test did not report a Shipping configuration: $SmokeOutput"
+    }
+    if (Select-String -Path $SmokeOutput -Pattern ',false$' -Quiet) {
+        throw "Packaged Shipping smoke test reported a failure: $SmokeOutput"
+    }
+    if ((Select-String -Path $SmokeOutput -Pattern ',true$').Count -ne 15) {
+        throw "Packaged Shipping smoke test did not report every check: $SmokeOutput"
+    }
 } else {
     if (-not (Test-Path $GameLog -PathType Leaf)) {
         throw "Packaged game automation log was not generated: $GameLog"
@@ -191,7 +210,7 @@ if ($ClientConfiguration -eq "Shipping") {
 
 Write-Host "Reports: $ReportRoot"
 if ($ClientConfiguration -eq "Shipping") {
-    Write-Host "Editor tests and packaged Shipping benchmark passed for $EngineVersion."
+    Write-Host "Editor tests and packaged Shipping smoke and benchmark passed for $EngineVersion."
     Write-Host "Shipping performance results: $PerformanceRoot"
 } else {
     Write-Host "Editor and packaged game tests passed for $EngineVersion."

@@ -1,6 +1,6 @@
 # Runtime performance tests
 
-`Performance.DirectiveUtilities.Runtime` records median, minimum, and maximum execution times for array operations, weighted sampling, natural sorting, medians, string matching, spatial generation, hex queries, and array easing. It also runs same-build comparisons for Unreal's single-item removal, insertion, and append paths against the corresponding Directive Utilities nodes. The workloads vary collection size, duplicate density, sampling ratio, page size, rotation distance, input order, and candidate count.
+`Performance.DirectiveUtilities.Runtime` records median, minimum, and maximum execution times for array operations, weighted sampling, natural sorting, medians, string matching, spatial generation, hex queries, and array easing. It also runs same-build comparisons for Unreal's single-item removal, insertion, and append paths against the corresponding Directive Utilities nodes. The workloads vary collection size, duplicate density, sampling ratio, page size, rotation distance, input order, and candidate count. Distinct and most-common workloads cover both hashable integers and reflected structs without native hash support.
 
 The project used to run the suite must load the current source version of Directive Utilities. Build its Editor target after each implementation change before running the benchmark.
 
@@ -38,6 +38,8 @@ Compare results from the same machine, engine version, build configuration, and 
 
 The local release gate runs one unscored warmup process before capturing its baseline and candidate files. This puts the CPU and engine process at a sustained operating state before the 20 percent regression check.
 
+If the first candidate fails, the gate preserves that attempt and requires two clean retries against the same baseline. Either retry failing stops the gate. This handles an isolated scheduling or frequency outlier without accepting a repeatable slowdown.
+
 To package the runtime host in Shipping and run the append comparison inside the packaged game:
 
 ```sh
@@ -48,6 +50,6 @@ Tests/RuntimeHost/Scripts/run-unix.sh "/Users/Shared/Epic Games/UE_5.8" Shipping
 Tests\RuntimeHost\Scripts\run-windows.ps1 -EngineRoot "C:\Program Files\Epic Games\UE_5.8" -ClientConfiguration Shipping
 ```
 
-The packaged Shipping comparison covers Boolean, integer, float, vector, string, and object-reference arrays from 1,000 through 1,000,000 source elements. It records whether each reflected element type uses the bulk-copy or property-aware path.
+The packaged Shipping comparison covers Boolean, integer, float, vector, string, and object-reference arrays from 1,000 through 1,000,000 source elements. It records whether each reflected element type uses the bulk-copy or property-aware path. The same packaged process also runs deterministic behavior checks for reflected arrays, math, point generation, hex queries, easing, and strings.
 
-Shipping results are written under `Build/RuntimeHost/<engine-version>/Performance`.
+Shipping results are written under `Build/RuntimeHost/<engine-version>/Shipping/Performance`.

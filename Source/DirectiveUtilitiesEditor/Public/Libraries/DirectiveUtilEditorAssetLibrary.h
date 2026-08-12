@@ -45,7 +45,8 @@ public:
 
 	/**
 	 * Fixes up (and deletes) object redirectors found under the given directories, without loading every asset.
-	 * Equivalent to the Content Browser's "Fix Up Redirectors in Folder", but scriptable and headless-friendly.
+	 * Equivalent to the Content Browser's "Fix Up Redirectors in Folder". Unreal shows a completion dialog,
+	 * so this returns Failure in unattended sessions instead of blocking the process.
 	 * @param DirectoryPaths Directories to scan for redirectors. If empty, the entire registry is scanned.
 	 * @param OutRedirectorsProcessed [out] The number of redirectors submitted for fix-up (the engine does not report per-redirector success).
 	 * @return Success if the operation ran (even if nothing needed fixing), Failure otherwise (e.g. a fixup is already in progress).

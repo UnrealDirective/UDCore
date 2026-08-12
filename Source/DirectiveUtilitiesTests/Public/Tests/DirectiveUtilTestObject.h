@@ -285,6 +285,7 @@ public:
 		ExecuteCompleted(false);
 	}
 
+	void RegisterTimersForTest(UWorld* World);
 	bool HasRegisteredTimers() const;
 };
 
@@ -311,5 +312,6 @@ public:
 		ExecuteCompleted(false);
 	}
 
+	void RegisterTimersForTest(UWorld* World);
 	bool HasRegisteredTimers() const;
 };

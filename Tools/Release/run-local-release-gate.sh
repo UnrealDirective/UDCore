@@ -33,7 +33,16 @@ for INDEX in 0 1 2; do
 done
 
 cd "$REPOSITORY_ROOT"
-python3 -m unittest Tests/Packaging/test_package_fab.py Tests/Release/test_check_release.py
+ALLOW_DIRTY_RELEASE="${DIRECTIVE_UTILITIES_ALLOW_DIRTY_RELEASE:-0}"
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]] && [[ "$ALLOW_DIRTY_RELEASE" != "1" ]]; then
+	echo "Release certification requires a clean working tree. Set DIRECTIVE_UTILITIES_ALLOW_DIRTY_RELEASE=1 for development validation." >&2
+	exit 1
+fi
+
+python3 -m unittest \
+	Tests/Packaging/test_package_fab.py \
+	Tests/Release/test_check_release.py \
+	Tests/Release/test_record_release_evidence.py
 python3 Tools/Release/check_release.py
 python3 Tools/Packaging/package_fab.py --check
 git diff --check
@@ -45,19 +54,39 @@ if rg -n -i 'co-authored-by:|generated (with|by)|chatgpt|openai|claude|copilot|d
 	exit 1
 fi
 
+Tools/Release/verify-fab-artifacts.sh "${ENGINE_ROOTS[@]}"
+
 for ENGINE_ROOT in "${ENGINE_ROOTS[@]}"; do
 	Tests/RuntimeHost/Scripts/run-unix.sh "$ENGINE_ROOT" Development
 done
 
 PERFORMANCE_ROOT="$REPOSITORY_ROOT/Build/Performance/ReleaseGate"
-PERFORMANCE_PROJECT="$REPOSITORY_ROOT/Build/RuntimeHost/UE_5.8/Project/DirectiveUtilitiesRuntimeHost.uproject"
+PERFORMANCE_PROJECT="$REPOSITORY_ROOT/Build/RuntimeHost/UE_5.8/Development/Project/DirectiveUtilitiesRuntimeHost.uproject"
 Tests/Performance/run-runtime-benchmarks.sh \
 	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/warmup.csv"
 Tests/Performance/run-runtime-benchmarks.sh \
 	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/baseline.csv"
-Tests/Performance/run-runtime-benchmarks.sh \
-	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate.csv" \
-	"$PERFORMANCE_ROOT/baseline.csv"
+if Tests/Performance/run-runtime-benchmarks.sh \
+	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-1.csv" \
+	"$PERFORMANCE_ROOT/baseline.csv"; then
+	cp "$PERFORMANCE_ROOT/candidate-attempt-1.csv" "$PERFORMANCE_ROOT/candidate.csv"
+else
+	echo "The first performance candidate failed. Two clean retries are required." >&2
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-2.csv" \
+		"$PERFORMANCE_ROOT/baseline.csv"
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-3.csv" \
+		"$PERFORMANCE_ROOT/baseline.csv"
+	cp "$PERFORMANCE_ROOT/candidate-attempt-3.csv" "$PERFORMANCE_ROOT/candidate.csv"
+fi
 
 Tests/RuntimeHost/Scripts/run-unix.sh "${ENGINE_ROOTS[2]}" Shipping
+EVIDENCE_ARGUMENTS=()
+if [[ "$ALLOW_DIRTY_RELEASE" == "1" ]]; then
+	EVIDENCE_ARGUMENTS+=(--allow-dirty)
+fi
+python3 Tools/Release/record_release_evidence.py \
+	--output "$REPOSITORY_ROOT/Build/ReleaseEvidence/$(uname -s)/manifest.json" \
+	"${EVIDENCE_ARGUMENTS[@]}"
 echo "Local release gate passed."

@@ -16,9 +16,13 @@ On Windows:
 Tests\RuntimeHost\Scripts\run-windows.ps1 "C:\Program Files\Epic Games\UE_5.8"
 ```
 
-Run the command once per supported engine installation. Each runner creates a clean project under `Build/RuntimeHost`, builds the editor target, runs editor automation, packages a Development game, and runs automation from that package.
+Run the command once per supported engine installation. Each runner creates a clean project under `Build/RuntimeHost/UE_5.x/<Configuration>`, builds the editor target, runs editor automation, packages the requested game configuration, and runs its validation. Development and Shipping evidence is retained separately.
 
-The local release gate runs this project for UE 5.6, 5.7, and 5.8, then runs the packaged Shipping benchmark on UE 5.8.
+On Windows, keep the repository path short enough for Unreal's 260-character action-path limit. The runner checks its longest generated path before starting a build and reports this requirement directly.
+
+The local release gate runs this project for UE 5.6, 5.7, and 5.8, then runs packaged Shipping behavior checks and the append benchmark on UE 5.8. Shipping checks exercise reflected array operations, math, point generation, hex queries, easing, and strings without loading the test module.
+
+The release gate rejects warnings, failures, skipped tests, and dirty working trees. Set `DIRECTIVE_UTILITIES_ALLOW_DIRTY_RELEASE=1` on macOS or Linux, or pass `-AllowDirty` on Windows, only while developing the gate. A publishing run must use a clean tree. The final manifest under `Build/ReleaseEvidence` records the commit, validation matrix, automation counts, and SHA-256 hashes for the reports, performance results, compiled Fab packages, and Fab archives. Windows runs with `-IncludeLinux` also record the Linux Development and Shipping cross-compiled object files. Unreal's monolithic Linux game target keeps these under the packaged plugin's `Intermediate` directory instead of emitting plugin shared libraries.
 
 On macOS, the UE 5.8 packaged test process starts with `-LLM`. The installed 5.8 runtime can crash while disabling its low-level memory tracker before log initialization. Keeping the tracker enabled avoids that engine startup fault. This changes only the test command; it does not change the packaged plugin or game.
 

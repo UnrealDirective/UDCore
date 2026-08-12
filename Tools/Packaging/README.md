@@ -30,6 +30,8 @@ Validate the source without writing an archive:
 python3 Tools/Packaging/package_fab.py --check
 ```
 
+The local release gate also extracts every generated archive and compiles that extracted plugin with its matching Unreal Engine version. This checks the uploaded bytes while leaving the accepted archive layout unchanged.
+
 The packager rejects missing source notices, unsupported module platform lists, paths over Fab's 170-character limit, and local build directories. It sets `EngineVersion` and `Installed` only in the copied descriptor.
 
 Upload the archive itself for each Fab engine-version entry. A repository or release page is not a project-file download link.

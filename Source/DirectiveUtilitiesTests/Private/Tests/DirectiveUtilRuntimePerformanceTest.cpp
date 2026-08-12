@@ -303,6 +303,18 @@ namespace DirectiveUtilRuntimePerformance
 		return Values;
 	}
 
+	TArray<FDirectiveUtilPodValue> MakeSequentialPodValues(const int32 Count)
+	{
+		TArray<FDirectiveUtilPodValue> Values;
+		Values.SetNumUninitialized(Count);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			Values[Index].Index = Index;
+			Values[Index].Weight = static_cast<float>(Index) + 0.5f;
+		}
+		return Values;
+	}
+
 	bool IsRemovalMatch(const FString& Pattern, const int32 Index, const int32 Count)
 	{
 		if (Pattern == TEXT("single_tail"))
@@ -519,10 +531,16 @@ namespace DirectiveUtilRuntimePerformance
 		const TMap<FString, double>& BaselineMedians,
 		const FString& BaselinePath)
 	{
+		FString Revision;
+		FParse::Value(FCommandLine::Get(), TEXT("DirectiveUtilitiesPerfRevision="), Revision);
+
 		FString Csv;
-		Csv += FString::Printf(TEXT("#engine,%s\n"), *FEngineVersion::Current().ToString());
+		Csv += FString::Printf(TEXT("#engine,%s\n"), *SanitizeMetadata(FEngineVersion::Current().ToString()));
 		Csv += FString::Printf(TEXT("#platform,%hs\n"), FPlatformProperties::PlatformName());
+		Csv += FString::Printf(TEXT("#configuration,%s\n"), *GetBuildConfigurationName());
+		Csv += FString::Printf(TEXT("#plugin_version,%s\n"), *SanitizeMetadata(GetPluginVersion()));
 		Csv += FString::Printf(TEXT("#timestamp_utc,%s\n"), *FDateTime::UtcNow().ToIso8601());
+		Csv += FString::Printf(TEXT("#revision,%s\n"), *SanitizeMetadata(Revision));
 		if (!BaselinePath.IsEmpty())
 		{
 			Csv += FString::Printf(TEXT("#baseline,%s\n"), *BaselinePath);
@@ -671,6 +689,14 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	FArrayProperty* PodArrayProperty = FindFProperty<FArrayProperty>(
+		UDirectiveUtilTestObject::StaticClass(),
+		GET_MEMBER_NAME_CHECKED(UDirectiveUtilTestObject, TestPodArray));
+	if (!TestNotNull(TEXT("POD struct array property is available"), PodArrayProperty))
+	{
+		return false;
+	}
+	TestFalse(TEXT("POD struct array uses reflected grouping"), PodArrayProperty->Inner->HasAllPropertyFlags(CPF_HasGetValueTypeHash));
 
 	constexpr int32 SampleCount = 7;
 	TArray<FResult> Results;
@@ -959,7 +985,25 @@ bool FDirectiveUtilRuntimePerformanceTest::RunTest(const FString& Parameters)
 		Results.Add(Measure(
 			TEXT("GetMostCommonDense"), ElementCount, DenseDistinctCount, SampleCount,
 			[&]() { TestObject->TestArray = DenseSource; MostCommonItem = INDEX_NONE; MostCommonCount = 0; },
-			[&]() { UDirectiveUtilArrayFunctionLibrary::GenericArray_GetMostCommon(&TestObject->TestArray, ArrayProperty, &MostCommonItem, &MostCommonCount); }));
+				[&]() { UDirectiveUtilArrayFunctionLibrary::GenericArray_GetMostCommon(&TestObject->TestArray, ArrayProperty, &MostCommonItem, &MostCommonCount); }));
+	}
+
+	for (const int32 ElementCount : {256, 1024, 4096, 16384})
+	{
+		const TArray<FDirectiveUtilPodValue> Source = MakeSequentialPodValues(ElementCount);
+		TArray<FDirectiveUtilPodValue> Output;
+		FDirectiveUtilPodValue MostCommonItem{};
+		int32 MostCommonCount = 0;
+
+		Results.Add(Measure(
+			TEXT("GetDistinctUnhashableStruct"), ElementCount, 0, SampleCount,
+			[&]() { TestObject->TestPodArray = Source; Output.Reset(); },
+			[&]() { UDirectiveUtilArrayFunctionLibrary::GenericArray_GetDistinct(&TestObject->TestPodArray, PodArrayProperty, &Output, PodArrayProperty); }));
+
+		Results.Add(Measure(
+			TEXT("GetMostCommonUnhashableStruct"), ElementCount, 0, SampleCount,
+			[&]() { TestObject->TestPodArray = Source; MostCommonCount = 0; },
+			[&]() { UDirectiveUtilArrayFunctionLibrary::GenericArray_GetMostCommon(&TestObject->TestPodArray, PodArrayProperty, &MostCommonItem, &MostCommonCount); }));
 	}
 
 	for (const int32 ElementCount : {100, 1000, 10000, 100000})

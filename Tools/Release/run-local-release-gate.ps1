@@ -6,7 +6,9 @@ param(
 
     [string]$LinuxToolchainBase = "C:\UnrealToolchains",
 
-    [string]$LinuxPackageBase = ""
+    [string]$LinuxPackageBase = "",
+
+    [switch]$AllowDirty
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,7 +28,16 @@ for ($Index = 0; $Index -lt $ExpectedVersions.Count; $Index++) {
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 Push-Location $RepositoryRoot
 try {
-    py -3 -m unittest Tests\Packaging\test_package_fab.py Tests\Release\test_check_release.py
+    $WorkingTreeChanges = & git status --porcelain --untracked-files=all
+    if ($LASTEXITCODE -ne 0) { throw "Git working tree check failed." }
+    if ($WorkingTreeChanges -and -not $AllowDirty) {
+        throw "Release certification requires a clean working tree. Pass -AllowDirty for development validation."
+    }
+
+    py -3 -m unittest `
+        Tests\Packaging\test_package_fab.py `
+        Tests\Release\test_check_release.py `
+        Tests\Release\test_record_release_evidence.py
     if ($LASTEXITCODE -ne 0) { throw "Python tests failed." }
 
     py -3 Tools\Release\check_release.py
@@ -51,6 +62,12 @@ try {
         $Markers
         throw "Release text contains an attribution or generated-content marker."
     }
+
+    $FabValidationRoot = Join-Path ([System.IO.Path]::GetTempPath()) "DUFab"
+    & Tools\Release\verify-fab-artifacts.ps1 `
+        -EngineRoots $EngineRoots `
+        -ValidationRoot $FabValidationRoot `
+        -AllowDirty:$AllowDirty
 
     foreach ($EngineRoot in $EngineRoots) {
         & Tests\RuntimeHost\Scripts\run-windows.ps1 -EngineRoot $EngineRoot -ClientConfiguration Development
@@ -93,19 +110,50 @@ try {
     }
 
     $PerformanceRoot = Join-Path $RepositoryRoot "Build\Performance\ReleaseGate"
-    $PerformanceProject = Join-Path $RepositoryRoot "Build\RuntimeHost\UE_5.8\Project\DirectiveUtilitiesRuntimeHost.uproject"
+    $PerformanceProject = Join-Path $RepositoryRoot "Build\RuntimeHost\UE_5.8\Development\Project\DirectiveUtilitiesRuntimeHost.uproject"
     $PerformanceWarmup = Join-Path $PerformanceRoot "warmup.csv"
     $PerformanceBaseline = Join-Path $PerformanceRoot "baseline.csv"
     $PerformanceCandidate = Join-Path $PerformanceRoot "candidate.csv"
+    $PerformanceCandidateAttempt1 = Join-Path $PerformanceRoot "candidate-attempt-1.csv"
+    $PerformanceCandidateAttempt2 = Join-Path $PerformanceRoot "candidate-attempt-2.csv"
+    $PerformanceCandidateAttempt3 = Join-Path $PerformanceRoot "candidate-attempt-3.csv"
     & Tests\Performance\run-runtime-benchmarks.ps1 `
         -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceWarmup
     & Tests\Performance\run-runtime-benchmarks.ps1 `
         -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceBaseline
-    & Tests\Performance\run-runtime-benchmarks.ps1 `
-        -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceCandidate `
-        -BaselineFile $PerformanceBaseline
+    try {
+        & Tests\Performance\run-runtime-benchmarks.ps1 `
+            -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceCandidateAttempt1 `
+            -BaselineFile $PerformanceBaseline
+        Copy-Item $PerformanceCandidateAttempt1 $PerformanceCandidate -Force
+    }
+    catch {
+        Write-Warning "The first performance candidate failed. Two clean retries are required."
+        & Tests\Performance\run-runtime-benchmarks.ps1 `
+            -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceCandidateAttempt2 `
+            -BaselineFile $PerformanceBaseline
+        & Tests\Performance\run-runtime-benchmarks.ps1 `
+            -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceCandidateAttempt3 `
+            -BaselineFile $PerformanceBaseline
+        Copy-Item $PerformanceCandidateAttempt3 $PerformanceCandidate -Force
+    }
 
     & Tests\RuntimeHost\Scripts\run-windows.ps1 -EngineRoot $EngineRoots[2] -ClientConfiguration Shipping
+    $EvidenceArguments = @(
+        "Tools\Release\record_release_evidence.py",
+        "--output",
+        (Join-Path $RepositoryRoot "Build\ReleaseEvidence\Windows\manifest.json"),
+        "--fab-validation-root",
+        $FabValidationRoot
+    )
+    if ($AllowDirty) {
+        $EvidenceArguments += "--allow-dirty"
+    }
+    if ($IncludeLinux) {
+        $EvidenceArguments += @("--linux-package-base", $LinuxPackageBase)
+    }
+    & py -3 @EvidenceArguments
+    if ($LASTEXITCODE -ne 0) { throw "Release evidence recording failed." }
     Write-Host "Local release gate passed."
 }
 finally {

@@ -1,6 +1,7 @@
 // Copyright (c) 2026 Unreal Directive. Licensed under the MIT License.
 
 #include "DirectiveUtilitiesRuntimeAppendBenchmark.h"
+#include "DirectiveUtilitiesRuntimeShippingSmoke.h"
 
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -15,16 +16,22 @@ public:
 	{
 		FDefaultGameModuleImpl::StartupModule();
 
-		FString OutputPath;
-		if (FParse::Value(
-			FCommandLine::Get(),
-			TEXT("DirectiveUtilitiesAppendShippingBenchmarkOutput="),
-			OutputPath))
+		FString AppendOutputPath;
+		FString SmokeOutputPath;
+		const bool bRunAppendBenchmark = FParse::Value(
+			FCommandLine::Get(), TEXT("DirectiveUtilitiesAppendShippingBenchmarkOutput="), AppendOutputPath);
+		const bool bRunShippingSmoke = FParse::Value(
+			FCommandLine::Get(), TEXT("DirectiveUtilitiesShippingSmokeOutput="), SmokeOutputPath);
+		if (bRunAppendBenchmark || bRunShippingSmoke)
 		{
-			FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([OutputPath]()
+			FCoreDelegates::OnFEngineLoopInitComplete.AddLambda([
+				bRunAppendBenchmark, bRunShippingSmoke, AppendOutputPath, SmokeOutputPath]()
 			{
-				RunDirectiveUtilitiesRuntimeAppendBenchmark(OutputPath);
-				FPlatformMisc::RequestExit(false);
+				const bool bAppendPassed = !bRunAppendBenchmark
+					|| RunDirectiveUtilitiesRuntimeAppendBenchmark(AppendOutputPath);
+				const bool bSmokePassed = !bRunShippingSmoke
+					|| RunDirectiveUtilitiesRuntimeShippingSmoke(SmokeOutputPath);
+				FPlatformMisc::RequestExitWithStatus(false, bAppendPassed && bSmokePassed ? 0 : 1);
 			});
 		}
 	}

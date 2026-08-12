@@ -21,7 +21,7 @@ Apply multiple Input Mapping Contexts to the controller's local player.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | PlayerController | `AController*` | The player controller to add the contexts to. Will attempt to get the LocalPlayer from the controller. |
-| Contexts | `const TArray<FDirectiveUtilEnhancedInputContextData>&` | The contexts to apply. |
+| Contexts | `const TArray<FDirectiveUtilEnhancedInputContextData>&` | The contexts to apply. Missing assets are loaded synchronously. |
 | bClearPrevious | `bool` | Whether to clear all previous contexts before applying the new ones. Clearing only happens once at least one new context has loaded; if every context fails to load, existing mappings are left untouched. |
 
 **Returns:** Returns Success if the contexts were successfully applied.
@@ -40,7 +40,7 @@ Remove multiple Input Mapping Contexts from the controller's local player.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | PlayerController | `AController*` | The player controller to remove the contexts from. Will attempt to get the LocalPlayer from the controller. |
-| Contexts | `const TArray<TSoftObjectPtr<UInputMappingContext>>&` | The contexts to remove. |
+| Contexts | `const TArray<TSoftObjectPtr<UInputMappingContext>>&` | Loaded contexts to remove. Missing assets are not loaded by this function. |
 
 **Returns:** Returns Success if the contexts were successfully removed.
 
@@ -62,7 +62,7 @@ Swap a designated Input Mapping Context with a new one. If the previous context 
 |-----------|------|-------------|
 | PlayerController | `AController*` | The player controller to swap the contexts on. Will attempt to get the LocalPlayer from the controller. |
 | PreviousContext | `TSoftObjectPtr<UInputMappingContext>` | The context to swap out. |
-| NewContext | `TSoftObjectPtr<UInputMappingContext>` | The context to swap in. |
+| NewContext | `TSoftObjectPtr<UInputMappingContext>` | The context to swap in. This asset is loaded synchronously when needed. |
 | Priority | `int32` | The priority to set the new context to. |
 | bUsePreviousPriority | `bool` | Whether to use the previous context's priority when adding the new context. |
 
@@ -95,7 +95,7 @@ Returns whether the given input mapping context is currently active on the contr
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | PlayerController | `AController*` | The player controller to query. |
-| Context | `TSoftObjectPtr<UInputMappingContext>` | The input mapping context to check. |
+| Context | `TSoftObjectPtr<UInputMappingContext>` | The loaded input mapping context to check. Missing assets are not loaded by this pure query. |
 
 **Returns:** True if the context is currently applied.
 

@@ -1086,6 +1086,39 @@ bool FDirectiveUtilArrayFunctionLibraryTest::RunTest(const FString& Parameters)
 		TestEqual("AppendOptimized should preserve the second self-appended POD struct", TestObject->TestPodArray[3].Index, 5);
 	}
 
+	TestFalse("POD struct grouping should use the reflected-value hash path", PodArrayProperty->Inner->HasAllPropertyFlags(CPF_HasGetValueTypeHash));
+	TestObject->TestPodArray = {
+		MakePodValue(1, 1.5f),
+		MakePodValue(2, 2.5f),
+		MakePodValue(1, 1.5f),
+		MakePodValue(3, 3.5f),
+		MakePodValue(1, 1.5f)
+	};
+	UDirectiveUtilTestObject* PodResultObject = NewObject<UDirectiveUtilTestObject>();
+	UDirectiveUtilArrayFunctionLibrary::GenericArray_GetDistinct(
+		&TestObject->TestPodArray,
+		PodArrayProperty,
+		&PodResultObject->TestPodArray,
+		PodArrayProperty);
+	TestEqual("GetDistinct should group unhashable POD structs", PodResultObject->TestPodArray.Num(), 3);
+	if (PodResultObject->TestPodArray.Num() == 3)
+	{
+		TestEqual("GetDistinct should retain the first POD value", PodResultObject->TestPodArray[0].Index, 1);
+		TestEqual("GetDistinct should retain the second POD value", PodResultObject->TestPodArray[1].Index, 2);
+		TestEqual("GetDistinct should retain the third POD value", PodResultObject->TestPodArray[2].Index, 3);
+	}
+	FDirectiveUtilPodValue MostCommonPod = MakePodValue(INDEX_NONE, 0.0f);
+	int32 MostCommonPodCount = 0;
+	TestTrue(
+		"GetMostCommon should group unhashable POD structs",
+		UDirectiveUtilArrayFunctionLibrary::GenericArray_GetMostCommon(
+			&TestObject->TestPodArray,
+			PodArrayProperty,
+			&MostCommonPod,
+			&MostCommonPodCount));
+	TestEqual("GetMostCommon should return the repeated POD value", MostCommonPod.Index, 1);
+	TestEqual("GetMostCommon should report the POD value count", MostCommonPodCount, 3);
+
 	TestObject->TestStringArray = {TEXT("Zero"), TEXT("Selected"), TEXT("Never")};
 	TArray<FString> WeightedStrings;
 	FRandomStream WeightedStringStream(55);

@@ -35,11 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
+- Material queries include any actor with a static mesh component, including custom and Blueprint actor classes.
+- Input mapping removal and active-state queries no longer load missing soft assets, and swaps load only the new context after controller validation.
+- Distinct and most-common grouping avoid quadratic scans for reflected structs that use field equality without a native hash.
+- Push Override Materials To Source copies only explicit component overrides into valid source slots.
+- Movement tasks fail cleanly when a world has no navigation system instead of emitting engine warnings.
 - Plugin metadata now declares its target platforms, documentation, and editor-only dependency scope.
 - Generated collections reject requests above 1,000,000 elements before allocating or iterating.
 - Infinite interval repeats wrap their Blueprint index to zero after `MAX_int32` without signed overflow.
 - Delta-angle and angle-interpolation nodes remove any number of full turns consistently on UE 5.6-5.8.
 - Wildcard append, insert, indexed removal, and value removal now run through compiled Blueprint VM tests for Boolean, string, object, and struct arrays.
+- Local release checks reject warning-bearing reports, retain Development and Shipping results separately, run packaged Shipping behavior checks, compile generated Fab archives, and record commit-bound evidence.
 
 ## [2.1.0] - 2026-07-22
 

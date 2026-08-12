@@ -11,7 +11,7 @@ fi
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOSITORY_ROOT="$(cd "$SCRIPT_ROOT/../../.." && pwd)"
 ENGINE_VERSION="$(basename "$ENGINE_ROOT")"
-WORK_ROOT="$REPOSITORY_ROOT/Build/RuntimeHost/$ENGINE_VERSION"
+WORK_ROOT="$REPOSITORY_ROOT/Build/RuntimeHost/$ENGINE_VERSION/$CLIENT_CONFIGURATION"
 PROJECT_ROOT="$WORK_ROOT/Project"
 PROJECT_FILE="$PROJECT_ROOT/DirectiveUtilitiesRuntimeHost.uproject"
 PLUGIN_ROOT="$PROJECT_ROOT/Plugins/DirectiveUtilities"
@@ -114,6 +114,7 @@ cp "$RUNTIME_TEST_SOURCE_ROOT/Public/Tests/DirectiveUtilTestObject.h" "$RUNTIME_
 
 GAME_LOG="$WORK_ROOT/GameTests.log"
 APPEND_OUTPUT_NAME="shipping-append-comparison.csv"
+SMOKE_OUTPUT_NAME="shipping-smoke.csv"
 REVISION="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD 2>/dev/null || true)"
 if [[ -n "$REVISION" ]] && [[ -n "$(git -C "$REPOSITORY_ROOT" status --porcelain 2>/dev/null)" ]]; then
 	REVISION="${REVISION}-dirty"
@@ -155,9 +156,12 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 	fi
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		MAC_APPEND_OUTPUT="$MAC_LOG_ROOT/$APPEND_OUTPUT_NAME"
+		MAC_SMOKE_OUTPUT="$MAC_LOG_ROOT/$SMOKE_OUTPUT_NAME"
 		rm -f "$MAC_APPEND_OUTPUT"
+		rm -f "$MAC_SMOKE_OUTPUT"
 		GAME_ARGUMENTS+=(
 			"-DirectiveUtilitiesAppendShippingBenchmarkOutput=$MAC_APPEND_OUTPUT"
+			"-DirectiveUtilitiesShippingSmokeOutput=$MAC_SMOKE_OUTPUT"
 			"-DirectiveUtilitiesPerfRevision=$REVISION"
 		)
 	else
@@ -176,6 +180,7 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 	fi
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		cp "$MAC_APPEND_OUTPUT" "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"
+		cp "$MAC_SMOKE_OUTPUT" "$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME"
 	fi
 else
 	GAME_COMMAND="$(find "$ARCHIVE_ROOT" -type f -name DirectiveUtilitiesRuntimeHost -perm -111 -print -quit)"
@@ -195,6 +200,7 @@ else
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		GAME_ARGUMENTS+=(
 			"-DirectiveUtilitiesAppendShippingBenchmarkOutput=$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"
+			"-DirectiveUtilitiesShippingSmokeOutput=$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME"
 			"-DirectiveUtilitiesPerfRevision=$REVISION"
 		)
 	else
@@ -233,6 +239,13 @@ if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 			exit 1
 		fi
 	done
+	if [[ ! -f "$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME" ]] || \
+		! grep -q '#configuration,Shipping' "$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME" || \
+		grep -q ',false$' "$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME" || \
+		[[ "$(grep -c ',true$' "$PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME")" -ne 15 ]]; then
+		echo "Packaged Shipping smoke test failed: $PERFORMANCE_ROOT/$SMOKE_OUTPUT_NAME" >&2
+		exit 1
+	fi
 elif ! grep -q 'TEST COMPLETE. EXIT CODE: 0' "$GAME_LOG"; then
 	tail -n 100 "$GAME_LOG" >&2
 	echo "Packaged game automation failed. Log: $GAME_LOG" >&2
@@ -241,14 +254,15 @@ fi
 
 if [[ ! -f "$REPORT_ROOT/Editor/index.json" ]] || \
 	! grep -q '"failed": 0' "$REPORT_ROOT/Editor/index.json" || \
+	! grep -q '"succeededWithWarnings": 0' "$REPORT_ROOT/Editor/index.json" || \
 	! grep -q '"notRun": 0' "$REPORT_ROOT/Editor/index.json"; then
-	echo "Editor automation report is missing or incomplete: $REPORT_ROOT/Editor" >&2
+	echo "Editor automation report is missing, incomplete, or contains warnings: $REPORT_ROOT/Editor" >&2
 	exit 1
 fi
 
 echo "Reports: $REPORT_ROOT"
 if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
-	echo "Editor tests and packaged Shipping benchmark passed for $ENGINE_VERSION."
+	echo "Editor tests and packaged Shipping smoke and benchmark passed for $ENGINE_VERSION."
 	echo "Shipping performance results: $PERFORMANCE_ROOT"
 else
 	echo "Editor and packaged game tests passed for $ENGINE_VERSION."

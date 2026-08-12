@@ -67,8 +67,8 @@ bool FDirectiveUtilEditorActorSubsystemFilterTest::RunTest(const FString& Parame
 	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 	if (!Cube || !Sphere)
 	{
-		AddInfo(TEXT("Engine basic shapes unavailable; skipping include/exclude behaviour test."));
-		return true;
+		AddError(TEXT("Engine basic shapes unavailable for the include/exclude behaviour test."));
+		return false;
 	}
 
 	UWorld* World = UWorld::CreateWorld(EWorldType::Editor, false);
@@ -133,8 +133,8 @@ bool FDirectiveUtilEditorActorSubsystemFilterCoverageTest::RunTest(const FString
 	UMaterialInterface* MatB = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
 	if (!Cube || !Sphere || !MatA || !MatB)
 	{
-		AddInfo(TEXT("Engine basic shapes/materials unavailable; skipping filter coverage test."));
-		return true;
+		AddError(TEXT("Engine basic shapes/materials unavailable for the filter coverage test."));
+		return false;
 	}
 
 	UWorld* World = UWorld::CreateWorld(EWorldType::Editor, false);
@@ -362,10 +362,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDirectiveUtilEditorActorSubsystemQueryAlignmen
 bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString& Parameters)
 {
 	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
-	if (!Cube)
+	UMaterialInterface* BasicMaterial = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	if (!Cube || !BasicMaterial)
 	{
-		AddInfo(TEXT("Engine basic shapes unavailable; skipping query alignment test."));
-		return true;
+		AddError(TEXT("Engine basic shapes or materials unavailable for the query alignment test."));
+		return false;
 	}
 
 	// The GetActorsBy* queries read from the editor world rather than a passed array.
@@ -380,8 +382,8 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	}
 	if (!EditorWorld)
 	{
-		AddInfo(TEXT("No editor world available; skipping query alignment test."));
-		return true;
+		AddError(TEXT("No editor world available for the query alignment test."));
+		return false;
 	}
 
 	AActor* MeshActor = EditorWorld->SpawnActor<AActor>();
@@ -393,6 +395,7 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	MeshComponent->SetMobility(EComponentMobility::Movable);
 	MeshComponent->SetupAttachment(Root);
 	MeshComponent->SetStaticMesh(Cube);
+	MeshComponent->SetMaterial(0, BasicMaterial);
 	MeshComponent->RegisterComponent();
 	MeshActor->AddInstanceComponent(MeshComponent);
 	MeshActor->SetActorLocation(FVector::ZeroVector);
@@ -413,6 +416,23 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	Subsystem->GetActorsByStaticMeshName(ByName, TEXT("cub"), World, Include);
 	TestTrue("StaticMeshName: lowercase substring finds the actor", ByName.Contains(MeshActor));
 
+	TArray<AActor*> ByMaterial;
+	Subsystem->GetActorsByMaterial(ByMaterial, BasicMaterial, OverrideOnly, World, Include);
+	TestTrue("Material: generic actor with a static mesh component is included", ByMaterial.Contains(MeshActor));
+	TArray<AActor*> ByMaterialSoftReference;
+	Subsystem->GetActorsByMaterialSoftReference(
+		ByMaterialSoftReference, BasicMaterial, OverrideOnly, World, Include);
+	TestTrue("Material soft reference: generic actor with a static mesh component is included",
+		ByMaterialSoftReference.Contains(MeshActor));
+	TArray<AActor*> ByMaterialName;
+	Subsystem->GetActorsByMaterialName(
+		ByMaterialName, BasicMaterial->GetName(), OverrideOnly, World, Include);
+	TestTrue("Material name: generic actor with a static mesh component is included",
+		ByMaterialName.Contains(MeshActor));
+	TArray<AActor*> WithoutMaterial;
+	Subsystem->GetActorsByMaterial(WithoutMaterial, BasicMaterial, OverrideOnly, World, Exclude);
+	TestFalse("Material exclude: matching generic actor is excluded", WithoutMaterial.Contains(MeshActor));
+
 	// Mobility: the root component's mobility is what counts.
 	const TArray<AActor*> Source = { MeshActor };
 	TArray<AActor*> MovableActors;
@@ -423,6 +443,47 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	TestFalse("Mobility: static does not match a movable root", StaticActors.Contains(MeshActor));
 
 	EditorWorld->DestroyActor(MeshActor);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDirectiveUtilPushOverrideMaterialsTest, "DirectiveUtilities.PushOverrideMaterialsTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FDirectiveUtilPushOverrideMaterialsTest::RunTest(const FString& Parameters)
+{
+	UMaterialInterface* BaseMaterial = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	UMaterialInterface* OverrideMaterial = LoadObject<UMaterialInterface>(
+		nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+	UStaticMesh* Cube = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (!BaseMaterial || !OverrideMaterial || !Cube)
+	{
+		AddError(TEXT("Engine materials unavailable for the override material test."));
+		return false;
+	}
+
+	UStaticMesh* StaticMesh = DuplicateObject<UStaticMesh>(Cube, GetTransientPackage());
+	StaticMesh->GetStaticMaterials()[0].MaterialInterface = BaseMaterial;
+	UStaticMeshComponent* StaticMeshComponent = NewObject<UStaticMeshComponent>(GetTransientPackage());
+	StaticMeshComponent->SetStaticMesh(StaticMesh);
+	StaticMeshComponent->SetMaterial(0, OverrideMaterial);
+
+	UDirectiveUtilEditorActorSubsystem::PushOverrideMaterialsToSource(StaticMeshComponent);
+	TestEqual("Override material is copied to its source slot", StaticMesh->GetMaterial(0), OverrideMaterial);
+
+	UStaticMesh* MeshWithoutOverride = DuplicateObject<UStaticMesh>(Cube, GetTransientPackage());
+	MeshWithoutOverride->GetStaticMaterials()[0].MaterialInterface = BaseMaterial;
+	UStaticMeshComponent* ComponentWithoutOverride = NewObject<UStaticMeshComponent>(GetTransientPackage());
+	ComponentWithoutOverride->SetStaticMesh(MeshWithoutOverride);
+	UDirectiveUtilEditorActorSubsystem::PushOverrideMaterialsToSource(ComponentWithoutOverride);
+	TestEqual("A source slot is unchanged when the component has no override",
+		MeshWithoutOverride->GetMaterial(0), BaseMaterial);
+
+	AddExpectedError(TEXT("Static Mesh Component is invalid."), EAutomationExpectedErrorFlags::Exact, 1);
+	UDirectiveUtilEditorActorSubsystem::PushOverrideMaterialsToSource(nullptr);
+	UStaticMeshComponent* ComponentWithoutMesh = NewObject<UStaticMeshComponent>(GetTransientPackage());
+	AddExpectedError(TEXT("Static Mesh Component has no valid static mesh."), EAutomationExpectedErrorFlags::Exact, 1);
+	UDirectiveUtilEditorActorSubsystem::PushOverrideMaterialsToSource(ComponentWithoutMesh);
 
 	return true;
 }

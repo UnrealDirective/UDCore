@@ -9,6 +9,7 @@
 #include "Containers/ScriptArray.h"
 #include "Kismet/KismetArrayLibrary.h"
 #include "Misc/ComparisonUtility.h"
+#include "UObject/Class.h"
 
 namespace
 {
@@ -67,6 +68,7 @@ namespace
 	{
 		int32 SourceIndex;
 		int32 Count;
+		int32 HashNext = INDEX_NONE;
 	};
 
 	struct FWeightedSampleCandidate
@@ -104,6 +106,38 @@ namespace
 				const int32 GroupIndex = OutGroups.Num();
 				OutGroups.Add({SourceIndex, 1});
 				GroupIndices.Add(Key, GroupIndex);
+			}
+			return;
+		}
+
+		const FStructProperty* StructProperty = CastField<FStructProperty>(InnerProperty);
+		const UScriptStruct::ICppStructOps* StructOps = StructProperty ? StructProperty->Struct->GetCppStructOps() : nullptr;
+		if (StructProperty && (!StructOps || !StructOps->HasIdentical()))
+		{
+			TMap<uint32, int32> GroupHeads;
+			GroupHeads.Reserve(Num);
+			for (int32 SourceIndex = 0; SourceIndex < Num; ++SourceIndex)
+			{
+				const void* Value = SourceHelper.GetRawPtr(SourceIndex);
+				FString ExportedValue;
+				InnerProperty->ExportTextItem_Direct(ExportedValue, Value, nullptr, nullptr, PPF_None);
+				const uint32 Hash = GetTypeHash(ExportedValue);
+				const int32* Head = GroupHeads.Find(Hash);
+				int32 GroupIndex = Head ? *Head : INDEX_NONE;
+				while (GroupIndex != INDEX_NONE &&
+					!InnerProperty->Identical(Value, SourceHelper.GetRawPtr(OutGroups[GroupIndex].SourceIndex)))
+				{
+					GroupIndex = OutGroups[GroupIndex].HashNext;
+				}
+
+				if (GroupIndex != INDEX_NONE)
+				{
+					++OutGroups[GroupIndex].Count;
+					continue;
+				}
+
+				const int32 NewGroupIndex = OutGroups.Add({SourceIndex, 1, Head ? *Head : INDEX_NONE});
+				GroupHeads.Add(Hash, NewGroupIndex);
 			}
 			return;
 		}

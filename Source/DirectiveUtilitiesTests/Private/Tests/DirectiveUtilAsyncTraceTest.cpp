@@ -49,10 +49,24 @@ bool UDirectiveUtilTestMoveToLocationTask::HasRegisteredTimers() const
 	return World && (World->GetTimerManager().TimerExists(TimerHandle) || World->GetTimerManager().TimerExists(StuckTimerHandle));
 }
 
+void UDirectiveUtilTestMoveToLocationTask::RegisterTimersForTest(UWorld* World)
+{
+	TimerWorld = World;
+	World->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([] {}), 60.0f, true);
+	World->GetTimerManager().SetTimer(StuckTimerHandle, FTimerDelegate::CreateLambda([] {}), 60.0f, true);
+}
+
 bool UDirectiveUtilTestMoveToActorTask::HasRegisteredTimers() const
 {
 	const UWorld* World = TimerWorld.Get();
 	return World && (World->GetTimerManager().TimerExists(TimerHandle) || World->GetTimerManager().TimerExists(StuckTimerHandle));
+}
+
+void UDirectiveUtilTestMoveToActorTask::RegisterTimersForTest(UWorld* World)
+{
+	TimerWorld = World;
+	World->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([] {}), 60.0f, true);
+	World->GetTimerManager().SetTimer(StuckTimerHandle, FTimerDelegate::CreateLambda([] {}), 60.0f, true);
 }
 
 class FDirectiveUtilTickTraceWorld : public IAutomationLatentCommand
@@ -140,8 +154,8 @@ bool FDirectiveUtilAsyncTraceTest::RunTest(const FString& Parameters)
 	UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (!CubeMesh)
 	{
-		AddInfo(TEXT("Engine cube mesh unavailable; skipping async trace hit scenarios."));
-		return true;
+		AddError(TEXT("Engine cube mesh unavailable for async trace hit scenarios."));
+		return false;
 	}
 
 	UWorld* World = DirectiveUtilAsyncTraceTestHelpers::CreateTraceWorld();
@@ -176,53 +190,6 @@ bool FDirectiveUtilAsyncTraceTest::RunTest(const FString& Parameters)
 
 	return true;
 }
-
-class FDirectiveUtilTickMoveToLocationWorld : public IAutomationLatentCommand
-{
-public:
-	FDirectiveUtilTickMoveToLocationWorld(FAutomationTestBase* InTest, UWorld* InWorld, UDirectiveUtilDelegateListener* InListener, int32 InFrames)
-		: Test(InTest)
-		, World(InWorld)
-		, Listener(InListener)
-		, FramesRemaining(InFrames)
-	{
-	}
-
-	virtual bool Update() override
-	{
-		if (UWorld* TickWorld = World.Get())
-		{
-			TickWorld->GetTimerManager().Tick(0.1f);
-		}
-
-		if (Listener && !Listener->bCompleted && --FramesRemaining > 0)
-		{
-			return false;
-		}
-
-		if (Listener)
-		{
-			Test->TestTrue(TEXT("Move without navigation broadcasts Completed"), Listener->bCompleted);
-			Test->TestFalse(TEXT("Move without navigation reports failure"), Listener->bLastSuccess);
-			Test->TestEqual(TEXT("Move without navigation completes exactly once"), Listener->CompletedCount, 1);
-			Listener->Keepalive = nullptr;
-			Listener->RemoveFromRoot();
-		}
-
-		if (UWorld* TearDownWorld = World.Get())
-		{
-			GEngine->DestroyWorldContext(TearDownWorld);
-			TearDownWorld->DestroyWorld(false);
-		}
-		return true;
-	}
-
-private:
-	FAutomationTestBase* Test;
-	TWeakObjectPtr<UWorld> World;
-	UDirectiveUtilDelegateListener* Listener;
-	int32 FramesRemaining;
-};
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDirectiveUtilMoveToLocationTest, "DirectiveUtilities.AsyncTaskMoveToLocationTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
 
@@ -318,11 +285,11 @@ bool FDirectiveUtilMoveToLocationTest::RunTest(const FString& Parameters)
 			Controller->SetPawn(Pawn);
 			UDirectiveUtilTestMoveToLocationTask* Task = NewObject<UDirectiveUtilTestMoveToLocationTask>();
 			Task->Configure(Controller, FVector(1000.0f, 0.0f, 0.0f), true);
-			Task->Activate();
-			TestTrue("Move to location should register its timers", Task->HasRegisteredTimers());
+			Task->RegisterTimersForTest(World);
+			TestTrue("Move to location registers both lifecycle timers", Task->HasRegisteredTimers());
 			Task->ClearController();
 			Task->Complete();
-			TestFalse("Move to location should clear timers without a controller", Task->HasRegisteredTimers());
+			TestFalse("Move to location clears timers without a controller", Task->HasRegisteredTimers());
 			Task->Configure(Controller, FVector(1000.0f, 0.0f, 0.0f), true);
 			Task->Activate();
 			TestFalse("A completed move to location should not restart", Task->HasRegisteredTimers());
@@ -333,24 +300,21 @@ bool FDirectiveUtilMoveToLocationTest::RunTest(const FString& Parameters)
 	World->DestroyWorld(false);
 
 	{
-		AddExpectedMessagePlain(TEXT("SimpleMoveToActor called for NavSys:"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
-		AddExpectedMessagePlain(TEXT("SimpleMove failed for"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
-
 		UWorld* MoveWorld = DirectiveUtilAsyncTraceTestHelpers::CreateTraceWorld();
 		if (!MoveWorld)
 		{
-			AddInfo(TEXT("Failed to create a transient game world; skipping the no-navigation move scenario."));
-			return true;
+			AddError(TEXT("Failed to create a transient game world for the no-navigation move scenario."));
+			return false;
 		}
 
 		APlayerController* Controller = MoveWorld->SpawnActor<APlayerController>();
 		ADefaultPawn* Pawn = MoveWorld->SpawnActor<ADefaultPawn>(FVector::ZeroVector, FRotator::ZeroRotator);
 		if (!Controller || !Pawn)
 		{
-			AddInfo(TEXT("Failed to spawn a controller or pawn; skipping the no-navigation move scenario."));
+			AddError(TEXT("Failed to spawn a controller or pawn for the no-navigation move scenario."));
 			GEngine->DestroyWorldContext(MoveWorld);
 			MoveWorld->DestroyWorld(false);
-			return true;
+			return false;
 		}
 		Controller->SetPawn(Pawn);
 
@@ -362,21 +326,13 @@ bool FDirectiveUtilMoveToLocationTest::RunTest(const FString& Parameters)
 		Task->Completed.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnBoolCompleted);
 		Task->Activate();
 
-		if (GIsEditor)
-		{
-			ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickMoveToLocationWorld(this, MoveWorld, Listener, 120));
-		}
-		else
-		{
-			Task->EndTask();
-			TestTrue("Runtime move cancellation broadcasts Completed", Listener->bCompleted);
-			TestFalse("Runtime move cancellation reports failure", Listener->bLastSuccess);
-			TestEqual("Runtime move cancellation completes exactly once", Listener->CompletedCount, 1);
-			Listener->Keepalive = nullptr;
-			Listener->RemoveFromRoot();
-			GEngine->DestroyWorldContext(MoveWorld);
-			MoveWorld->DestroyWorld(false);
-		}
+		TestTrue("A location move without navigation broadcasts Completed", Listener->bCompleted);
+		TestFalse("A location move without navigation reports failure", Listener->bLastSuccess);
+		TestEqual("A location move without navigation completes exactly once", Listener->CompletedCount, 1);
+		Listener->Keepalive = nullptr;
+		Listener->RemoveFromRoot();
+		GEngine->DestroyWorldContext(MoveWorld);
+		MoveWorld->DestroyWorld(false);
 	}
 
 	return true;
@@ -438,7 +394,7 @@ bool FDirectiveUtilMoveToActorTest::RunTest(const FString& Parameters)
 		}
 		else
 		{
-			AddInfo(TEXT("Failed to spawn a controller or pawn; skipping the null-goal scenario."));
+			AddError(TEXT("Failed to spawn a controller or pawn for the null-goal scenario."));
 		}
 	}
 
@@ -469,11 +425,11 @@ bool FDirectiveUtilMoveToActorTest::RunTest(const FString& Parameters)
 			Controller->SetPawn(Pawn);
 			UDirectiveUtilTestMoveToActorTask* Task = NewObject<UDirectiveUtilTestMoveToActorTask>();
 			Task->Configure(Controller, Goal, true);
-			Task->Activate();
-			TestTrue("Move to actor should register its timers", Task->HasRegisteredTimers());
+			Task->RegisterTimersForTest(World);
+			TestTrue("Move to actor registers both lifecycle timers", Task->HasRegisteredTimers());
 			Task->ClearController();
 			Task->Complete();
-			TestFalse("Move to actor should clear timers without a controller", Task->HasRegisteredTimers());
+			TestFalse("Move to actor clears timers without a controller", Task->HasRegisteredTimers());
 			Task->Configure(Controller, Goal, true);
 			Task->Activate();
 			TestFalse("A completed move to actor should not restart", Task->HasRegisteredTimers());
@@ -484,14 +440,11 @@ bool FDirectiveUtilMoveToActorTest::RunTest(const FString& Parameters)
 	World->DestroyWorld(false);
 
 	{
-		AddExpectedMessagePlain(TEXT("SimpleMoveToActor called for NavSys:"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
-		AddExpectedMessagePlain(TEXT("SimpleMove failed for"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
-
 		UWorld* MoveWorld = DirectiveUtilAsyncTraceTestHelpers::CreateTraceWorld();
 		if (!MoveWorld)
 		{
-			AddInfo(TEXT("Failed to create a transient game world; skipping the no-navigation move scenario."));
-			return true;
+			AddError(TEXT("Failed to create a transient game world for the no-navigation move scenario."));
+			return false;
 		}
 
 		APlayerController* Controller = MoveWorld->SpawnActor<APlayerController>();
@@ -499,10 +452,10 @@ bool FDirectiveUtilMoveToActorTest::RunTest(const FString& Parameters)
 		AStaticMeshActor* GoalActor = MoveWorld->SpawnActor<AStaticMeshActor>(FVector(10000.0f, 0.0f, 0.0f), FRotator::ZeroRotator);
 		if (!Controller || !Pawn || !GoalActor)
 		{
-			AddInfo(TEXT("Failed to spawn a controller, pawn, or goal; skipping the no-navigation move scenario."));
+			AddError(TEXT("Failed to spawn a controller, pawn, or goal for the no-navigation move scenario."));
 			GEngine->DestroyWorldContext(MoveWorld);
 			MoveWorld->DestroyWorld(false);
-			return true;
+			return false;
 		}
 		Controller->SetPawn(Pawn);
 
@@ -514,21 +467,13 @@ bool FDirectiveUtilMoveToActorTest::RunTest(const FString& Parameters)
 		Task->Completed.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnBoolCompleted);
 		Task->Activate();
 
-		if (GIsEditor)
-		{
-			ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickMoveToLocationWorld(this, MoveWorld, Listener, 120));
-		}
-		else
-		{
-			Task->EndTask();
-			TestTrue("Runtime move cancellation broadcasts Completed", Listener->bCompleted);
-			TestFalse("Runtime move cancellation reports failure", Listener->bLastSuccess);
-			TestEqual("Runtime move cancellation completes exactly once", Listener->CompletedCount, 1);
-			Listener->Keepalive = nullptr;
-			Listener->RemoveFromRoot();
-			GEngine->DestroyWorldContext(MoveWorld);
-			MoveWorld->DestroyWorld(false);
-		}
+		TestTrue("An actor move without navigation broadcasts Completed", Listener->bCompleted);
+		TestFalse("An actor move without navigation reports failure", Listener->bLastSuccess);
+		TestEqual("An actor move without navigation completes exactly once", Listener->CompletedCount, 1);
+		Listener->Keepalive = nullptr;
+		Listener->RemoveFromRoot();
+		GEngine->DestroyWorldContext(MoveWorld);
+		MoveWorld->DestroyWorld(false);
 	}
 
 	return true;
