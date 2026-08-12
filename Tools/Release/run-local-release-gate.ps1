@@ -119,8 +119,15 @@ try {
     $PerformanceCandidateAttempt3 = Join-Path $PerformanceRoot "candidate-attempt-3.csv"
     & Tests\Performance\run-runtime-benchmarks.ps1 `
         -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceWarmup
-    & Tests\Performance\run-runtime-benchmarks.ps1 `
-        -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceBaseline
+    $PerformanceBaselineRuns = 1..3 | ForEach-Object {
+        $BaselineRun = Join-Path $PerformanceRoot "baseline-run-$_.csv"
+        & Tests\Performance\run-runtime-benchmarks.ps1 `
+            -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $BaselineRun
+        $BaselineRun
+    }
+    & py -3 Tools\Release\aggregate_performance_baselines.py `
+        --output $PerformanceBaseline @PerformanceBaselineRuns
+    if ($LASTEXITCODE -ne 0) { throw "Performance baseline aggregation failed." }
     try {
         & Tests\Performance\run-runtime-benchmarks.ps1 `
             -EngineRoot $EngineRoots[2] -ProjectFile $PerformanceProject -OutputFile $PerformanceCandidateAttempt1 `

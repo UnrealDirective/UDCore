@@ -64,8 +64,15 @@ PERFORMANCE_ROOT="$REPOSITORY_ROOT/Build/Performance/ReleaseGate"
 PERFORMANCE_PROJECT="$REPOSITORY_ROOT/Build/RuntimeHost/UE_5.8/Development/Project/DirectiveUtilitiesRuntimeHost.uproject"
 Tests/Performance/run-runtime-benchmarks.sh \
 	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/warmup.csv"
-Tests/Performance/run-runtime-benchmarks.sh \
-	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/baseline.csv"
+BASELINE_RUNS=()
+for BASELINE_INDEX in 1 2 3; do
+	BASELINE_RUN="$PERFORMANCE_ROOT/baseline-run-$BASELINE_INDEX.csv"
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$BASELINE_RUN"
+	BASELINE_RUNS+=("$BASELINE_RUN")
+done
+python3 Tools/Release/aggregate_performance_baselines.py \
+	--output "$PERFORMANCE_ROOT/baseline.csv" "${BASELINE_RUNS[@]}"
 if Tests/Performance/run-runtime-benchmarks.sh \
 	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-1.csv" \
 	"$PERFORMANCE_ROOT/baseline.csv"; then

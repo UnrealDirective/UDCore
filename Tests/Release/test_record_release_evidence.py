@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from Tools.Release.aggregate_performance_baselines import BaselineError, aggregate
 from Tools.Release.record_release_evidence import (
     EvidenceError,
     artifact_path,
@@ -103,6 +104,61 @@ class ReleaseEvidenceTest(unittest.TestCase):
         for gate in (windows_gate, unix_gate):
             self.assertIn("candidate-attempt-2.csv", gate)
             self.assertIn("candidate-attempt-3.csv", gate)
+            self.assertIn("aggregate_performance_baselines.py", gate)
+
+    def test_performance_baseline_uses_median_across_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = []
+            for index, median in enumerate((4.0, 40.0, 6.0), start=1):
+                path = root / f"run-{index}.csv"
+                path.write_text(
+                    "#engine,5.8\n"
+                    "#platform,Mac\n"
+                    "#revision,abc123\n"
+                    "benchmark,element_count,parameter,median_ms,min_ms,max_ms,samples,baseline_median_ms,speedup,change_percent\n"
+                    f"GetDistinct,1000,0,{median},{median - 1},{median + 1},7,,,\n",
+                    encoding="utf-8",
+                )
+                inputs.append(path)
+            output = root / "baseline.csv"
+            aggregate(inputs, output)
+            contents = output.read_text(encoding="utf-8")
+            self.assertIn("#aggregate_runs,3", contents)
+            self.assertIn("GetDistinct,1000,0,6.000000000,3.000000000,41.000000000,21", contents)
+
+    def test_performance_baseline_rejects_mismatched_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = []
+            for index in range(3):
+                path = root / f"run-{index}.csv"
+                benchmark = "GetDistinct" if index < 2 else "GetMostCommon"
+                path.write_text(
+                    "#engine,5.8\n"
+                    "benchmark,element_count,parameter,median_ms,min_ms,max_ms,samples,baseline_median_ms,speedup,change_percent\n"
+                    f"{benchmark},1000,0,5,4,6,7,,,\n",
+                    encoding="utf-8",
+                )
+                inputs.append(path)
+            with self.assertRaisesRegex(BaselineError, "rows do not match"):
+                aggregate(inputs, root / "baseline.csv")
+
+    def test_performance_baseline_rejects_invalid_measurements(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = []
+            for index in range(3):
+                path = root / f"run-{index}.csv"
+                path.write_text(
+                    "#engine,5.8\n"
+                    "benchmark,element_count,parameter,median_ms,min_ms,max_ms,samples,baseline_median_ms,speedup,change_percent\n"
+                    "GetDistinct,1000,0,nan,4,6,7,,,\n",
+                    encoding="utf-8",
+                )
+                inputs.append(path)
+            with self.assertRaisesRegex(BaselineError, "Invalid performance value"):
+                aggregate(inputs, root / "baseline.csv")
 
     def test_linux_evidence_requires_both_configurations(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
