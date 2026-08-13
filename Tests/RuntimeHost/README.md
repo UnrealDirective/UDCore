@@ -16,6 +16,16 @@ On Windows:
 Tests\RuntimeHost\Scripts\run-windows.ps1 "C:\Program Files\Epic Games\UE_5.8"
 ```
 
+The runners impose a 30-minute timeout on each Editor or packaged-game test
+process and require exactly 54 successful tests in the editor host and 35
+runtime-safe tests in packaged Development. A non-zero process exit, missing
+report, changed test census, duplicate
+test path, warning, skipped test, or missing completion marker fails the run.
+Use `-TestTimeoutSeconds` on Windows or
+`DIRECTIVE_UTILITIES_TEST_TIMEOUT_SECONDS` on macOS/Linux to adjust the watchdog.
+Windows release validation also runs the UE 5.8 Development tests with
+`-StompMalloc` to expose guarded-allocation memory errors.
+
 Run the command once per supported engine installation. Each runner creates a clean project under `Build/RuntimeHost/UE_5.x/<Configuration>`, builds the editor target, runs editor automation, packages the requested game configuration, and runs its validation. Development and Shipping evidence is retained separately.
 
 On Windows, keep the repository path short enough for Unreal's 260-character action-path limit. The runner checks its longest generated path before starting a build and reports this requirement directly.

@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshActor.h"
+#include "Engine/Texture2D.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -264,6 +265,31 @@ bool FDirectiveUtilEditorActorSubsystemFilterCoverageTest::RunTest(const FString
 		TestTrue("ByBounds around A's size => A", RunFilter([&](const TArray<AActor*>& S, TArray<AActor*>& O){ UDirectiveUtilEditorActorSubsystem::FilterActorsByBounds(S, O, Size - FVector(1.0f), Size + FVector(1.0f), Include); }).Contains(ActorA));
 	}
 
+	// Static-mesh bounds use the source mesh dimensions, independently of actor transform.
+	{
+		const FVector MeshSize = Cube->GetBounds().BoxExtent * 2.0f;
+		const TArray<AActor*> Match = RunFilter([&](const TArray<AActor*>& S, TArray<AActor*>& O)
+		{
+			UDirectiveUtilEditorActorSubsystem::FilterActorsByStaticMeshBounds(
+				S, O, MeshSize - FVector(1.0f), MeshSize + FVector(1.0f), Include);
+		});
+		TestTrue("ByStaticMeshBounds includes the cube actor", Match.Contains(ActorA));
+		TestFalse("ByStaticMeshBounds excludes the actor without a mesh", Match.Contains(ActorC));
+	}
+
+	// Override lightmap resolution is a distinct search lane from the mesh default.
+	{
+		CompA->bOverrideLightMapRes = true;
+		CompA->OverriddenLightMapRes = 128;
+		const TArray<AActor*> Match = RunFilter([](const TArray<AActor*>& S, TArray<AActor*>& O)
+		{
+			UDirectiveUtilEditorActorSubsystem::FilterActorsByLightmapResolution(
+				S, O, 128, 128, OverrideOnly, Include);
+		});
+		TestTrue("ByLightmapResolution finds the exact override", Match.Contains(ActorA));
+		TestFalse("ByLightmapResolution rejects a different override", Match.Contains(ActorB));
+	}
+
 	// World location: A at origin, B far away.
 	{
 		const TArray<AActor*> Near = RunFilter([](const TArray<AActor*>& S, TArray<AActor*>& O){ UDirectiveUtilEditorActorSubsystem::FilterActorsByWorldLocation(S, O, FVector::ZeroVector, 50.0f, Include); });
@@ -274,6 +300,39 @@ bool FDirectiveUtilEditorActorSubsystemFilterCoverageTest::RunTest(const FString
 	{
 		TestEqual("ByTextureName(absent) Include => none", RunFilter([](const TArray<AActor*>& S, TArray<AActor*>& O){ UDirectiveUtilEditorActorSubsystem::FilterActorsByTextureName(S, O, TEXT("__udcore_absent_texture__"), BaseAndOverride, Include); }).Num(), 0);
 		TestEqual("ByTextureName(absent) Exclude => all", RunFilter([](const TArray<AActor*>& S, TArray<AActor*>& O){ UDirectiveUtilEditorActorSubsystem::FilterActorsByTextureName(S, O, TEXT("__udcore_absent_texture__"), BaseAndOverride, Exclude); }).Num(), 3);
+	}
+
+	// Texture-reference filtering must follow the same include/exclude contract.
+	{
+		UTexture2D* AbsentTexture = NewObject<UTexture2D>(GetTransientPackage());
+		const TArray<AActor*> Inc = RunFilter([&](const TArray<AActor*>& S, TArray<AActor*>& O)
+		{
+			UDirectiveUtilEditorActorSubsystem::FilterActorsByTexture(S, O, AbsentTexture, BaseAndOverride, Include);
+		});
+		const TArray<AActor*> Exc = RunFilter([&](const TArray<AActor*>& S, TArray<AActor*>& O)
+		{
+			UDirectiveUtilEditorActorSubsystem::FilterActorsByTexture(S, O, AbsentTexture, BaseAndOverride, Exclude);
+		});
+		TestEqual("ByTexture(absent) Include returns none", Inc.Num(), 0);
+		TestEqual("ByTexture(absent) Exclude returns every valid source actor", Exc.Num(), Src.Num());
+	}
+
+	// Missing-resource convenience filters are semantic aliases, not merely spawn-tested nodes.
+	{
+		UStaticMesh* MissingMaterialMesh = DuplicateObject<UStaticMesh>(Cube, GetTransientPackage());
+		MissingMaterialMesh->SetMaterial(0, nullptr);
+		UStaticMeshComponent* MissingMaterialComp = SpawnMesh(MissingMaterialMesh, EComponentMobility::Static);
+		UStaticMeshComponent* MissingMeshComp = SpawnMesh(nullptr, EComponentMobility::Static);
+		const TArray<AActor*> MissingSource = { MissingMaterialComp->GetOwner(), MissingMeshComp->GetOwner(), ActorA };
+		TArray<AActor*> MissingMaterials;
+		UDirectiveUtilEditorActorSubsystem::FilterActorsByMissingMaterials(
+			MissingSource, MissingMaterials, BaseOnly, Include);
+		TestTrue("MissingMaterials finds the null source material", MissingMaterials.Contains(MissingMaterialComp->GetOwner()));
+		TestFalse("MissingMaterials rejects the valid cube material", MissingMaterials.Contains(ActorA));
+		TArray<AActor*> MissingMeshes;
+		UDirectiveUtilEditorActorSubsystem::FilterActorsByMissingStaticMeshes(MissingSource, MissingMeshes, Include);
+		TestTrue("MissingStaticMeshes finds a mesh component with no mesh", MissingMeshes.Contains(MissingMeshComp->GetOwner()));
+		TestFalse("MissingStaticMeshes rejects a valid mesh", MissingMeshes.Contains(ActorA));
 	}
 
 	{
@@ -403,6 +462,10 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	// The query methods keep no instance state, so a transient instance is enough headless.
 	UDirectiveUtilEditorActorSubsystem* Subsystem = NewObject<UDirectiveUtilEditorActorSubsystem>();
 
+	TArray<AActor*> ByClass;
+	Subsystem->GetActorsByClass(ByClass, AActor::StaticClass(), World, Include);
+	TestTrue("Class: AActor query finds the fixture actor", ByClass.Contains(MeshActor));
+
 	// Bounding box: an enclosing box finds the actor, a disjoint one does not.
 	TArray<AActor*> InBox;
 	Subsystem->GetActorsByBoundingBox(InBox, FVector(-100000.0f), FVector(100000.0f), World, Include);
@@ -432,6 +495,64 @@ bool FDirectiveUtilEditorActorSubsystemQueryAlignmentTest::RunTest(const FString
 	TArray<AActor*> WithoutMaterial;
 	Subsystem->GetActorsByMaterial(WithoutMaterial, BasicMaterial, OverrideOnly, World, Exclude);
 	TestFalse("Material exclude: matching generic actor is excluded", WithoutMaterial.Contains(MeshActor));
+
+	const int32 VertexCount = Cube->GetNumVertices(0);
+	TArray<AActor*> ByVertexCount;
+	Subsystem->GetActorsByVertexCount(ByVertexCount, VertexCount, VertexCount, World, Include);
+	TestTrue("VertexCount: exact range finds the fixture actor", ByVertexCount.Contains(MeshActor));
+	const int32 TriangleCount = Cube->GetNumTriangles(0);
+	TArray<AActor*> ByTriangleCount;
+	Subsystem->GetActorsByTriCount(ByTriangleCount, TriangleCount, TriangleCount, World, Include);
+	TestTrue("TriangleCount: exact range finds the fixture actor", ByTriangleCount.Contains(MeshActor));
+
+	const float MeshSize = Cube->GetBoundingBox().GetSize().Size();
+	TArray<AActor*> ByMeshSize;
+	Subsystem->GetActorsByMeshSize(ByMeshSize, MeshSize - 1.0f, MeshSize + 1.0f, World, Include);
+	TestTrue("MeshSize: enclosing range finds the fixture actor", ByMeshSize.Contains(MeshActor));
+	TArray<AActor*> ByWorldLocation;
+	Subsystem->GetActorsByWorldLocation(ByWorldLocation, FVector::ZeroVector, 100.0f, World, Include);
+	TestTrue("WorldLocation: nearby query finds the fixture actor", ByWorldLocation.Contains(MeshActor));
+
+	const int32 LODCount = Cube->GetNumLODs();
+	TArray<AActor*> ByLODCount;
+	Subsystem->GetActorsByLODCount(ByLODCount, LODCount, LODCount, World, Include);
+	TestTrue("LODCount: exact range finds the fixture actor", ByLODCount.Contains(MeshActor));
+	TArray<AActor*> NaniteOff;
+	TArray<AActor*> NaniteOn;
+	Subsystem->GetActorsByNaniteEnabled(NaniteOff, false, World, Include);
+	Subsystem->GetActorsByNaniteEnabled(NaniteOn, true, World, Include);
+	TestTrue("Nanite: fixture belongs to exactly one state", NaniteOff.Contains(MeshActor) != NaniteOn.Contains(MeshActor));
+
+	const int32 SourceLightmapResolution = Cube->GetLightMapResolution();
+	TArray<AActor*> ByLightmapResolution;
+	Subsystem->GetActorsByLightmapResolution(
+		ByLightmapResolution, SourceLightmapResolution, SourceLightmapResolution, World, Include);
+	TestTrue("LightmapResolution: exact source resolution finds the fixture actor", ByLightmapResolution.Contains(MeshActor));
+	TArray<AActor*> ByMobility;
+	Subsystem->GetActorsByMobility(ByMobility, EComponentMobility::Movable, World, Include);
+	TestTrue("Mobility query finds the movable fixture actor", ByMobility.Contains(MeshActor));
+
+	TArray<AActor*> ByStaticMesh;
+	Subsystem->GetActorsByStaticMesh(ByStaticMesh, Cube, World, Include);
+	TestTrue("StaticMesh reference query finds the fixture actor", ByStaticMesh.Contains(MeshActor));
+	TArray<AActor*> ByStaticMeshSoft;
+	Subsystem->GetActorsByStaticMeshSoftReference(ByStaticMeshSoft, Cube, World, Include);
+	TestTrue("StaticMesh soft-reference query finds the fixture actor", ByStaticMeshSoft.Contains(MeshActor));
+
+	UTexture2D* AbsentTexture = NewObject<UTexture2D>(GetTransientPackage());
+	TArray<AActor*> ByTexture;
+	Subsystem->GetActorsByTexture(ByTexture, AbsentTexture, World, Include);
+	TestFalse("Texture reference query rejects an absent texture", ByTexture.Contains(MeshActor));
+	TArray<AActor*> ByTextureSoft;
+	Subsystem->GetActorsByTextureSoftReference(ByTextureSoft, AbsentTexture, World, Include);
+	TestFalse("Texture soft-reference query rejects an absent texture", ByTextureSoft.Contains(MeshActor));
+	TArray<AActor*> ByTextureName;
+	Subsystem->GetActorsByTextureName(ByTextureName, TEXT("__udcore_absent_texture__"), World, Include);
+	TestFalse("Texture-name query rejects an absent texture", ByTextureName.Contains(MeshActor));
+
+	TArray<AActor*> InvalidActors = { MeshActor };
+	Subsystem->GetInvalidActors(InvalidActors);
+	TestEqual("GetInvalidActors resets its deprecated output", InvalidActors.Num(), 0);
 
 	// Mobility: the root component's mobility is what counts.
 	const TArray<AActor*> Source = { MeshActor };

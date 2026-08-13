@@ -43,7 +43,8 @@ public:
 	 * Returns the angle in degrees between two vectors.
 	 * @param A - The first vector.
 	 * @param B - The second vector.
-	 * @returns The angle between the two vectors in degrees.
+	 * @returns The angle between the two vectors in degrees, or 0 if either
+	 *          vector is zero or non-finite.
 	 */
 	UFUNCTION(BlueprintPure, meta = (BlueprintThreadSafe), Category = "Directive Utilities|Math|Vector")
 	static float AngleBetweenVectors(const FVector& A, const FVector& B);
@@ -61,19 +62,23 @@ public:
 
 	/**
 	 * Returns the shortest signed difference in degrees from one angle to another.
+	 * Exactly opposite angles always return +180, regardless of how the inputs are spelled.
 	 * @param From - The starting angle in degrees.
 	 * @param To - The target angle in degrees.
-	 * @returns The signed difference in the [-180, 180] range, or 0 for non-finite input.
+	 * @returns The signed difference in the (-180, 180] range, or 0 for non-finite input.
 	 */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Delta Angle (Degrees)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
 	static float DeltaAngle(float From, float To);
 
 	/**
 	 * Interpolates between two angles along the shortest path.
+	 * Alpha 0 returns A. Values outside [0, 1] extrapolate along that same
+	 * shortest-path direction without wrapping, so a timeline past the end
+	 * does not jump the seam.
 	 * @param A - The starting angle in degrees.
 	 * @param B - The target angle in degrees.
 	 * @param Alpha - The interpolation alpha. Values outside [0, 1] extrapolate.
-	 * @returns The interpolated angle in the [-180, 180] range, or 0 for non-finite input.
+	 * @returns A plus the shortest signed delta to B, scaled by Alpha, or 0 for non-finite input.
 	 */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Lerp Angle (Degrees)", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
 	static float LerpAngle(float A, float B, float Alpha);
@@ -104,7 +109,8 @@ public:
 
 	/**
 	 * Returns a normalized falloff between an inner and outer radius.
-	 * @returns 1 inside the inner radius, 0 at or beyond the outer radius, or 0 for non-finite input.
+	 * @returns 1 at or inside the inner radius, 0 beyond the outer radius, or 0 for non-finite input.
+	 *          Equal radii are a step: 1 at or inside the shared radius, 0 outside.
 	 */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Range Falloff", BlueprintThreadSafe), Category = "Directive Utilities|Math|Float")
 	static float RangeFalloff(float Distance, float InnerRadius, float OuterRadius, float FalloffExponent = 1.0f);
@@ -537,7 +543,7 @@ public:
 	 * For Sinusoidal/Exponential/Circular/power easings, use the engine's "Ease" node instead.
 	 * @param Alpha - The input alpha. Clamped to the [0, 1] range.
 	 * @param EaseType - The easing curve to apply.
-	 * @returns The eased alpha. Note that Back and Elastic curves intentionally overshoot the [0, 1] range.
+	 * @returns The eased alpha. Endpoints are exact. Back and Elastic curves intentionally overshoot the [0, 1] range between the endpoints.
 	 */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Ease Alpha", BlueprintThreadSafe), Category = "Directive Utilities|Math|Easing")
 	static float EaseAlpha(float Alpha, EDirectiveUtilEaseType EaseType);

@@ -305,7 +305,8 @@ public:
 
 	/**
 	 * Checks whether the string is safe to use as a bare file name: not empty, no path
-	 * separators or relative segments, and no characters invalid in file names.
+	 * separators or relative segments, no characters invalid in file names, no trailing
+	 * dot or space, and not a reserved device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9).
 	 * @param String - The string to check.
 	 * @returns True if the string is a valid bare file name.
 	 */
@@ -314,7 +315,8 @@ public:
 
 	/**
 	 * Returns the string with path separators and characters invalid in file names removed
-	 * (or replaced when a replacement character is provided). May return an empty string.
+	 * (or replaced when a replacement character is provided). Trailing dots and spaces are
+	 * stripped. Reserved device names are prefixed with an underscore. May return an empty string.
 	 * @param String - The string to sanitize.
 	 * @param Replacement - Optional single-character replacement for stripped characters.
 	 * @returns The sanitized file name.

@@ -6,6 +6,7 @@ ENGINE_ROOT="${1:?Usage: run-runtime-benchmarks.sh <engine-root> <project-file> 
 PROJECT_FILE="${2:?Usage: run-runtime-benchmarks.sh <engine-root> <project-file> <output-file> [baseline-file]}"
 OUTPUT_FILE="${3:?Usage: run-runtime-benchmarks.sh <engine-root> <project-file> <output-file> [baseline-file]}"
 BASELINE_FILE="${4:-}"
+TEST_TIMEOUT_SECONDS="${DIRECTIVE_UTILITIES_TEST_TIMEOUT_SECONDS:-1800}"
 
 case "$(uname -s)" in
 	Darwin)
@@ -34,6 +35,9 @@ PROJECT_FILE="$(cd "$(dirname "$PROJECT_FILE")" && pwd)/$(basename "$PROJECT_FIL
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 OUTPUT_FILE="$(cd "$(dirname "$OUTPUT_FILE")" && pwd)/$(basename "$OUTPUT_FILE")"
 LOG_FILE="${OUTPUT_FILE%.*}.log"
+REPORT_DIRECTORY="${OUTPUT_FILE%.*}-report"
+rm -rf -- "$REPORT_DIRECTORY"
+mkdir -p "$REPORT_DIRECTORY"
 COMPARISON_FILE="${OUTPUT_FILE%.*}-remove-all-comparison.csv"
 APPEND_COMPARISON_FILE="${OUTPUT_FILE%.*}-append-comparison.csv"
 INSERT_COMPARISON_FILE="${OUTPUT_FILE%.*}-insert-comparison.csv"
@@ -47,6 +51,7 @@ ARGUMENTS=(
 	"$PROJECT_FILE"
 	'-ExecCmds=Automation RunTests Performance.DirectiveUtilities.Runtime; Quit'
 	'-TestExit=Automation Test Queue Empty'
+	"-ReportExportPath=$REPORT_DIRECTORY"
 	"-DirectiveUtilitiesPerfOutput=$OUTPUT_FILE"
 	"-DirectiveUtilitiesPerfComparisonOutput=$COMPARISON_FILE"
 	"-DirectiveUtilitiesPerfAppendComparisonOutput=$APPEND_COMPARISON_FILE"
@@ -57,6 +62,9 @@ ARGUMENTS=(
 	-nosplash
 	-nosound
 	-NullRHI
+	-NoEngineAnalytics
+	-NoEpicPortal
+	'-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False'
 )
 
 if [[ -n "$BASELINE_FILE" ]]; then
@@ -69,9 +77,42 @@ if [[ -n "$BASELINE_FILE" ]]; then
 fi
 
 set +e
-"$EDITOR_COMMAND" "${ARGUMENTS[@]}"
+python3 - "$TEST_TIMEOUT_SECONDS" "$EDITOR_COMMAND" "${ARGUMENTS[@]}" <<'PY'
+import os, signal, subprocess, sys
+timeout = int(sys.argv[1])
+process = subprocess.Popen(sys.argv[2:], start_new_session=True)
+try:
+    raise SystemExit(process.wait(timeout=timeout))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+    print(f"Runtime performance suite timed out after {timeout} seconds", file=sys.stderr)
+    raise SystemExit(124)
+PY
 EDITOR_EXIT_CODE=$?
 set -e
+
+python3 - "$REPORT_DIRECTORY/index.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit(f"Performance automation report was not generated: {path}")
+report = json.loads(path.read_text(encoding="utf-8-sig"))
+tests = report.get("tests", [])
+clean = (
+    report.get("succeeded") == 1 and report.get("failed") == 0
+    and report.get("succeededWithWarnings") == 0 and report.get("notRun") == 0
+    and len(tests) == 1 and tests[0].get("fullTestPath") == "Performance.DirectiveUtilities.Runtime"
+    and tests[0].get("state") == "Success"
+)
+if not clean:
+    raise SystemExit(f"Performance report is not the exact clean one-test census: {path}")
+PY
 
 if [[ "$EDITOR_EXIT_CODE" -ne 0 ]] || [[ ! -f "$OUTPUT_FILE" ]] || [[ ! -f "$COMPARISON_FILE" ]] || [[ ! -f "$APPEND_COMPARISON_FILE" ]] || \
 	[[ ! -f "$INSERT_COMPARISON_FILE" ]] || [[ ! -f "$REMOVE_INDICES_COMPARISON_FILE" ]] || \

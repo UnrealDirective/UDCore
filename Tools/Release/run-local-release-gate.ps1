@@ -69,8 +69,11 @@ try {
         -ValidationRoot $FabValidationRoot `
         -AllowDirty:$AllowDirty
 
-    foreach ($EngineRoot in $EngineRoots) {
-        & Tests\RuntimeHost\Scripts\run-windows.ps1 -EngineRoot $EngineRoot -ClientConfiguration Development
+    for ($Index = 0; $Index -lt $EngineRoots.Count; $Index++) {
+        & Tests\RuntimeHost\Scripts\run-windows.ps1 `
+            -EngineRoot $EngineRoots[$Index] `
+            -ClientConfiguration Development `
+            -StompMalloc:($Index -eq 2)
     }
 
     if ($IncludeLinux) {

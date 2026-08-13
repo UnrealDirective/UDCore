@@ -465,9 +465,9 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(-1080.0f + 15.0f, 1440.0f - 25.0f), -40.0f));
 	TestTrue("Angle interpolation permits negative extrapolation",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(10.0f, 350.0f, -1.0f), 30.0f));
-	TestTrue("Angle interpolation ignores complete turns",
+	TestTrue("Angle interpolation ignores complete turns in the delta",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(
-			-1080.0f + 15.0f, 1440.0f - 25.0f, 0.5f), -5.0f));
+			-1080.0f + 15.0f, 1440.0f - 25.0f, 0.5f), -1085.0f));
 
 	TestTrue("Ping Pong repeats across multiple positive periods",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(123.0f, -2.0f, 3.0f), 3.0f));
@@ -489,8 +489,12 @@ bool FDirectiveUtilMathExtendedFunctionLibraryTest::RunTest(const FString& Param
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(-5.0f, 2.0f, 10.0f), 1.0f));
 	TestTrue("Range Falloff treats non-positive exponents as a hard inner range",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(9.0f, 2.0f, 10.0f, -3.0f), 1.0f));
-	TestTrue("Range Falloff returns zero at a collapsed outer boundary",
-		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::RangeFalloff(5.0f, 5.0f, 5.0f)));
+	TestTrue("Range Falloff is full strength at a collapsed shared radius",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(5.0f, 5.0f, 5.0f), 1.0f));
+	TestTrue("Range Falloff is full strength at the origin when both radii are zero",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::RangeFalloff(0.0f, 0.0f, 0.0f), 1.0f));
+	TestTrue("Range Falloff is zero outside a collapsed shared radius",
+		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::RangeFalloff(6.0f, 5.0f, 5.0f)));
 
 	TestTrue("A full-width cone includes the opposite direction",
 		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(

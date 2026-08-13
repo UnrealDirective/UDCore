@@ -34,6 +34,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Math formatting, statistics, easing, and random implementations build in focused translation units without changing the public Blueprint library.
 
 ### Fixed
+- `IsNotEmpty` accepts a Blueprint text literal (`AutoCreateRefTerm`).
+- `LerpAngle` returns A at Alpha 0 and no longer wraps the result, so extrapolation does not jump the seam.
+- `DeltaAngle` returns +180 for an exactly opposite pair regardless of how the inputs are spelled.
+- `AngleBetweenVectors` returns 0 for a zero or non-finite vector instead of 90.
+- `RangeFalloff` is full strength at the origin when both radii are 0.
+- `EaseAlpha` Back curves are exactly 0 and 1 at the endpoints.
+- Save-slot names reject Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) and trailing dots or spaces.
+- `RenameSaveSlot` treats a case-only name change as a rewrite of the existing slot instead of reporting a collision.
+- `GetSaveSlotTimestamp` converts UTC to local using the timezone rules for that instant.
+- `GetAllSaveSlotNames` enumerates through `ISaveGameSystem` so it agrees with the other slot nodes.
 - Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
 - Material queries include any actor with a static mesh component, including custom and Blueprint actor classes.
 - Input mapping removal and active-state queries no longer load missing soft assets, and swaps load only the new context after controller validation.

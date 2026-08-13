@@ -995,13 +995,13 @@ namespace
 	double FindWrappedDeltaDegrees(const double From, const double To)
 	{
 		double Delta = FMath::Fmod(To - From, 360.0);
+		if (Delta < 0.0)
+		{
+			Delta += 360.0;
+		}
 		if (Delta > 180.0)
 		{
 			Delta -= 360.0;
-		}
-		else if (Delta < -180.0)
-		{
-			Delta += 360.0;
 		}
 		return Delta;
 	}
@@ -1020,7 +1020,14 @@ float UDirectiveUtilMathFunctionLibrary::PerlinNoise3D(const FVector& Position)
 
 float UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(const FVector& A, const FVector& B)
 {
-	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(A.GetSafeNormal(), B.GetSafeNormal()), -1.0, 1.0)));
+	FVector NormalizedA;
+	FVector NormalizedB;
+	if (!TryGetNormalizedVector(A, NormalizedA) || !TryGetNormalizedVector(B, NormalizedB))
+	{
+		return 0.0f;
+	}
+
+	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(NormalizedA, NormalizedB), -1.0, 1.0)));
 }
 
 float UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(const FVector& From, const FVector& To, const FVector& Axis)
@@ -1063,7 +1070,7 @@ float UDirectiveUtilMathFunctionLibrary::LerpAngle(const float A, const float B,
 
 	const double Result = static_cast<double>(A)
 		+ FindWrappedDeltaDegrees(A, B) * static_cast<double>(Alpha);
-	return static_cast<float>(FMath::Wrap(Result, -180.0, 180.0));
+	return static_cast<float>(Result);
 }
 
 float UDirectiveUtilMathFunctionLibrary::PingPong(const float Value, const float Minimum, const float Maximum)
@@ -1142,6 +1149,10 @@ float UDirectiveUtilMathFunctionLibrary::RangeFalloff(const float Distance, cons
 	const double Inner = FMath::Min(FirstRadius, SecondRadius);
 	const double Outer = FMath::Max(FirstRadius, SecondRadius);
 	const double ClampedDistance = FMath::Max(0.0, static_cast<double>(Distance));
+	if (Inner == Outer)
+	{
+		return ClampedDistance <= Inner ? 1.0f : 0.0f;
+	}
 	if (ClampedDistance >= Outer)
 	{
 		return 0.0f;

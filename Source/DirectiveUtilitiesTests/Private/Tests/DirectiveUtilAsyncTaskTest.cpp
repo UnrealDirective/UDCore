@@ -1062,7 +1062,10 @@ bool FDirectiveUtilAsyncLoadAssetsTest::RunTest(const FString& Parameters)
 		Listener->AddToRoot();
 
 		TArray<TSoftObjectPtr<UObject>> Assets;
-		Assets.Add(TSoftObjectPtr<UObject>(FSoftObjectPath(TEXT("/Engine/EngineMeshes/SM_MatPreviewMesh_01.SM_MatPreviewMesh_01"))));
+		// RuntimeHost always cooks /Engine/BasicShapes. Use an asset that the
+		// successful batch above did not load so this remains a valid cancellation
+		// probe without producing a missing-package warning in packaged builds.
+		Assets.Add(TSoftObjectPtr<UObject>(FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"))));
 
 		UDirectiveUtilTask_AsyncLoadAssets* Task = UDirectiveUtilTask_AsyncLoadAssets::AsyncLoadAssets(nullptr, Assets);
 		Listener->Keepalive = Task;

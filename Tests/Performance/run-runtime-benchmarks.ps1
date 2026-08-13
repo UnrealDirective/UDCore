@@ -10,7 +10,10 @@ param(
 
     [string]$BaselineFile = "",
 
-    [long]$ProcessorAffinity = 0
+    [long]$ProcessorAffinity = 0,
+
+    [ValidateRange(1, 86400)]
+    [int]$TimeoutSeconds = 1800
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +46,11 @@ if ($OutputDirectory) {
     New-Item $OutputDirectory -ItemType Directory -Force | Out-Null
 }
 $LogFile = [System.IO.Path]::ChangeExtension($OutputFile, ".log")
+$ReportDirectory = Join-Path $OutputDirectory "$([System.IO.Path]::GetFileNameWithoutExtension($OutputFile))-report"
+if (Test-Path $ReportDirectory) {
+    Remove-Item $ReportDirectory -Recurse -Force
+}
+New-Item $ReportDirectory -ItemType Directory -Force | Out-Null
 $ComparisonFileName = "$([System.IO.Path]::GetFileNameWithoutExtension($OutputFile))-remove-all-comparison.csv"
 $ComparisonFile = if ($OutputDirectory) {
     Join-Path $OutputDirectory $ComparisonFileName
@@ -79,6 +87,7 @@ $Arguments = @(
     $ProjectFile,
     '-ExecCmds=Automation RunTests Performance.DirectiveUtilities.Runtime; Quit',
     '-TestExit=Automation Test Queue Empty',
+    "-ReportExportPath=$ReportDirectory",
     "-DirectiveUtilitiesPerfOutput=$OutputFile",
     "-DirectiveUtilitiesPerfComparisonOutput=$ComparisonFile",
     "-DirectiveUtilitiesPerfAppendComparisonOutput=$AppendComparisonFile",
@@ -88,7 +97,10 @@ $Arguments = @(
     '-nop4',
     '-nosplash',
     '-nosound',
-    '-NullRHI'
+    '-NullRHI',
+    '-NoEngineAnalytics',
+    '-NoEpicPortal',
+    '-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False'
 )
 if ($BaselineFile) {
     $Arguments += "-DirectiveUtilitiesPerfBaseline=$BaselineFile"
@@ -105,6 +117,11 @@ $EditorProcess = Start-Process -FilePath $EditorCommand -ArgumentList $ArgumentS
 try {
     $EditorProcess.ProcessorAffinity = [IntPtr]$ProcessorAffinity
     $EditorProcess.PriorityClass = [System.Diagnostics.ProcessPriorityClass]::High
+    if (-not $EditorProcess.WaitForExit($TimeoutSeconds * 1000)) {
+        $EditorProcess.Kill()
+        $EditorProcess.WaitForExit()
+        throw "Runtime performance suite timed out after $TimeoutSeconds seconds. Log: $LogFile"
+    }
     $EditorProcess.WaitForExit()
     $EditorExitCode = $EditorProcess.ExitCode
 } finally {
@@ -114,6 +131,17 @@ try {
 }
 if ($EditorExitCode -ne 0) {
     throw "Runtime performance suite failed. Log: $LogFile"
+}
+$ReportPath = Join-Path $ReportDirectory 'index.json'
+if (-not (Test-Path $ReportPath -PathType Leaf)) {
+    throw "Runtime performance automation report was not generated: $ReportPath"
+}
+$Report = ((Get-Content $ReportPath -Raw) -replace "^\uFEFF", "") | ConvertFrom-Json
+if ($Report.succeeded -ne 1 -or $Report.failed -ne 0 -or $Report.succeededWithWarnings -ne 0 -or
+    $Report.notRun -ne 0 -or $Report.tests.Count -ne 1 -or
+    $Report.tests[0].fullTestPath -ne 'Performance.DirectiveUtilities.Runtime' -or
+    $Report.tests[0].state -ne 'Success') {
+    throw "Runtime performance report is not the exact clean one-test census: $ReportPath"
 }
 if (-not (Test-Path $OutputFile -PathType Leaf)) {
     throw "Runtime performance results were not generated: $OutputFile"

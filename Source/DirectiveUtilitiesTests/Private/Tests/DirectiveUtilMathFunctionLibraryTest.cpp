@@ -15,8 +15,10 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ForwardVector, FVector::RightVector), 90.0f, 0.01f));
 	TestTrue("AngleBetweenVectors should return ~180 for opposite vectors",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ForwardVector, -FVector::ForwardVector), 180.0f, 0.01f));
-	TestTrue("AngleBetweenVectors should handle zero vector gracefully",
-		FMath::IsFinite(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ForwardVector)));
+	TestEqual("AngleBetweenVectors should return 0 for a zero vector",
+		UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ForwardVector), 0.0f);
+	TestEqual("AngleBetweenVectors should return 0 for two zero vectors",
+		UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ZeroVector), 0.0f);
 
 	TestTrue("SignedAngleBetweenVectors returns a positive counterclockwise angle around the axis",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
@@ -43,17 +45,23 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(10.0f, 350.0f), -20.0f, 1.e-4f));
 	TestEqual("DeltaAngle returns zero for equivalent wrapped angles",
 		UDirectiveUtilMathFunctionLibrary::DeltaAngle(-180.0f, 180.0f), 0.0f);
+	TestTrue("DeltaAngle canonicalizes an exactly opposite pair to +180",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, 180.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, -180.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, 540.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, -540.0f), 180.0f, 1.e-4f));
 	TestEqual("DeltaAngle returns zero for non-finite input",
 		UDirectiveUtilMathFunctionLibrary::DeltaAngle(std::numeric_limits<float>::infinity(), 0.0f), 0.0f);
 
 	TestTrue("LerpAngle crosses the angle seam by the shortest path",
-		FMath::IsNearlyZero(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.5f), 1.e-4f));
-	TestTrue("LerpAngle normalizes its starting angle",
-		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.0f), -10.0f, 1.e-4f));
-	TestTrue("LerpAngle reaches its normalized target angle",
-		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 1.0f), 10.0f, 1.e-4f));
-	TestTrue("LerpAngle permits extrapolation",
-		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 2.0f), 180.0f, 1.e-4f));
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.5f), 360.0f, 1.e-4f));
+	TestTrue("LerpAngle returns A at Alpha 0",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.0f), 350.0f, 1.e-4f));
+	TestTrue("LerpAngle reaches A plus the shortest delta at Alpha 1",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 1.0f), 370.0f, 1.e-4f));
+	TestTrue("LerpAngle permits extrapolation without wrapping the result",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 2.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 3.0f), 270.0f, 1.e-4f));
 	TestEqual("LerpAngle returns zero for non-finite input",
 		UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, std::numeric_limits<float>::quiet_NaN()), 0.0f);
 
@@ -153,10 +161,10 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	for (const EDirectiveUtilEaseType EaseType : AllEaseTypes)
 	{
 		const FString TypeName = FString::FromInt(static_cast<int32>(EaseType));
-		TestTrue(FString::Printf(TEXT("EaseAlpha(0) should be ~0 for type %s"), *TypeName),
-			FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EaseType), 0.0f, 1.e-3f));
-		TestTrue(FString::Printf(TEXT("EaseAlpha(1) should be ~1 for type %s"), *TypeName),
-			FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EaseType), 1.0f, 1.e-3f));
+		TestEqual(FString::Printf(TEXT("EaseAlpha(0) should be exactly 0 for type %s"), *TypeName),
+			UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EaseType), 0.0f);
+		TestEqual(FString::Printf(TEXT("EaseAlpha(1) should be exactly 1 for type %s"), *TypeName),
+			UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EaseType), 1.0f);
 		for (const float Sample : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
 		{
 			TestTrue(FString::Printf(TEXT("EaseAlpha(%.2f) should be finite for type %s"), Sample, *TypeName),

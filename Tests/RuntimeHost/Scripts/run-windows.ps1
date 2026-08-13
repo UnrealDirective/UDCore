@@ -3,7 +3,12 @@ param(
     [string]$EngineRoot,
 
     [ValidateSet("Development", "Shipping")]
-    [string]$ClientConfiguration = "Development"
+    [string]$ClientConfiguration = "Development",
+
+    [ValidateRange(1, 86400)]
+    [int]$TestTimeoutSeconds = 1800,
+
+    [switch]$StompMalloc
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +31,62 @@ $BuildScript = Join-Path $EngineRoot "Engine\Build\BatchFiles\Build.bat"
 $RunUAT = Join-Path $EngineRoot "Engine\Build\BatchFiles\RunUAT.bat"
 $EditorCommand = Join-Path $EngineRoot "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $LongestActionPath = Join-Path $ProjectRoot "Plugins\DirectiveUtilities\Intermediate\Build\Win64\x64\UnrealEditor\Development\DirectiveUtilitiesBlueprintNodes\UnrealEditor-DirectiveUtilitiesBlueprintNodes.dll.rsp"
+$ExpectedEditorTestCount = 54
+$ExpectedPackagedTestCount = 35
+
+function Wait-TestProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$Label,
+        [Parameter(Mandatory = $true)]
+        [string]$LogPath
+    )
+
+    if (-not $Process.WaitForExit($TestTimeoutSeconds * 1000)) {
+        Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
+        $Process.WaitForExit()
+        throw "$Label timed out after $TestTimeoutSeconds seconds. Log: $LogPath"
+    }
+    $Process.WaitForExit()
+    if ($Process.ExitCode -ne 0) {
+        if (Test-Path $LogPath -PathType Leaf) {
+            Get-Content $LogPath -Tail 100
+        }
+        throw "$Label failed with exit code $($Process.ExitCode). Log: $LogPath"
+    }
+}
+
+function Assert-CleanAutomationReport {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ReportPath,
+        [Parameter(Mandatory = $true)]
+        [int]$ExpectedCount,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    if (-not (Test-Path $ReportPath -PathType Leaf)) {
+        throw "$Label automation report was not generated: $ReportPath"
+    }
+    $Report = Get-Content $ReportPath -Raw | ConvertFrom-Json
+    if ($Report.failed -ne 0 -or $Report.succeededWithWarnings -ne 0 -or $Report.notRun -ne 0) {
+        throw "$Label automation tests failed, warned, or were skipped. Report: $ReportPath"
+    }
+    if ($Report.succeeded -ne $ExpectedCount -or @($Report.tests).Count -ne $ExpectedCount) {
+        throw "$Label expected $ExpectedCount tests but report contains $(@($Report.tests).Count) with $($Report.succeeded) successes. Report: $ReportPath"
+    }
+    $BadStates = @($Report.tests | Where-Object { $_.state -ne "Success" })
+    if ($BadStates.Count -ne 0) {
+        throw "$Label report contains non-success test states. Report: $ReportPath"
+    }
+    $DuplicatePaths = @($Report.tests | Group-Object fullTestPath | Where-Object { $_.Count -ne 1 })
+    if ($DuplicatePaths.Count -ne 0) {
+        throw "$Label report contains duplicate test paths. Report: $ReportPath"
+    }
+}
 
 if ($LongestActionPath.Length -ge 260) {
     throw "The Windows RuntimeHost path would exceed Unreal's 260-character action-path limit. Move the repository to a shorter path."
@@ -40,6 +101,9 @@ foreach ($RequiredFile in @($BuildScript, $RunUAT, $EditorCommand)) {
 Remove-Item $WorkRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $PluginRoot -ItemType Directory -Force | Out-Null
 New-Item (Join-Path $ReportRoot "Editor") -ItemType Directory -Force | Out-Null
+if ($ClientConfiguration -eq "Development") {
+    New-Item (Join-Path $ReportRoot "Game") -ItemType Directory -Force | Out-Null
+}
 
 robocopy (Join-Path $RepositoryRoot "Tests\RuntimeHost") $ProjectRoot /E /XD Binaries Intermediate Saved Scripts Plugins | Out-Null
 if ($LASTEXITCODE -ge 8) {
@@ -76,6 +140,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $EditorArguments = @(
+    $ProjectFile,
     '-ExecCmds=Automation RunTests DirectiveUtilities; Quit',
     "-ReportExportPath=$(Join-Path $ReportRoot 'Editor')",
     '-TestExit=Automation Test Queue Empty',
@@ -83,12 +148,23 @@ $EditorArguments = @(
     '-unattended',
     '-nop4',
     '-nosplash',
-    '-NullRHI'
+    '-nosound',
+    '-NullRHI',
+    '-NoEngineAnalytics',
+    '-NoEpicPortal',
+    '-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False'
 )
-& $EditorCommand $ProjectFile @EditorArguments
-if ($LASTEXITCODE -ne 0) {
-    throw "Editor automation tests failed."
+if ($StompMalloc) {
+    $EditorArguments += '-stompmalloc'
 }
+$EditorArgumentLine = ($EditorArguments | ForEach-Object { '"{0}"' -f $_ }) -join ' '
+$EditorProcess = Start-Process `
+    -FilePath $EditorCommand `
+    -ArgumentList $EditorArgumentLine `
+    -WorkingDirectory $ProjectRoot `
+    -PassThru `
+    -NoNewWindow
+Wait-TestProcess -Process $EditorProcess -Label "Editor automation" -LogPath (Join-Path $WorkRoot "EditorTests.log")
 
 $PackageArguments = @(
     'BuildCookRun',
@@ -126,8 +202,13 @@ $GameArguments = @(
     '-nop4',
     '-nosplash',
     '-nosound',
-    '-NullRHI'
+    '-NullRHI',
+    '-NoEngineAnalytics',
+    '-NoEpicPortal'
 )
+if ($StompMalloc -and $ClientConfiguration -eq "Development") {
+    $GameArguments += '-stompmalloc'
+}
 if ($ClientConfiguration -eq "Shipping") {
     New-Item $PerformanceRoot -ItemType Directory -Force | Out-Null
     $AppendOutput = Join-Path $PerformanceRoot "shipping-append-comparison.csv"
@@ -147,7 +228,8 @@ if ($ClientConfiguration -eq "Shipping") {
 } else {
     $GameArguments += @(
         '-ExecCmds=Automation RunTests DirectiveUtilities; Quit',
-        '-TestExit=Automation Test Queue Empty'
+        '-TestExit=Automation Test Queue Empty',
+        "-ReportExportPath=$(Join-Path $ReportRoot 'Game')"
     )
 }
 $GameCommandPath = $GameCommand.FullName
@@ -156,24 +238,11 @@ $GameProcess = Start-Process `
     -FilePath $GameCommandPath `
     -ArgumentList $GameArgumentLine `
     -WorkingDirectory $GameCommand.DirectoryName `
-    -Wait `
     -PassThru
-if ($GameProcess.ExitCode -ne 0) {
-    if (Test-Path $GameLog -PathType Leaf) {
-        Get-Content $GameLog -Tail 100
-    }
-    throw "Packaged game failed. Log: $GameLog"
-}
+Wait-TestProcess -Process $GameProcess -Label "Packaged game" -LogPath $GameLog
 
 $EditorReportPath = Join-Path $ReportRoot "Editor\index.json"
-if (-not (Test-Path $EditorReportPath -PathType Leaf)) {
-    throw "Editor automation report was not generated: $EditorReportPath"
-}
-
-$EditorReport = Get-Content $EditorReportPath -Raw | ConvertFrom-Json
-if ($EditorReport.failed -ne 0 -or $EditorReport.succeededWithWarnings -ne 0 -or $EditorReport.notRun -ne 0) {
-    throw "Editor automation tests failed or produced warnings. Report: $EditorReportPath"
-}
+Assert-CleanAutomationReport -ReportPath $EditorReportPath -ExpectedCount $ExpectedEditorTestCount -Label "Editor"
 
 if ($ClientConfiguration -eq "Shipping") {
     if (-not (Test-Path $AppendOutput -PathType Leaf)) {
@@ -206,6 +275,10 @@ if ($ClientConfiguration -eq "Shipping") {
     if (-not (Select-String -Path $GameLog -Pattern 'TEST COMPLETE\. EXIT CODE: 0' -Quiet)) {
         throw "Packaged game automation did not finish cleanly. Log: $GameLog"
     }
+    Assert-CleanAutomationReport `
+        -ReportPath (Join-Path $ReportRoot "Game\index.json") `
+        -ExpectedCount $ExpectedPackagedTestCount `
+        -Label "Packaged game"
 }
 
 Write-Host "Reports: $ReportRoot"
@@ -216,3 +289,7 @@ if ($ClientConfiguration -eq "Shipping") {
     Write-Host "Editor and packaged game tests passed for $EngineVersion."
     Write-Host "Packaged game log: $GameLog"
 }
+
+# Best-effort metadata commands (notably git in a source archive) may leave a
+# stale non-zero native exit code even though every required gate passed.
+exit 0

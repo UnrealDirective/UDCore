@@ -50,7 +50,7 @@ Copies the provided string to the clipboard.
 | String | `const FString&` | The string to copy to the clipboard. |
 
 ## Get Text From Clipboard
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Clipboard`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Clipboard`
 
 ```cpp
 static FText GetTextFromClipboard();
@@ -61,7 +61,7 @@ Gets the content from the clipboard as FText.
 **Returns:** The text from the clipboard.
 
 ## Get String From Clipboard
-**Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Clipboard`
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Clipboard`
 
 ```cpp
 static FString GetStringFromClipboard();

@@ -43,14 +43,14 @@ Returns a perlin noise value between -1 and 1 at the given position. Exposes the
 static float AngleBetweenVectors(const FVector& A, const FVector& B);
 ```
 
-Returns the angle in degrees between two vectors.
+Returns the angle in degrees between two vectors. Zero or non-finite inputs return 0 instead of a silent 90.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | A | `const FVector&` | The first vector. |
 | B | `const FVector&` | The second vector. |
 
-**Returns:** The angle between the two vectors in degrees.
+**Returns:** The angle between the two vectors in degrees, or 0 if either vector is zero or non-finite.
 
 ## Signed Angle Between Vectors
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Vector`
@@ -76,14 +76,14 @@ Returns the signed angle from one direction to another around an axis. Both dire
 static float DeltaAngle(float From, float To);
 ```
 
-Returns the shortest signed difference from one angle to another. For example, the delta from 350 degrees to 10 degrees is 20 degrees.
+Returns the shortest signed difference from one angle to another. For example, the delta from 350 degrees to 10 degrees is 20 degrees. Exactly opposite angles always return +180.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | From | `float` | The starting angle in degrees. |
 | To | `float` | The target angle in degrees. |
 
-**Returns:** The signed difference in the [-180, 180] range, or 0 if either input is non-finite.
+**Returns:** The signed difference in the (-180, 180] range, or 0 if either input is non-finite.
 
 ## Lerp Angle (Degrees)
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Float`
@@ -92,7 +92,7 @@ Returns the shortest signed difference from one angle to another. For example, t
 static float LerpAngle(float A, float B, float Alpha);
 ```
 
-Interpolates between two angles along the shortest path and normalizes the result. Alpha is not clamped, so values outside the [0, 1] range extrapolate.
+Interpolates between two angles along the shortest path. Alpha 0 returns A. Alpha is not clamped, so values outside the [0, 1] range extrapolate along that same shortest-path direction without wrapping.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -100,7 +100,7 @@ Interpolates between two angles along the shortest path and normalizes the resul
 | B | `float` | The target angle in degrees. |
 | Alpha | `float` | The interpolation alpha. |
 
-**Returns:** The interpolated angle in the [-180, 180] range, or 0 if any input is non-finite.
+**Returns:** A plus the shortest signed delta to B, scaled by Alpha, or 0 if any input is non-finite.
 
 ## Ping Pong (Float)
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Float`
@@ -160,7 +160,7 @@ Maps a value to a quintic S-curve with zero first and second derivatives at both
 static float RangeFalloff(float Distance, float InnerRadius, float OuterRadius, float FalloffExponent = 1.0f);
 ```
 
-Returns full strength inside the inner radius and attenuates to zero at the outer radius. Reversed radii are accepted. A non-positive exponent keeps full strength until the outer boundary.
+Returns full strength at or inside the inner radius and attenuates to zero at the outer radius. Reversed radii are accepted. Equal radii are a step: 1 at or inside the shared radius, 0 outside, including the default 0/0 case at the origin. A non-positive exponent keeps full strength until the outer boundary.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -1039,7 +1039,7 @@ Applies a Back/Elastic/Bounce easing curve to a normalized alpha. These are the 
 | Alpha | `float` | The input alpha. Clamped to the [0, 1] range. |
 | EaseType | `EDirectiveUtilEaseType` | The easing curve to apply. |
 
-**Returns:** The eased alpha. Back and Elastic curves intentionally overshoot the [0, 1] range.
+**Returns:** The eased alpha. Endpoints are exact (0 at Alpha 0, 1 at Alpha 1). Back and Elastic curves intentionally overshoot the [0, 1] range between the endpoints.
 
 ## Ease (Float)
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Math|Easing`

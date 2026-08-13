@@ -86,6 +86,11 @@ bool FDirectiveUtilSaveGameFunctionLibraryTest::RunTest(const FString& Parameter
 				UDirectiveUtilSaveGameFunctionLibrary::DoesSaveSlotExist(SlotB));
 			TestNotNull("A renamed slot should still deserialize",
 				UGameplayStatics::LoadGameFromSlot(SlotB, 0));
+			const FString SlotBCaseVariant = SlotB.ToLower();
+			TestTrue("RenameSaveSlot should accept a case-only spelling change",
+				UDirectiveUtilSaveGameFunctionLibrary::RenameSaveSlot(SlotB, SlotBCaseVariant));
+			TestNotNull("A case-only renamed slot should still deserialize",
+				UGameplayStatics::LoadGameFromSlot(SlotBCaseVariant, 0));
 
 			USaveGame* OtherSave = NewObject<UDirectiveUtilTestSaveGame>();
 			TestTrue("SaveGameToSlot should write the collision test slot",
@@ -109,6 +114,10 @@ bool FDirectiveUtilSaveGameFunctionLibraryTest::RunTest(const FString& Parameter
 				UDirectiveUtilSaveGameFunctionLibrary::RenameSaveSlot(SlotC, TEXT("../escape")));
 			TestTrue("A rejected rename should leave the source slot intact",
 				UDirectiveUtilSaveGameFunctionLibrary::DoesSaveSlotExist(SlotC));
+			TestFalse("DoesSaveSlotExist should reject the reserved device name CON",
+				UDirectiveUtilSaveGameFunctionLibrary::DoesSaveSlotExist(TEXT("CON")));
+			TestFalse("DoesSaveSlotExist should reject CON with an extension",
+				UDirectiveUtilSaveGameFunctionLibrary::DoesSaveSlotExist(TEXT("CON.sav")));
 
 			TestTrue("DeleteSaveSlot should delete an existing slot",
 				UDirectiveUtilSaveGameFunctionLibrary::DeleteSaveSlot(SlotB));
@@ -119,6 +128,7 @@ bool FDirectiveUtilSaveGameFunctionLibraryTest::RunTest(const FString& Parameter
 		// Clean up
 		UGameplayStatics::DeleteGameInSlot(SlotA, 0);
 		UGameplayStatics::DeleteGameInSlot(SlotB, 0);
+		UGameplayStatics::DeleteGameInSlot(SlotB.ToLower(), 0);
 		UGameplayStatics::DeleteGameInSlot(SlotC, 0);
 	}
 

@@ -21,6 +21,6 @@ public:
 	 * Returns true if the provided text is not empty.
 	 * @param Text - The text to check.
 	 */
-	UFUNCTION(BlueprintPure, Category = "Directive Utilities|Text" )
+	UFUNCTION(BlueprintPure, meta = (AutoCreateRefTerm = "Text"), Category = "Directive Utilities|Text")
 	static bool IsNotEmpty(const FText& Text);
 };

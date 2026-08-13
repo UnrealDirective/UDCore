@@ -13,7 +13,7 @@
 static bool IsNotEmpty(const FText& Text);
 ```
 
-Returns true if the provided text is not empty.
+Returns true if the provided text is not empty. The Text pin accepts a literal (`AutoCreateRefTerm`).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

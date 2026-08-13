@@ -4,6 +4,7 @@ set -euo pipefail
 
 ENGINE_ROOT="${1:?Usage: run-unix.sh <engine-root> [Development|Shipping]}"
 CLIENT_CONFIGURATION="${2:-Development}"
+TEST_TIMEOUT_SECONDS="${DIRECTIVE_UTILITIES_TEST_TIMEOUT_SECONDS:-1800}"
 if [[ "$CLIENT_CONFIGURATION" != "Development" ]] && [[ "$CLIENT_CONFIGURATION" != "Shipping" ]]; then
 	echo "Unsupported client configuration: $CLIENT_CONFIGURATION" >&2
 	exit 2
@@ -21,6 +22,58 @@ RUNTIME_TEST_SOURCE_ROOT="$REPOSITORY_ROOT/Source/DirectiveUtilitiesTests"
 ARCHIVE_ROOT="$WORK_ROOT/Archive"
 REPORT_ROOT="$WORK_ROOT/Reports"
 PERFORMANCE_ROOT="$WORK_ROOT/Performance"
+EXPECTED_EDITOR_TEST_COUNT=54
+EXPECTED_PACKAGED_TEST_COUNT=35
+
+run_with_timeout() {
+	python3 - "$TEST_TIMEOUT_SECONDS" "$@" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+timeout_seconds = int(sys.argv[1])
+command = sys.argv[2:]
+process = subprocess.Popen(command, start_new_session=True)
+try:
+    raise SystemExit(process.wait(timeout=timeout_seconds))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+    print(f"Timed out after {timeout_seconds}s: {command[0]}", file=sys.stderr)
+    raise SystemExit(124)
+PY
+}
+
+assert_clean_report() {
+	python3 - "$1" "$3" "$2" <<'PY'
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+path = Path(sys.argv[1])
+expected = int(sys.argv[2])
+label = sys.argv[3]
+if not path.is_file():
+    raise SystemExit(f"{label} automation report was not generated: {path}")
+report = json.loads(path.read_text(encoding="utf-8-sig"))
+tests = report.get("tests", [])
+if any(report.get(key) != 0 for key in ("failed", "succeededWithWarnings", "notRun")):
+    raise SystemExit(f"{label} automation report is not clean: {path}")
+if report.get("succeeded") != expected or len(tests) != expected:
+    raise SystemExit(f"{label} expected {expected} tests, found {len(tests)}: {path}")
+paths = [test.get("fullTestPath") for test in tests]
+if any(test.get("state") != "Success" for test in tests):
+    raise SystemExit(f"{label} report contains a non-success state: {path}")
+if any(count != 1 for count in Counter(paths).values()):
+    raise SystemExit(f"{label} report contains duplicate paths: {path}")
+PY
+}
 
 case "$(uname -s)" in
 	Darwin)
@@ -54,6 +107,9 @@ require_file "$RUN_UAT"
 
 rm -rf "$WORK_ROOT"
 mkdir -p "$PLUGIN_ROOT" "$REPORT_ROOT/Editor"
+if [[ "$CLIENT_CONFIGURATION" == "Development" ]]; then
+	mkdir -p "$REPORT_ROOT/Game"
+fi
 
 rsync -a \
 	--exclude Binaries \
@@ -86,7 +142,7 @@ cp "$RUNTIME_TEST_SOURCE_ROOT/Public/Tests/DirectiveUtilTestObject.h" "$RUNTIME_
 	-ForceUnity \
 	-DisableAdaptiveUnity
 
-"$EDITOR_COMMAND" "$PROJECT_FILE" \
+run_with_timeout "$EDITOR_COMMAND" "$PROJECT_FILE" \
 	-ExecCmds="Automation RunTests DirectiveUtilities; Quit" \
 	-ReportExportPath="$REPORT_ROOT/Editor" \
 	-TestExit="Automation Test Queue Empty" \
@@ -94,7 +150,11 @@ cp "$RUNTIME_TEST_SOURCE_ROOT/Public/Tests/DirectiveUtilTestObject.h" "$RUNTIME_
 	-unattended \
 	-nop4 \
 	-nosplash \
-	-NullRHI
+	-nosound \
+	-NullRHI \
+	-NoEngineAnalytics \
+	-NoEpicPortal \
+	'-ini:EditorSettings:[/Script/UnrealEd.AnalyticsPrivacySettings]:bSendUsageData=False'
 
 "$RUN_UAT" BuildCookRun \
 	-project="$PROJECT_FILE" \
@@ -148,6 +208,8 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 		-nosplash
 		-nosound
 		-NullRHI
+		-NoEngineAnalytics
+		-NoEpicPortal
 	)
 	if [[ "$ENGINE_VERSION" == "UE_5.8" ]]; then
 		GAME_ARGUMENTS+=(
@@ -168,11 +230,12 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 		GAME_ARGUMENTS+=(
 			"-ExecCmds=Automation RunTests DirectiveUtilities; Quit"
 			"-TestExit=Automation Test Queue Empty"
+			"-ReportExportPath=$REPORT_ROOT/Game"
 		)
 	fi
 
 	set +e
-	"$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
+	run_with_timeout "$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
 	GAME_EXIT_CODE=$?
 	set -e
 	if [[ -f "$MAC_GAME_LOG" ]]; then
@@ -196,6 +259,8 @@ else
 		-nosplash
 		-nosound
 		-NullRHI
+		-NoEngineAnalytics
+		-NoEpicPortal
 	)
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		GAME_ARGUMENTS+=(
@@ -207,11 +272,12 @@ else
 		GAME_ARGUMENTS+=(
 			"-ExecCmds=Automation RunTests DirectiveUtilities; Quit"
 			"-TestExit=Automation Test Queue Empty"
+			"-ReportExportPath=$REPORT_ROOT/Game"
 		)
 	fi
 
 	set +e
-	"$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
+	run_with_timeout "$GAME_COMMAND" "${GAME_ARGUMENTS[@]}" >/dev/null 2>&1
 	GAME_EXIT_CODE=$?
 	set -e
 fi
@@ -252,13 +318,11 @@ elif ! grep -q 'TEST COMPLETE. EXIT CODE: 0' "$GAME_LOG"; then
 	exit 1
 fi
 
-if [[ ! -f "$REPORT_ROOT/Editor/index.json" ]] || \
-	! grep -q '"failed": 0' "$REPORT_ROOT/Editor/index.json" || \
-	! grep -q '"succeededWithWarnings": 0' "$REPORT_ROOT/Editor/index.json" || \
-	! grep -q '"notRun": 0' "$REPORT_ROOT/Editor/index.json"; then
-	echo "Editor automation report is missing, incomplete, or contains warnings: $REPORT_ROOT/Editor" >&2
-	exit 1
+if [[ "$CLIENT_CONFIGURATION" == "Development" ]]; then
+	assert_clean_report "$REPORT_ROOT/Game/index.json" "Packaged game" "$EXPECTED_PACKAGED_TEST_COUNT"
 fi
+
+assert_clean_report "$REPORT_ROOT/Editor/index.json" "Editor" "$EXPECTED_EDITOR_TEST_COUNT"
 
 echo "Reports: $REPORT_ROOT"
 if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then

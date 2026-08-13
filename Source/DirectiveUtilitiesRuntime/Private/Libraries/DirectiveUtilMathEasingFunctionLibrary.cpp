@@ -6,12 +6,16 @@ namespace
 {
 	double EaseBackIn(double t)
 	{
+		if (t <= 0.0) { return 0.0; }
+		if (t >= 1.0) { return 1.0; }
 		const double s = 1.70158;
 		return t * t * ((s + 1.0) * t - s);
 	}
 
 	double EaseBackOut(double t)
 	{
+		if (t <= 0.0) { return 0.0; }
+		if (t >= 1.0) { return 1.0; }
 		const double s = 1.70158;
 		t -= 1.0;
 		return t * t * ((s + 1.0) * t + s) + 1.0;
@@ -19,6 +23,8 @@ namespace
 
 	double EaseBackInOut(double t)
 	{
+		if (t <= 0.0) { return 0.0; }
+		if (t >= 1.0) { return 1.0; }
 		const double s = 1.70158 * 1.525;
 		t *= 2.0;
 		if (t < 1.0)
