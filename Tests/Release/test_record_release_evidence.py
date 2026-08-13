@@ -94,6 +94,13 @@ class ReleaseEvidenceTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("$LongestActionPath.Length -ge 260", windows_runner)
 
+    def test_windows_runtime_runner_uses_process_exit_codes(self) -> None:
+        windows_runner = (
+            REPOSITORY_ROOT / "Tests" / "RuntimeHost" / "Scripts" / "run-windows.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn("[System.Diagnostics.Process]::new()", windows_runner)
+        self.assertNotIn("Start-Process", windows_runner)
+
     def test_release_gates_require_two_clean_performance_retries(self) -> None:
         windows_gate = (
             REPOSITORY_ROOT / "Tools" / "Release" / "run-local-release-gate.ps1"

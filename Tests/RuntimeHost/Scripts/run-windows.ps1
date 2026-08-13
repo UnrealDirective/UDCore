@@ -58,6 +58,29 @@ function Wait-TestProcess {
     }
 }
 
+function Start-TestProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [Parameter(Mandatory = $true)]
+        [string]$ArgumentLine,
+        [Parameter(Mandatory = $true)]
+        [string]$WorkingDirectory
+    )
+
+    $StartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $FilePath
+    $StartInfo.Arguments = $ArgumentLine
+    $StartInfo.WorkingDirectory = $WorkingDirectory
+    $StartInfo.UseShellExecute = $false
+    $Process = [System.Diagnostics.Process]::new()
+    $Process.StartInfo = $StartInfo
+    if (-not $Process.Start()) {
+        throw "Failed to start process: $FilePath"
+    }
+    return $Process
+}
+
 function Assert-CleanAutomationReport {
     param(
         [Parameter(Mandatory = $true)]
@@ -158,12 +181,10 @@ if ($StompMalloc) {
     $EditorArguments += '-stompmalloc'
 }
 $EditorArgumentLine = ($EditorArguments | ForEach-Object { '"{0}"' -f $_ }) -join ' '
-$EditorProcess = Start-Process `
+$EditorProcess = Start-TestProcess `
     -FilePath $EditorCommand `
-    -ArgumentList $EditorArgumentLine `
-    -WorkingDirectory $ProjectRoot `
-    -PassThru `
-    -NoNewWindow
+    -ArgumentLine $EditorArgumentLine `
+    -WorkingDirectory $ProjectRoot
 Wait-TestProcess -Process $EditorProcess -Label "Editor automation" -LogPath (Join-Path $WorkRoot "EditorTests.log")
 
 $PackageArguments = @(
@@ -234,11 +255,10 @@ if ($ClientConfiguration -eq "Shipping") {
 }
 $GameCommandPath = $GameCommand.FullName
 $GameArgumentLine = ($GameArguments | ForEach-Object { '"{0}"' -f $_ }) -join ' '
-$GameProcess = Start-Process `
+$GameProcess = Start-TestProcess `
     -FilePath $GameCommandPath `
-    -ArgumentList $GameArgumentLine `
-    -WorkingDirectory $GameCommand.DirectoryName `
-    -PassThru
+    -ArgumentLine $GameArgumentLine `
+    -WorkingDirectory $GameCommand.DirectoryName
 Wait-TestProcess -Process $GameProcess -Label "Packaged game" -LogPath $GameLog
 
 $EditorReportPath = Join-Path $ReportRoot "Editor\index.json"
