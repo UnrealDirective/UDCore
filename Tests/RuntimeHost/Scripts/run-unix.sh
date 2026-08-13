@@ -200,6 +200,11 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 	MAC_GAME_LOG="$MAC_LOG_ROOT/GameTests.log"
 	mkdir -p "$MAC_LOG_ROOT"
 	rm -f "$MAC_GAME_LOG"
+	if [[ "$CLIENT_CONFIGURATION" == "Development" ]]; then
+		MAC_GAME_REPORT_ROOT="$MAC_LOG_ROOT/Reports/Game"
+		rm -rf "$MAC_GAME_REPORT_ROOT"
+		mkdir -p "$MAC_GAME_REPORT_ROOT"
+	fi
 
 	GAME_ARGUMENTS=(
 		"-abslog=$MAC_GAME_LOG"
@@ -230,7 +235,7 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 		GAME_ARGUMENTS+=(
 			"-ExecCmds=Automation RunTests DirectiveUtilities; Quit"
 			"-TestExit=Automation Test Queue Empty"
-			"-ReportExportPath=$REPORT_ROOT/Game"
+			"-ReportExportPath=$MAC_GAME_REPORT_ROOT"
 		)
 	fi
 
@@ -240,6 +245,9 @@ if [[ "$PLATFORM" == "Mac" ]]; then
 	set -e
 	if [[ -f "$MAC_GAME_LOG" ]]; then
 		cp "$MAC_GAME_LOG" "$GAME_LOG"
+	fi
+	if [[ "$CLIENT_CONFIGURATION" == "Development" ]] && [[ -d "$MAC_GAME_REPORT_ROOT" ]]; then
+		rsync -a "$MAC_GAME_REPORT_ROOT/" "$REPORT_ROOT/Game/"
 	fi
 	if [[ "$CLIENT_CONFIGURATION" == "Shipping" ]]; then
 		cp "$MAC_APPEND_OUTPUT" "$PERFORMANCE_ROOT/$APPEND_OUTPUT_NAME"

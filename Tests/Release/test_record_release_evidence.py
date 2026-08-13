@@ -101,6 +101,13 @@ class ReleaseEvidenceTest(unittest.TestCase):
         self.assertIn("[System.Diagnostics.Process]::new()", windows_runner)
         self.assertNotIn("Start-Process", windows_runner)
 
+    def test_mac_packaged_report_uses_container_path(self) -> None:
+        unix_runner = (
+            REPOSITORY_ROOT / "Tests" / "RuntimeHost" / "Scripts" / "run-unix.sh"
+        ).read_text(encoding="utf-8")
+        self.assertIn('MAC_GAME_REPORT_ROOT="$MAC_LOG_ROOT/Reports/Game"', unix_runner)
+        self.assertIn('rsync -a "$MAC_GAME_REPORT_ROOT/" "$REPORT_ROOT/Game/"', unix_runner)
+
     def test_release_gates_require_two_clean_performance_retries(self) -> None:
         windows_gate = (
             REPOSITORY_ROOT / "Tools" / "Release" / "run-local-release-gate.ps1"
