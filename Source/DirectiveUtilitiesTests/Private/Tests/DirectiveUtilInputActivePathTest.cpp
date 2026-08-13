@@ -23,8 +23,8 @@ bool FDirectiveUtilInputActivePathTest::RunTest(const FString& Parameters)
 	UGameInstance* GameInstance = NewObject<UGameInstance>(GEngine);
 	if (!GameInstance)
 	{
-		AddInfo(TEXT("Could not create a game instance; skipping Enhanced Input active-path assertions."));
-		return true;
+		AddError(TEXT("Could not create a game instance for Enhanced Input active-path assertions."));
+		return false;
 	}
 	GameInstance->AddToRoot();
 	GameInstance->InitializeStandalone();
@@ -40,19 +40,19 @@ bool FDirectiveUtilInputActivePathTest::RunTest(const FString& Parameters)
 
 	if (!World || !LocalPlayer)
 	{
-		AddInfo(TEXT("Local player unavailable in the headless harness; skipping Enhanced Input active-path assertions."));
+		AddError(TEXT("Local player unavailable in the Enhanced Input test harness."));
 		GameInstance->Shutdown();
 		GameInstance->RemoveFromRoot();
-		return true;
+		return false;
 	}
 
 	APlayerController* PlayerController = World->SpawnActor<APlayerController>();
 	if (!PlayerController)
 	{
-		AddInfo(TEXT("Could not spawn a player controller; skipping Enhanced Input active-path assertions."));
+		AddError(TEXT("Could not spawn a player controller for Enhanced Input active-path assertions."));
 		GameInstance->Shutdown();
 		GameInstance->RemoveFromRoot();
-		return true;
+		return false;
 	}
 	PlayerController->SetPlayer(LocalPlayer);
 	PlayerController->InitInputSystem();
@@ -61,10 +61,10 @@ bool FDirectiveUtilInputActivePathTest::RunTest(const FString& Parameters)
 	UEnhancedInputLocalPlayerSubsystem* Subsystem = UDirectiveUtilInputFunctionLibrary::GetEnhancedInputSubsystem(PlayerController);
 	if (!Subsystem)
 	{
-		AddInfo(TEXT("Enhanced Input subsystem unavailable for the synthetic local player; skipping active-path assertions."));
+		AddError(TEXT("Enhanced Input subsystem unavailable for the synthetic local player."));
 		GameInstance->Shutdown();
 		GameInstance->RemoveFromRoot();
-		return true;
+		return false;
 	}
 
 	TestNotNull("GetEnhancedInputSubsystem returns the subsystem for a live local player", Subsystem);
@@ -111,6 +111,14 @@ bool FDirectiveUtilInputActivePathTest::RunTest(const FString& Parameters)
 	ApplyPendingMappings();
 	TestFalse("Removed context is inactive",
 		UDirectiveUtilInputFunctionLibrary::IsInputMappingContextActive(PlayerController, SoftB));
+	TestEqual("Swap adds the new context when the previous context is inactive",
+		UDirectiveUtilInputFunctionLibrary::SwapInputMappingContexts(PlayerController, SoftA, SoftB, 7, true),
+		EDirectiveUtilSuccessStatus::Success);
+	ApplyPendingMappings();
+	TestTrue("Fallback swap context is active",
+		UDirectiveUtilInputFunctionLibrary::IsInputMappingContextActive(PlayerController, SoftB));
+	UDirectiveUtilInputFunctionLibrary::RemoveInputMappingContexts(PlayerController, {SoftB});
+	ApplyPendingMappings();
 
 	UDirectiveUtilInputFunctionLibrary::AddInputMappingContexts(PlayerController, ToAdd, false);
 	TestEqual("ClearAllInputMappingContexts succeeds",
@@ -120,7 +128,7 @@ bool FDirectiveUtilInputActivePathTest::RunTest(const FString& Parameters)
 	TestFalse("Context is inactive after clear-all",
 		UDirectiveUtilInputFunctionLibrary::IsInputMappingContextActive(PlayerController, SoftA));
 
-	AddExpectedMessagePlain(TEXT("Input Mapping Contexts failed to load and were not added!"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
+	AddExpectedMessagePlain(TEXT("input mapping contexts could not be loaded"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
 	UDirectiveUtilInputFunctionLibrary::AddInputMappingContexts(PlayerController, ToAdd, false);
 	ApplyPendingMappings();
 	FDirectiveUtilEnhancedInputContextData UnresolvableData;

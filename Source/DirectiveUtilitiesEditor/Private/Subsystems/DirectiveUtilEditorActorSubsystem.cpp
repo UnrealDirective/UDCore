@@ -1297,36 +1297,7 @@ void UDirectiveUtilEditorActorSubsystem::GetActorsByMaterialSoftReference(
 	const EDirectiveUtilInclusivity Inclusivity)
 {
 	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-
-	TArray<AStaticMeshActor*> StaticMeshActors;
-	FilterStaticMeshActors(StaticMeshActors, SourceActors);
-
-	FilterActorsByPredicate(StaticMeshActors, FoundActors, Inclusivity, [&](AStaticMeshActor* StaticMeshActor) -> bool
-	{
-		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
-		if (!StaticMeshComp) { return false; }
-		const UStaticMesh* Mesh = StaticMeshComp->GetStaticMesh();
-		if (!Mesh) { return false; }
-
-		if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
-		{
-			for (int32 i = 0; i < StaticMeshComp->GetNumMaterials(); i++)
-			{
-				if (StaticMeshComp->GetMaterial(i) == Material) { return true; }
-			}
-		}
-		if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
-		{
-			for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); i++)
-			{
-				if (Mesh->GetMaterial(i) == Material) { return true; }
-			}
-		}
-		return false;
-	});
-
-	UE_LOG(LogDirectiveUtilEditor, Display, TEXT("%i actors with the material reference were found."),
-	       FoundActors.Num());
+	FilterActorsByMaterial(SourceActors, FoundActors, Material, MaterialSource, Inclusivity);
 }
 
 void UDirectiveUtilEditorActorSubsystem::GetActorsByMaterialName(
@@ -1337,38 +1308,7 @@ void UDirectiveUtilEditorActorSubsystem::GetActorsByMaterialName(
 	const EDirectiveUtilInclusivity Inclusivity)
 {
 	const TArray<AActor*> SourceActors = SelectionMethod == Selection ? GetSelectedLevelActors() : GetAllLevelActors();
-
-	TArray<AStaticMeshActor*> StaticMeshActors;
-	FilterStaticMeshActors(StaticMeshActors, SourceActors);
-
-	FilterActorsByPredicate(StaticMeshActors, FoundActors, Inclusivity, [&](AStaticMeshActor* StaticMeshActor) -> bool
-	{
-		const UStaticMeshComponent* StaticMeshComp = StaticMeshActor->GetStaticMeshComponent();
-		if (!StaticMeshComp) { return false; }
-		const UStaticMesh* Mesh = StaticMeshComp->GetStaticMesh();
-		if (!Mesh) { return false; }
-
-		if (MaterialSource == BaseAndOverride || MaterialSource == OverrideOnly)
-		{
-			for (int32 i = 0; i < StaticMeshComp->GetNumMaterials(); i++)
-			{
-				const UMaterialInterface* Mat = StaticMeshComp->GetMaterial(i);
-				if (Mat && Mat->GetName().Contains(MaterialName)) { return true; }
-			}
-		}
-		if (MaterialSource == BaseAndOverride || MaterialSource == BaseOnly)
-		{
-			for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); i++)
-			{
-				const UMaterialInterface* Mat = Mesh->GetMaterial(i);
-				if (Mat && Mat->GetName().Contains(MaterialName)) { return true; }
-			}
-		}
-		return false;
-	});
-
-	UE_LOG(LogDirectiveUtilEditor, Display, TEXT("%i actors with material %s were found."), FoundActors.Num(),
-	       *MaterialName);
+	FilterActorsByMaterialName(SourceActors, FoundActors, MaterialName, MaterialSource, Inclusivity);
 }
 
 void UDirectiveUtilEditorActorSubsystem::GetActorsByVertexCount(
@@ -1756,11 +1696,14 @@ void UDirectiveUtilEditorActorSubsystem::PushOverrideMaterialsToSource(UStaticMe
 	}
 
 	const FScopedTransaction Transaction(NSLOCTEXT("DirectiveUtilities", "PushOverrideMaterialsToSource", "Push Override Materials To Source"));
-	for (int32 i = 0; i < StaticMeshComponent->GetNumMaterials(); i++)
+	const TArray<TObjectPtr<UMaterialInterface>>& OverrideMaterials = StaticMeshComponent->OverrideMaterials;
+	const int32 MaterialSlotCount = StaticMesh->GetStaticMaterials().Num();
+	for (int32 MaterialIndex = 0; MaterialIndex < FMath::Min(OverrideMaterials.Num(), MaterialSlotCount); ++MaterialIndex)
 	{
-		if (UMaterialInterface* Material = StaticMeshComponent->GetMaterial(i))
+		UMaterialInterface* OverrideMaterial = OverrideMaterials[MaterialIndex];
+		if (OverrideMaterial && StaticMesh->GetMaterial(MaterialIndex) != OverrideMaterial)
 		{
-			StaticMesh->SetMaterial(i, Material);
+			StaticMesh->SetMaterial(MaterialIndex, OverrideMaterial);
 		}
 	}
 	UE_LOG(LogDirectiveUtilEditor, Display, TEXT("Materials were pushed to source for %s."), *StaticMeshComponent->GetName());

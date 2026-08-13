@@ -49,7 +49,7 @@ Finds and returns a list of duplicate assets within the given directories. The c
 static EDirectiveUtilSuccessStatus FixUpRedirectorsInPaths(const TArray<FString>& DirectoryPaths, int32& OutRedirectorsProcessed);
 ```
 
-Fixes up (and deletes) object redirectors found under the given directories, without loading every asset. Equivalent to the Content Browser's "Fix Up Redirectors in Folder", but scriptable and headless-friendly.
+Fixes up and deletes object redirectors found under the given directories. Unreal displays a completion dialog for this operation, so the node requires an interactive editor session. It returns Failure without changing redirectors in unattended runs.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

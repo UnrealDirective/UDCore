@@ -67,6 +67,12 @@ class DIRECTIVEUTILITIESRUNTIME_API UDirectiveUtilTask_RepeatWithInterval : publ
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Runs a fixed number of iterations, or forever when Count is -1.
+	 * @param Count - Iteration count. Use -1 to repeat until Cancel. Zero and other negative values complete on the next tick with no iterations.
+	 * @param Interval - Delay between iterations. Non-positive or non-finite values run on consecutive ticks.
+	 * @param InitialDelay - Delay before the first iteration. Non-positive or non-finite values start on the next tick.
+	 */
 	UFUNCTION(
 		BlueprintCallable,
 		meta=(
@@ -86,6 +92,10 @@ public:
 	virtual void Cancel() override;
 	virtual bool IsActive() const override;
 	virtual bool ShouldBroadcastDelegates() const override;
+
+#if WITH_DEV_AUTOMATION_TESTS
+	void SetNextIndexForTesting(int32 Index) { NextIndex = Index; }
+#endif
 
 	UPROPERTY(BlueprintAssignable)
 	FOnRepeatIteration Iteration;

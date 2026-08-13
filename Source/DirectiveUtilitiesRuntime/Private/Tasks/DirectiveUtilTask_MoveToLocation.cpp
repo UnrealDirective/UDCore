@@ -6,6 +6,7 @@
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
+#include "NavigationSystem.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "TimerManager.h"
 
@@ -70,6 +71,12 @@ void UDirectiveUtilTask_MoveToLocation::Activate()
 	{
 		ExecuteCompleted(false);
 		UE_LOG(LogDirectiveUtil, Warning, TEXT("Controller, pawn, or world is unavailable while moving to location. Aborting."));
+		return;
+	}
+	if (!FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+	{
+		ExecuteCompleted(false);
+		UE_LOG(LogDirectiveUtil, Verbose, TEXT("Navigation is unavailable while moving to location."));
 		return;
 	}
 
@@ -220,6 +227,12 @@ void UDirectiveUtilTask_MoveToActor::Activate()
 	{
 		ExecuteCompleted(false);
 		UE_LOG(LogDirectiveUtil, Warning, TEXT("Controller, pawn, goal, or world is unavailable while moving to actor. Aborting."));
+		return;
+	}
+	if (!FNavigationSystem::GetCurrent<UNavigationSystemV1>(World))
+	{
+		ExecuteCompleted(false);
+		UE_LOG(LogDirectiveUtil, Verbose, TEXT("Navigation is unavailable while moving to actor."));
 		return;
 	}
 

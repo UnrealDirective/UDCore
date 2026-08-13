@@ -53,6 +53,41 @@ Removes duplicate elements from the array in-place.
 |-----------|------|-------------|
 | TargetArray | `Wildcard Array` | The array to remove duplicates from. |
 
+## Append Array Optimized
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
+
+```cpp
+static void Array_AppendOptimized(TArray<int32>& TargetArray, const TArray<int32>& SourceArray);
+```
+
+Appends the source array to the target array in order. Plain-data elements are copied as one contiguous block. Strings, objects, and other managed values use Unreal's property-aware copy path.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| TargetArray | `Wildcard Array` | The array to append to. |
+| SourceArray | `Wildcard Array` | The array to append. |
+
+The source array can also be the target array. An empty source leaves the target unchanged.
+
+## Insert Array Optimized
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
+
+```cpp
+static bool Array_InsertOptimized(TArray<int32>& TargetArray, const TArray<int32>& SourceArray, int32 Index);
+```
+
+Inserts the source array into the target array at `Index` while preserving both arrays' element order. The target is shifted once, regardless of the source array length.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| TargetArray | `Wildcard Array` | The array to insert into. |
+| SourceArray | `Wildcard Array` | The array to insert. |
+| Index | `int32` | The insertion index, from zero through the target length. |
+
+**Returns:** True if one or more elements were inserted. Returns false without modifying the target if the source is empty or the index or element type is invalid.
+
+The source array can also be the target array.
+
 ## Get Valid First Array Item (Copy)
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
 
@@ -167,6 +202,24 @@ Removes the first element of the array and returns a copy of it.
 
 **Returns:** True if an element was removed.
 
+## Remove At Indices
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
+
+```cpp
+static int32 Array_RemoveAtIndices(TArray<int32>& TargetArray, const TArray<int32>& Indices);
+```
+
+Removes multiple elements in one pass while preserving the order of the remaining elements.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| TargetArray | `Wildcard Array` | The array to remove from. |
+| Indices | `int32 Array` | The original array indices to remove. |
+
+Duplicate and out-of-range indices are ignored.
+
+**Returns:** The number of elements removed.
+
 ## Remove At Swap
 **Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
 
@@ -182,6 +235,22 @@ Removes the element at the given index by swapping it with the last element (doe
 | Index | `int32` | The index to remove. |
 
 **Returns:** True if the index was valid and an element was removed.
+
+## Remove All Occurrences
+**Type:** Blueprint Callable &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`
+
+```cpp
+static bool Array_RemoveAllOccurrences(TArray<int32>& TargetArray, const int32& Item);
+```
+
+Removes every matching item in one pass while preserving the order of the remaining elements. This has the same result as Unreal's `Remove Item` array node but avoids repeatedly searching and shifting the array when the value occurs more than once.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| TargetArray | `Wildcard Array` | The array to remove matching items from. |
+| Item | `Wildcard` | The item to remove. |
+
+**Returns:** True if one or more items were removed.
 
 ## Slice
 **Type:** Blueprint Pure &nbsp;|&nbsp; **Category:** `Directive Utilities|Array`

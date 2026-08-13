@@ -15,8 +15,84 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ForwardVector, FVector::RightVector), 90.0f, 0.01f));
 	TestTrue("AngleBetweenVectors should return ~180 for opposite vectors",
 		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ForwardVector, -FVector::ForwardVector), 180.0f, 0.01f));
-	TestTrue("AngleBetweenVectors should handle zero vector gracefully",
-		FMath::IsFinite(UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ForwardVector)));
+	TestEqual("AngleBetweenVectors should return 0 for a zero vector",
+		UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ForwardVector), 0.0f);
+	TestEqual("AngleBetweenVectors should return 0 for two zero vectors",
+		UDirectiveUtilMathFunctionLibrary::AngleBetweenVectors(FVector::ZeroVector, FVector::ZeroVector), 0.0f);
+
+	TestTrue("SignedAngleBetweenVectors returns a positive counterclockwise angle around the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::ForwardVector, FVector::RightVector, FVector::UpVector), 90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors returns a negative clockwise angle around the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::RightVector, FVector::ForwardVector, FVector::UpVector), -90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors reverses sign with the axis",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector::ForwardVector, FVector::RightVector, -FVector::UpVector), -90.0f, 1.e-4f));
+	TestTrue("SignedAngleBetweenVectors projects directions onto the axis plane",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(
+			FVector(1.0, 0.0, 4.0), FVector(0.0, 1.0, -3.0), FVector::UpVector), 90.0f, 1.e-4f));
+	TestEqual("SignedAngleBetweenVectors returns zero for a zero direction",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::ZeroVector, FVector::RightVector, FVector::UpVector), 0.0f);
+	TestEqual("SignedAngleBetweenVectors returns zero for a direction parallel to the axis",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::UpVector, FVector::RightVector, FVector::UpVector), 0.0f);
+	TestEqual("SignedAngleBetweenVectors returns zero for a zero axis",
+		UDirectiveUtilMathFunctionLibrary::SignedAngleBetweenVectors(FVector::ForwardVector, FVector::RightVector, FVector::ZeroVector), 0.0f);
+
+	TestTrue("DeltaAngle crosses the positive angle seam by the shortest path",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(350.0f, 10.0f), 20.0f, 1.e-4f));
+	TestTrue("DeltaAngle crosses the negative angle seam by the shortest path",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(10.0f, 350.0f), -20.0f, 1.e-4f));
+	TestEqual("DeltaAngle returns zero for equivalent wrapped angles",
+		UDirectiveUtilMathFunctionLibrary::DeltaAngle(-180.0f, 180.0f), 0.0f);
+	TestTrue("DeltaAngle canonicalizes an exactly opposite pair to +180",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, 180.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, -180.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, 540.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::DeltaAngle(0.0f, -540.0f), 180.0f, 1.e-4f));
+	TestEqual("DeltaAngle returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::DeltaAngle(std::numeric_limits<float>::infinity(), 0.0f), 0.0f);
+
+	TestTrue("LerpAngle crosses the angle seam by the shortest path",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.5f), 360.0f, 1.e-4f));
+	TestTrue("LerpAngle returns A at Alpha 0",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 0.0f), 350.0f, 1.e-4f));
+	TestTrue("LerpAngle reaches A plus the shortest delta at Alpha 1",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(350.0f, 10.0f, 1.0f), 370.0f, 1.e-4f));
+	TestTrue("LerpAngle permits extrapolation without wrapping the result",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 2.0f), 180.0f, 1.e-4f)
+		&& FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, 3.0f), 270.0f, 1.e-4f));
+	TestEqual("LerpAngle returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::LerpAngle(0.0f, 90.0f, std::numeric_limits<float>::quiet_NaN()), 0.0f);
+
+	TestTrue("PingPong reaches the middle of an ascending range",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(0.5f, 0.0f, 1.0f), 0.5f, 1.e-4f));
+	TestTrue("PingPong reverses after the upper bound",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(1.5f, 0.0f, 1.0f), 0.5f, 1.e-4f));
+	TestTrue("PingPong supports negative values",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(-0.25f, 0.0f, 1.0f), 0.25f, 1.e-4f));
+	TestTrue("PingPong accepts reversed bounds",
+		FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::PingPong(12.5f, 20.0f, 10.0f), 12.5f, 1.e-4f));
+	TestEqual("PingPong returns the shared bound for a zero-sized range",
+		UDirectiveUtilMathFunctionLibrary::PingPong(100.0f, 7.0f, 7.0f), 7.0f);
+	TestEqual("PingPong returns zero for non-finite input",
+		UDirectiveUtilMathFunctionLibrary::PingPong(std::numeric_limits<float>::infinity(), 0.0f, 1.0f), 0.0f);
+
+	TestTrue("IsDirectionWithinCone includes a direction inside the cone",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 1.0, 0.0), FVector::ForwardVector, 46.0f));
+	TestTrue("IsDirectionWithinCone includes a direction on the cone boundary",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 1.0, 0.0), FVector::ForwardVector, 45.0f));
+	TestFalse("IsDirectionWithinCone excludes a direction outside the cone",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector::RightVector, FVector::ForwardVector, 45.0f));
+	TestTrue("IsDirectionWithinCone clamps angles above 180 degrees",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(-FVector::ForwardVector, FVector::ForwardVector, 270.0f));
+	TestFalse("IsDirectionWithinCone clamps negative angles to zero",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector(1.0, 0.1, 0.0), FVector::ForwardVector, -20.0f));
+	TestFalse("IsDirectionWithinCone rejects a zero direction",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(FVector::ZeroVector, FVector::ForwardVector, 45.0f));
+	TestFalse("IsDirectionWithinCone rejects a non-finite angle",
+		UDirectiveUtilMathFunctionLibrary::IsDirectionWithinCone(
+			FVector::ForwardVector, FVector::ForwardVector, std::numeric_limits<float>::quiet_NaN()));
 
 	{
 		const FVector2D Sample2D(12.34f, 56.78f);
@@ -79,15 +155,16 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	const TArray<EDirectiveUtilEaseType> AllEaseTypes = {
 		EDirectiveUtilEaseType::BackIn, EDirectiveUtilEaseType::BackOut, EDirectiveUtilEaseType::BackInOut,
 		EDirectiveUtilEaseType::ElasticIn, EDirectiveUtilEaseType::ElasticOut, EDirectiveUtilEaseType::ElasticInOut,
-		EDirectiveUtilEaseType::BounceIn, EDirectiveUtilEaseType::BounceOut, EDirectiveUtilEaseType::BounceInOut
+		EDirectiveUtilEaseType::BounceIn, EDirectiveUtilEaseType::BounceOut, EDirectiveUtilEaseType::BounceInOut,
+		EDirectiveUtilEaseType::Linear
 	};
 	for (const EDirectiveUtilEaseType EaseType : AllEaseTypes)
 	{
 		const FString TypeName = FString::FromInt(static_cast<int32>(EaseType));
-		TestTrue(FString::Printf(TEXT("EaseAlpha(0) should be ~0 for type %s"), *TypeName),
-			FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EaseType), 0.0f, 1.e-3f));
-		TestTrue(FString::Printf(TEXT("EaseAlpha(1) should be ~1 for type %s"), *TypeName),
-			FMath::IsNearlyEqual(UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EaseType), 1.0f, 1.e-3f));
+		TestEqual(FString::Printf(TEXT("EaseAlpha(0) should be exactly 0 for type %s"), *TypeName),
+			UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EaseType), 0.0f);
+		TestEqual(FString::Printf(TEXT("EaseAlpha(1) should be exactly 1 for type %s"), *TypeName),
+			UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EaseType), 1.0f);
 		for (const float Sample : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
 		{
 			TestTrue(FString::Printf(TEXT("EaseAlpha(%.2f) should be finite for type %s"), Sample, *TypeName),
@@ -98,6 +175,22 @@ bool FDirectiveUtilMathFunctionLibraryTest::RunTest(const FString& Parameters)
 	TestEqual("EaseAlpha should clamp alpha below 0",
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(-1.0f, EDirectiveUtilEaseType::BounceOut),
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.0f, EDirectiveUtilEaseType::BounceOut));
+	TestEqual("Linear ease should pass the clamped alpha through",
+		UDirectiveUtilMathFunctionLibrary::EaseAlpha(0.3f, EDirectiveUtilEaseType::Linear), 0.3f);
+
+	const FTransform EaseStart(FRotator::ZeroRotator, FVector::ZeroVector, FVector::OneVector);
+	const FTransform EaseTarget(FRotator(0.0, 90.0, 0.0), FVector(10.0, 0.0, 0.0), FVector(3.0));
+	const FTransform EasedMidpoint = UDirectiveUtilMathFunctionLibrary::EaseTransform(
+		EaseStart, EaseTarget, 0.5f, EDirectiveUtilEaseType::Linear);
+	TestTrue("EaseTransform should blend location, rotation, and scale",
+		EasedMidpoint.GetLocation().Equals(FVector(5.0, 0.0, 0.0), 1.e-4)
+		&& EasedMidpoint.GetRotation().Equals(FRotator(0.0, 45.0, 0.0).Quaternion(), 1.e-4)
+		&& EasedMidpoint.GetScale3D().Equals(FVector(2.0), 1.e-4));
+	TestTrue("EaseTransform should return its endpoints at alpha 0 and 1",
+		UDirectiveUtilMathFunctionLibrary::EaseTransform(
+			EaseStart, EaseTarget, 0.0f, EDirectiveUtilEaseType::BounceOut).Equals(EaseStart, 1.e-4)
+		&& UDirectiveUtilMathFunctionLibrary::EaseTransform(
+			EaseStart, EaseTarget, 1.0f, EDirectiveUtilEaseType::BounceOut).Equals(EaseTarget, 1.e-4));
 	TestEqual("EaseAlpha should clamp alpha above 1",
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(2.0f, EDirectiveUtilEaseType::BounceOut),
 		UDirectiveUtilMathFunctionLibrary::EaseAlpha(1.0f, EDirectiveUtilEaseType::BounceOut));

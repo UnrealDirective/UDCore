@@ -12,7 +12,6 @@ bool FDirectiveUtilInputFunctionLibraryTest::RunTest(const FString& Parameters)
 	// The null-controller and invalid-context paths intentionally log warnings. Register them as
 	// expected (plain match, negative count = consume if present, never required) so the run is clean.
 	AddExpectedMessagePlain(TEXT("PlayerController is null. Cannot set input mapping contexts."), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
-	AddExpectedMessagePlain(TEXT("Both the previous and new input mapping contexts must be valid."), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, -1);
 
 	// AddInputMappingContexts should return Failure with null controller
 	TArray<FDirectiveUtilEnhancedInputContextData> Contexts;
@@ -41,8 +40,6 @@ bool FDirectiveUtilInputFunctionLibraryTest::RunTest(const FString& Parameters)
 		UDirectiveUtilInputFunctionLibrary::RemoveInputMappingContexts(nullptr, EmptyRemoveContexts),
 		EDirectiveUtilSuccessStatus::Failure);
 
-	// SwapInputMappingContexts loads both contexts before using the controller, so invalid
-	// (unset) soft pointers must return Failure regardless of the (null) controller.
 	const TSoftObjectPtr<UInputMappingContext> NullContext;
 	TestEqual("SwapInputMappingContexts should fail when both contexts are invalid",
 		UDirectiveUtilInputFunctionLibrary::SwapInputMappingContexts(nullptr, NullContext, NullContext, 0, false),

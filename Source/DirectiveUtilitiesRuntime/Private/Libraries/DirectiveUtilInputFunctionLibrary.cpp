@@ -77,8 +77,11 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::AddInputMappingC
 
 	if (FailedIndices.Num() > 0)
 	{
-		FString FailedIndicesStr = FString::JoinBy(FailedIndices, TEXT(", "), [](const int32 Index) { return FString::Printf(TEXT("%d"), Index); });
-		UE_LOGFMT(LogDirectiveUtil, Warning, "{FailedIndicies} Input Mapping Contexts failed to load and were not added! The failed indexes are [{FailedIndicieIndexes}]", FailedIndices.Num(), FailedIndicesStr);
+		const FString FailedIndicesString = FString::JoinBy(
+			FailedIndices, TEXT(", "), [](const int32 Index) { return FString::FromInt(Index); });
+		UE_LOGFMT(LogDirectiveUtil, Warning,
+			"{FailedContextCount} input mapping contexts could not be loaded. Indexes: [{FailedContextIndexes}]",
+			FailedIndices.Num(), FailedIndicesString);
 	}
 
 	if (LoadedContexts.IsEmpty())
@@ -104,7 +107,7 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::RemoveInputMappi
 	AController* PlayerController,
 	const TArray<TSoftObjectPtr<UInputMappingContext>>& Contexts)
 {
-	if (Contexts.IsEmpty()) { return EDirectiveUtilSuccessStatus::Failure;; }
+	if (Contexts.IsEmpty()) { return EDirectiveUtilSuccessStatus::Failure; }
 
 	UEnhancedInputLocalPlayerSubsystem* EnhancedInput;
 	const bool bEnhancedInputRetrievedFromController = TryGetEnhancedInputSubsystemFromController(PlayerController, EnhancedInput);
@@ -118,10 +121,11 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::RemoveInputMappi
 	for (int32 Index = 0; Index < Contexts.Num(); ++Index)
 	{
 		const TSoftObjectPtr<UInputMappingContext>& Context = Contexts[Index];
-		if (const UInputMappingContext* MappingContext = Context.LoadSynchronous())
+		if (const UInputMappingContext* MappingContext = Context.Get())
 		{
 			EnhancedInput->RemoveMappingContext(MappingContext);
-		} else
+		}
+		else
 		{
 			FailedIndices.Add(Index);
 		}
@@ -129,8 +133,11 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::RemoveInputMappi
 
 	if (FailedIndices.Num() > 0)
 	{
-		FString FailedIndicesStr = FString::JoinBy(FailedIndices, TEXT(", "), [](const int32 Index) { return FString::Printf(TEXT("%d"), Index); });
-		UE_LOGFMT(LogDirectiveUtil, Warning, "{FailedIndicies} Input Mapping Contexts failed to load and were not removed! The failed indexes are [{FailedIndicieIndexes}]", FailedIndices.Num(), FailedIndicesStr);
+		const FString FailedIndicesString = FString::JoinBy(
+			FailedIndices, TEXT(", "), [](const int32 Index) { return FString::FromInt(Index); });
+		UE_LOGFMT(LogDirectiveUtil, Warning,
+			"{FailedContextCount} input mapping contexts were not loaded and could not be removed. Indexes: [{FailedContextIndexes}]",
+			FailedIndices.Num(), FailedIndicesString);
 	}
 
 	if (FailedIndices.Num() == Contexts.Num())
@@ -143,28 +150,27 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::RemoveInputMappi
 }
 
 EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::SwapInputMappingContexts(
- AController* PlayerController,
- const TSoftObjectPtr<UInputMappingContext> PreviousContext,
- const TSoftObjectPtr<UInputMappingContext> NewContext,
- const int32 Priority,
- const bool bUsePreviousPriority)
+	AController* PlayerController,
+	const TSoftObjectPtr<UInputMappingContext> PreviousContext,
+	const TSoftObjectPtr<UInputMappingContext> NewContext,
+	const int32 Priority,
+	const bool bUsePreviousPriority)
 {
-	const UInputMappingContext* LoadedPreviousMappingContext = PreviousContext.LoadSynchronous();
-	const UInputMappingContext* LoadedNewMappingContext = NewContext.LoadSynchronous();
-
-	if (!LoadedPreviousMappingContext || !LoadedNewMappingContext)
-	{
-		UE_LOGFMT(LogDirectiveUtil, Warning, "Both the previous and new input mapping contexts must be valid.");
-		return EDirectiveUtilSuccessStatus::Failure;
-	}
-
 	UEnhancedInputLocalPlayerSubsystem* EnhancedInput;
 	if (!TryGetEnhancedInputSubsystemFromController(PlayerController, EnhancedInput))
 	{
 		return EDirectiveUtilSuccessStatus::Failure;
 	}
 
-	if (int32 PreviousPriority; EnhancedInput->HasMappingContext(LoadedPreviousMappingContext, PreviousPriority))
+	const UInputMappingContext* LoadedNewMappingContext = NewContext.LoadSynchronous();
+	if (!LoadedNewMappingContext)
+	{
+		UE_LOGFMT(LogDirectiveUtil, Warning, "The new input mapping context could not be loaded.");
+		return EDirectiveUtilSuccessStatus::Failure;
+	}
+	const UInputMappingContext* LoadedPreviousMappingContext = PreviousContext.Get();
+
+	if (int32 PreviousPriority; LoadedPreviousMappingContext && EnhancedInput->HasMappingContext(LoadedPreviousMappingContext, PreviousPriority))
 	{
 		const int32 TargetPriority = bUsePreviousPriority ? PreviousPriority : Priority;
 		EnhancedInput->RemoveMappingContext(LoadedPreviousMappingContext);
@@ -174,7 +180,7 @@ EDirectiveUtilSuccessStatus UDirectiveUtilInputFunctionLibrary::SwapInputMapping
 	else
 	{
 		EnhancedInput->AddMappingContext(LoadedNewMappingContext, Priority);
-		UE_LOGFMT(LogDirectiveUtil, Warning, "Previous input mapping context {PreviousContext} not found. New context {NewContext} added at priority {BackupPriority}.", LoadedPreviousMappingContext->GetName(), LoadedNewMappingContext->GetName(), Priority);
+		UE_LOGFMT(LogDirectiveUtil, Verbose, "Previous input mapping context was not active. New context {NewContext} added at priority {BackupPriority}.", LoadedNewMappingContext->GetName(), Priority);
 	}
 
 	return EDirectiveUtilSuccessStatus::Success;
@@ -189,7 +195,7 @@ UEnhancedInputLocalPlayerSubsystem* UDirectiveUtilInputFunctionLibrary::GetEnhan
 
 bool UDirectiveUtilInputFunctionLibrary::IsInputMappingContextActive(AController* PlayerController, TSoftObjectPtr<UInputMappingContext> Context)
 {
-	const UInputMappingContext* MappingContext = Context.LoadSynchronous();
+	const UInputMappingContext* MappingContext = Context.Get();
 	if (!MappingContext)
 	{
 		return false;

@@ -185,7 +185,7 @@ void UDirectiveUtilTask_RepeatWithInterval::Activate()
 		return;
 	}
 
-	if (Count <= 0)
+	if (Count == 0 || Count < -1)
 	{
 		TimerHandle = World->GetTimerManager().SetTimerForNextTick(this, &UDirectiveUtilTask_RepeatWithInterval::Complete);
 		return;
@@ -243,13 +243,15 @@ void UDirectiveUtilTask_RepeatWithInterval::OnIteration()
 		return;
 	}
 
-	const int32 CurrentIndex = NextIndex++;
-	Iteration.Broadcast(CurrentIndex, Count - NextIndex);
+	const int32 CurrentIndex = NextIndex;
+	NextIndex = NextIndex == MAX_int32 ? 0 : NextIndex + 1;
+	const int32 Remaining = Count == -1 ? -1 : Count - NextIndex;
+	Iteration.Broadcast(CurrentIndex, Remaining);
 	if (!ShouldBroadcastDelegates())
 	{
 		return;
 	}
-	if (NextIndex >= Count)
+	if (Count != -1 && NextIndex >= Count)
 	{
 		Complete();
 		return;

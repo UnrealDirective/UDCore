@@ -16,7 +16,7 @@ On Windows, the Python launcher can run the same script:
 py -3 Tools/Packaging/package_fab.py
 ```
 
-The default command writes source-only archives for Unreal Engine 5.6, 5.7, and 5.8 under `Build/Fab`. Each archive contains one `DirectiveUtilities` folder and can compile on Win64, Mac, or Linux. The packager adds the empty `Content` directory required for Fab code-plugin submissions.
+The default command writes source-only archives for Unreal Engine 5.6, 5.7, and 5.8 under `Build/Fab`. Each archive contains one `DirectiveUtilities` folder and can compile on Win64, Mac, or Linux. The current Fab layout is intentional and already accepted: it omits `README.md`, `CHANGELOG.md`, `LICENSE`, unused source artwork, and empty local directories, while retaining the empty `Content` directory required for code plugins. Keep those exclusions when preparing Fab uploads.
 
 Build one engine version with:
 
@@ -29,6 +29,8 @@ Validate the source without writing an archive:
 ```sh
 python3 Tools/Packaging/package_fab.py --check
 ```
+
+The local release gate also extracts every generated archive and compiles that extracted plugin with its matching Unreal Engine version. This checks the uploaded bytes while leaving the accepted archive layout unchanged.
 
 The packager rejects missing source notices, unsupported module platform lists, paths over Fab's 170-character limit, and local build directories. It sets `EngineVersion` and `Installed` only in the copied descriptor.
 

@@ -106,6 +106,8 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_NextIndex), {}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_PreviousIndex), {}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveDuplicates), {}},
+		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_AppendOptimized), {{TEXT("SourceArray"), EPinContainerType::Array}}},
+		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_InsertOptimized), {{TEXT("SourceArray"), EPinContainerType::Array}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_GetValidFirstItemCopy), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_GetValidLastItemCopy), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_GetValidItemFromIndexCopy), {{TEXT("OutItem"), EPinContainerType::None}}},
@@ -114,6 +116,8 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Pop), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_PopFirst), {{TEXT("OutItem"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtSwap), {}},
+		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtIndices), {}},
+		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAllOccurrences), {{TEXT("Item"), EPinContainerType::None}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Slice), {{TEXT("OutArray"), EPinContainerType::Array}}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_Rotate), {}},
 		{GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_GetDistinct), {{TEXT("OutArray"), EPinContainerType::Array}}},
@@ -127,6 +131,7 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 	};
 
 	const TArray<FEdGraphPinType> ArrayTypes = {
+		MakeArrayType(UEdGraphSchema_K2::PC_Boolean),
 		MakeArrayType(UEdGraphSchema_K2::PC_String),
 		MakeArrayType(UEdGraphSchema_K2::PC_Object, NAME_None, UDirectiveUtilTestObject::StaticClass()),
 		MakeArrayType(UEdGraphSchema_K2::PC_Struct, NAME_None, FDirectiveUtilCollisionValue::StaticStruct())
@@ -146,6 +151,18 @@ bool FDirectiveUtilArrayNodeWildcardTest::RunTest(const FString& Parameters)
 		TestTrue(
 			*FString::Printf(TEXT("%s should begin as a wildcard array"), *NodeCase.FunctionName.ToString()),
 			TargetArray->PinType.IsArray() && TargetArray->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard);
+		if (NodeCase.FunctionName == GET_FUNCTION_NAME_CHECKED(UDirectiveUtilArrayFunctionLibrary, Array_RemoveAtIndices))
+		{
+			const UEdGraphPin* IndicesPin = Node->FindPin(TEXT("Indices"));
+			TestNotNull(TEXT("RemoveAtIndices should have an Indices pin"), IndicesPin);
+			if (IndicesPin)
+			{
+				TestTrue(
+					TEXT("RemoveAtIndices should keep Indices as an integer array"),
+					IndicesPin->PinType.IsArray()
+						&& IndicesPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Int);
+			}
+		}
 		FCompilerResultsLog ModuleValidationLog;
 		FBlueprintEditorUtils::ValidateEditorOnlyNodes(Node, ModuleValidationLog);
 		TestEqual(

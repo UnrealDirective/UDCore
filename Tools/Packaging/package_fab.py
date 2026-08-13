@@ -19,17 +19,23 @@ PLUGIN_NAME = "DirectiveUtilities"
 SUPPORTED_ENGINE_VERSIONS = ("5.6", "5.7", "5.8")
 SUPPORTED_PLATFORMS = ("Win64", "Mac", "Linux")
 REQUIRED_PLUGIN_DEPENDENCIES = ("EditorScriptingUtilities", "EnhancedInput")
+DOCUMENTATION_URL = (
+    "https://github.com/UnrealDirective/DirectiveUtilities/tree/main/Documentation"
+)
+FAB_MARKETPLACE_URL_PREFIXES = (
+    "https://fab.com/listings/",
+    "https://www.fab.com/listings/",
+)
 PACKAGE_ENTRIES = (
-    "CHANGELOG.md",
     "Config",
     "DirectiveUtilities.uplugin",
     "Documentation",
-    "LICENSE",
-    "README.md",
     "Resources",
     "Source",
 )
 GENERATED_PACKAGE_DIRECTORIES = ("Content",)
+FAB_EXCLUDED_FILTER_ENTRIES = {"/CHANGELOG.md", "/LICENSE", "/README.md"}
+FAB_EXCLUDED_PATHS = ("Resources/UDCoreIcon.svg",)
 FORBIDDEN_DIRECTORY_NAMES = {
     ".git",
     "Binaries",
@@ -65,6 +71,13 @@ def validate_common_descriptor(descriptor: dict) -> list[str]:
         return ["The plugin descriptor does not define any modules."]
 
     expected_platforms = set(SUPPORTED_PLATFORMS)
+    actual_target_platforms = set(descriptor.get("SupportedTargetPlatforms", []))
+    if actual_target_platforms != expected_platforms:
+        errors.append(
+            "The plugin must support exactly: "
+            f"{', '.join(SUPPORTED_PLATFORMS)}."
+        )
+
     for module in modules:
         module_name = module.get("Name", "<unnamed>")
         actual_platforms = set(module.get("PlatformAllowList", []))
@@ -73,14 +86,33 @@ def validate_common_descriptor(descriptor: dict) -> list[str]:
                 f"Module {module_name} must allow exactly: {', '.join(SUPPORTED_PLATFORMS)}."
             )
 
-    dependency_names = {
-        dependency.get("Name")
+    dependencies_by_name = {
+        dependency.get("Name"): dependency
         for dependency in descriptor.get("Plugins", [])
         if isinstance(dependency, dict)
     }
     for dependency_name in REQUIRED_PLUGIN_DEPENDENCIES:
-        if dependency_name not in dependency_names:
+        if dependency_name not in dependencies_by_name:
             errors.append(f"The plugin descriptor is missing dependency {dependency_name}.")
+
+    editor_scripting_dependency = dependencies_by_name.get("EditorScriptingUtilities")
+    if editor_scripting_dependency is not None:
+        target_allow_list = set(
+            editor_scripting_dependency.get("TargetAllowList", [])
+        )
+        if target_allow_list != {"Editor"}:
+            errors.append(
+                "EditorScriptingUtilities must be limited to the Editor target."
+            )
+
+    if descriptor.get("DocsURL") != DOCUMENTATION_URL:
+        errors.append(f"DocsURL must be {DOCUMENTATION_URL}.")
+
+    marketplace_url = descriptor.get("MarketplaceURL", "")
+    if marketplace_url and not marketplace_url.startswith(
+        FAB_MARKETPLACE_URL_PREFIXES
+    ):
+        errors.append("MarketplaceURL must be empty or point to the Fab listing.")
 
     return errors
 
@@ -119,6 +151,17 @@ def validate_forbidden_directories(plugin_root: Path) -> list[str]:
         if directory.name in FORBIDDEN_DIRECTORY_NAMES:
             errors.append(f"Package contains a forbidden directory: {directory}")
     return errors
+
+
+def validate_empty_directories(plugin_root: Path) -> list[str]:
+    allowed_empty_directories = {
+        plugin_root / directory for directory in GENERATED_PACKAGE_DIRECTORIES
+    }
+    return [
+        f"Package contains an unused empty directory: {directory}"
+        for directory in sorted(path for path in plugin_root.rglob("*") if path.is_dir())
+        if directory not in allowed_empty_directories and not any(directory.iterdir())
+    ]
 
 
 def raise_for_errors(errors: Iterable[str]) -> None:
@@ -173,8 +216,34 @@ def copy_package_source(repository_root: Path, plugin_root: Path) -> None:
         else:
             shutil.copy2(source, destination)
 
+    for relative_path in FAB_EXCLUDED_PATHS:
+        (plugin_root / relative_path).unlink(missing_ok=True)
+
+    directories = sorted(
+        (path for path in plugin_root.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    )
+    for directory in directories:
+        if not any(directory.iterdir()):
+            directory.rmdir()
+
     for directory in GENERATED_PACKAGE_DIRECTORIES:
         (plugin_root / directory).mkdir()
+
+
+def write_fab_filter(plugin_root: Path) -> None:
+    filter_path = plugin_root / "Config" / "FilterPlugin.ini"
+    lines = filter_path.read_text(encoding="utf-8-sig").splitlines()
+    filter_path.write_text(
+        "\n".join(
+            line
+            for line in lines
+            if line.strip() not in FAB_EXCLUDED_FILTER_ENTRIES
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def write_fab_descriptor(plugin_root: Path, descriptor: dict, engine_version: str) -> None:
@@ -217,6 +286,10 @@ def validate_fab_artifact(plugin_root: Path, engine_version: str) -> None:
     errors.extend(validate_source_notices(plugin_root / "Source"))
     errors.extend(validate_package_paths(plugin_root))
     errors.extend(validate_forbidden_directories(plugin_root))
+    errors.extend(validate_empty_directories(plugin_root))
+    for relative_path in FAB_EXCLUDED_PATHS:
+        if (plugin_root / relative_path).exists():
+            errors.append(f"Package contains an excluded file: {relative_path}")
     raise_for_errors(errors)
 
 
@@ -278,6 +351,7 @@ def package_fab_artifact(
     with tempfile.TemporaryDirectory(prefix="directive-utilities-fab-") as staging_directory:
         plugin_root = Path(staging_directory) / PLUGIN_NAME
         copy_package_source(repository_root, plugin_root)
+        write_fab_filter(plugin_root)
         write_fab_descriptor(plugin_root, descriptor, engine_version)
         validate_fab_artifact(plugin_root, engine_version)
         write_deterministic_archive(plugin_root, archive_path)

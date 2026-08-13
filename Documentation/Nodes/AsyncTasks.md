@@ -62,19 +62,19 @@ static UDirectiveUtilTask_RepeatWithInterval* RepeatWithInterval(
     float InitialDelay = 0.0f);
 ```
 
-Runs a fixed number of iterations. Zero intervals run once per world tick, and longer intervals fire at most once per frame. The first index is zero, and `Remaining` reports the iterations left after the current one. Game pause stops the timer, and time dilation scales it.
+Runs a fixed number of iterations, or forever when Count is `-1`. Zero intervals run once per world tick, and longer intervals fire at most once per frame. The first index is zero. An infinite repeat wraps the index to zero after `MAX_int32`. For a finite count, `Remaining` is the iterations left after the current one; for `-1` it stays `-1`. Game pause stops the timer, and time dilation scales it.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | WorldContextObject | `UObject*` | The world context object. |
-| Count | `int32` | The number of iterations. Non-positive values complete on the next tick. |
+| Count | `int32` | Iteration count. `-1` repeats until Cancel. Zero and other negative values complete on the next tick with no iterations. |
 | Interval | `float` | The delay between iterations. Zero runs on consecutive ticks. |
 | InitialDelay | `float` | The delay before the first iteration. Zero starts on the next tick. |
 
 **Output exec pins:**
 
 - `Iteration` (`FOnRepeatIteration`, `int32 Index, int32 Remaining`): fired once per iteration.
-- `Completed` (`FOnRepeatCompleted`, no params): fired after the final iteration.
+- `Completed` (`FOnRepeatCompleted`, no params): fired after the final finite iteration. Not fired for an infinite count unless you stop with Cancel, which does not fire Completed.
 
 Call `Cancel` on the async proxy to stop without firing either delegate again.
 

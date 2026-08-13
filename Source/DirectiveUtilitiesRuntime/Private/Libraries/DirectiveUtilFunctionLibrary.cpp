@@ -3,13 +3,24 @@
 
 #include "Libraries/DirectiveUtilFunctionLibrary.h"
 #include "Engine/World.h"
+#include "HAL/CriticalSection.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeLock.h"
 
 namespace
 {
+	struct FDirectiveUtilStopwatchState
+	{
+		FCriticalSection Lock;
+		TMap<FName, double> StartTimesByKey;
+	};
+
+	FDirectiveUtilStopwatchState StopwatchState;
+
 	EDirectiveUtilWorldType ToDirectiveWorldType(const EWorldType::Type WorldType)
 	{
 		switch (WorldType)
@@ -153,6 +164,44 @@ bool UDirectiveUtilFunctionLibrary::HasCommandLineSwitch(const FString& Switch)
 bool UDirectiveUtilFunctionLibrary::GetCommandLineOption(const FString& Key, FString& OutValue)
 {
 	return GetCommandLineOption(FCommandLine::Get(), Key, OutValue);
+}
+
+bool UDirectiveUtilFunctionLibrary::StartStopwatch(const FName Key, const bool bRestartIfRunning)
+{
+	if (Key.IsNone())
+	{
+		return false;
+	}
+
+	FScopeLock Lock(&StopwatchState.Lock);
+	if (!bRestartIfRunning && StopwatchState.StartTimesByKey.Contains(Key))
+	{
+		return false;
+	}
+
+	StopwatchState.StartTimesByKey.Add(Key, FPlatformTime::Seconds());
+	return true;
+}
+
+bool UDirectiveUtilFunctionLibrary::StopStopwatch(const FName Key, double& ElapsedMilliseconds)
+{
+	ElapsedMilliseconds = 0.0;
+	if (Key.IsNone())
+	{
+		return false;
+	}
+
+	double StartTime = 0.0;
+	{
+		FScopeLock Lock(&StopwatchState.Lock);
+		if (!StopwatchState.StartTimesByKey.RemoveAndCopyValue(Key, StartTime))
+		{
+			return false;
+		}
+	}
+
+	ElapsedMilliseconds = FMath::Max((FPlatformTime::Seconds() - StartTime) * 1000.0, 0.0);
+	return true;
 }
 
 bool UDirectiveUtilFunctionLibrary::HasCommandLineSwitch(const TCHAR* CommandLine, const FString& Switch)

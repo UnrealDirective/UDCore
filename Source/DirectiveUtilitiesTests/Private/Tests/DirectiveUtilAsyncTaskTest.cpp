@@ -113,7 +113,12 @@ namespace DirectiveUtilAsyncTaskTestHelpers
 		return Listener;
 	}
 
-	UDirectiveUtilDelegateListener* StartRepeatScenario(int32 Count, float Interval, float InitialDelay, bool bCancel)
+	UDirectiveUtilDelegateListener* StartRepeatScenario(
+		int32 Count,
+		float Interval,
+		float InitialDelay,
+		bool bCancel,
+		int32 NextIndex = 0)
 	{
 		UDirectiveUtilDelegateListener* Listener = CreateScenarioListener();
 		if (!Listener)
@@ -129,6 +134,9 @@ namespace DirectiveUtilAsyncTaskTestHelpers
 		Listener->Keepalive = Task;
 		Task->Iteration.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnRepeatIteration);
 		Task->Completed.AddDynamic(Listener, &UDirectiveUtilDelegateListener::OnCompleted);
+#if WITH_DEV_AUTOMATION_TESTS
+		Task->SetNextIndexForTesting(NextIndex);
+#endif
 		Task->Activate();
 		if (bCancel)
 		{
@@ -594,6 +602,90 @@ bool FDirectiveUtilCancelRepeatAfterIterationScenario::Update()
 	return true;
 }
 
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(
+	FDirectiveUtilTickInfiniteRepeatScenario,
+	FAutomationTestBase*, Test,
+	UDirectiveUtilDelegateListener*, Listener,
+	int32, FramesRemaining);
+
+DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(
+	FDirectiveUtilTickRepeatRolloverScenario,
+	FAutomationTestBase*, Test,
+	UDirectiveUtilDelegateListener*, Listener,
+	int32, FramesRemaining);
+
+bool FDirectiveUtilTickRepeatRolloverScenario::Update()
+{
+	if (!Listener)
+	{
+		return true;
+	}
+
+	if (UWorld* World = Listener->ScenarioWorld.Get())
+	{
+		World->GetTimerManager().Tick(0.1f);
+	}
+
+	if (Listener->IterationCount < 2 && --FramesRemaining > 0)
+	{
+		return false;
+	}
+
+	Test->TestTrue(
+		TEXT("An infinite Repeat with Interval wraps its index without signed overflow"),
+		Listener->IterationIndices.Num() >= 2
+			&& Listener->IterationIndices[0] == MAX_int32
+			&& Listener->IterationIndices[1] == 0);
+	if (UDirectiveUtilTask_RepeatWithInterval* Task = Cast<UDirectiveUtilTask_RepeatWithInterval>(Listener->Keepalive))
+	{
+		Task->Cancel();
+	}
+	DirectiveUtilAsyncTaskTestHelpers::DestroyScenario(Listener);
+	return true;
+}
+
+bool FDirectiveUtilTickInfiniteRepeatScenario::Update()
+{
+	if (!Listener)
+	{
+		return true;
+	}
+
+	if (UWorld* World = Listener->ScenarioWorld.Get())
+	{
+		World->GetTimerManager().Tick(0.1f);
+	}
+
+	if (--FramesRemaining > 0)
+	{
+		return false;
+	}
+
+	Test->TestFalse(TEXT("An infinite Repeat with Interval does not complete on its own"), Listener->bCompleted);
+	Test->TestTrue(TEXT("An infinite Repeat with Interval keeps iterating"), Listener->IterationCount >= 3);
+	TArray<int32> ExpectedRemaining;
+	ExpectedRemaining.Init(-1, Listener->IterationCount);
+	Test->TestEqual(TEXT("An infinite Repeat with Interval reports Remaining as -1"),
+		Listener->IterationRemaining, ExpectedRemaining);
+
+	if (UDirectiveUtilTask_RepeatWithInterval* Task = Cast<UDirectiveUtilTask_RepeatWithInterval>(Listener->Keepalive))
+	{
+		const int32 IterationsAtCancel = Listener->IterationCount;
+		Task->Cancel();
+		if (UWorld* World = Listener->ScenarioWorld.Get())
+		{
+			World->GetTimerManager().Tick(0.1f);
+			World->GetTimerManager().Tick(0.1f);
+		}
+		Test->TestEqual(TEXT("Cancel stops further infinite iterations"), Listener->IterationCount, IterationsAtCancel);
+		Test->TestFalse(TEXT("Cancel does not fire Completed for an infinite Repeat"), Listener->bCompleted);
+		Test->TestFalse(TEXT("Cancelled infinite Repeat is inactive"), Task->IsActive());
+	}
+
+	DirectiveUtilAsyncTaskTestHelpers::DestroyScenario(Listener);
+	return true;
+}
+
 DEFINE_LATENT_AUTOMATION_COMMAND_FIVE_PARAMETER(
 	FDirectiveUtilTickRepeatScenario,
 	FAutomationTestBase*, Test,
@@ -681,6 +773,27 @@ bool FDirectiveUtilRepeatWithIntervalTaskTest::RunTest(const FString& Parameters
 	{
 		AddError(TEXT("Failed to create the empty Repeat with Interval scenario."));
 	}
+
+	if (UDirectiveUtilDelegateListener* Infinite = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(-1, 0.0f, 0.0f, false))
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickInfiniteRepeatScenario(this, Infinite, 5));
+	}
+	else
+	{
+		AddError(TEXT("Failed to create the infinite Repeat with Interval scenario."));
+	}
+
+#if WITH_DEV_AUTOMATION_TESTS
+	if (UDirectiveUtilDelegateListener* Rollover = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(
+		-1, 0.0f, 0.0f, false, MAX_int32))
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FDirectiveUtilTickRepeatRolloverScenario(this, Rollover, 5));
+	}
+	else
+	{
+		AddError(TEXT("Failed to create the repeat-index rollover scenario."));
+	}
+#endif
 
 	if (UDirectiveUtilDelegateListener* NegativeCount = DirectiveUtilAsyncTaskTestHelpers::StartRepeatScenario(-4, 0.1f, 0.1f, false))
 	{
@@ -949,7 +1062,10 @@ bool FDirectiveUtilAsyncLoadAssetsTest::RunTest(const FString& Parameters)
 		Listener->AddToRoot();
 
 		TArray<TSoftObjectPtr<UObject>> Assets;
-		Assets.Add(TSoftObjectPtr<UObject>(FSoftObjectPath(TEXT("/Engine/EngineMeshes/SM_MatPreviewMesh_01.SM_MatPreviewMesh_01"))));
+		// RuntimeHost always cooks /Engine/BasicShapes. Use an asset that the
+		// successful batch above did not load so this remains a valid cancellation
+		// probe without producing a missing-package warning in packaged builds.
+		Assets.Add(TSoftObjectPtr<UObject>(FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"))));
 
 		UDirectiveUtilTask_AsyncLoadAssets* Task = UDirectiveUtilTask_AsyncLoadAssets::AsyncLoadAssets(nullptr, Assets);
 		Listener->Keepalive = Task;

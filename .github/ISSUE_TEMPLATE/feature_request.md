@@ -1,27 +1,20 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Propose a Directive Utilities node or workflow
 title: ''
 labels: ''
 assignees: ''
 
 ---
 
-## Description
-<!-- Provide a clear and concise description of the feature you would like to see added to UDCore. Explain the problem this feature would solve or the enhancement it would provide. -->
+## Use case
+<!-- Describe the Unreal workflow or repeated code this would replace. -->
 
-## Proposed Solution
-<!-- Describe how you think this feature should work. If possible, include details on implementation, API changes, or other technical considerations. -->
+## Proposed API
+<!-- Include the node name, inputs, outputs, and expected behavior if you have them. -->
 
-## Alternatives Considered
-<!-- If applicable, describe any alternative solutions or features you've considered. Explain why these alternatives might not be as effective or why you didn't choose them. -->
+## Current workaround
+<!-- How do you solve this today? -->
 
-## Additional Context
-<!-- Add any other context, screenshots, or references to other projects that might help explain your request. -->
-
-## Priorities
-<!-- Optional: Indicate the priority or importance of this feature compared to other features or bugs. -->
-
-- [ ] Must-have
-- [ ] Nice-to-have
-- [ ] Low priority
+## Compatibility
+<!-- Note any engine-version, platform, Blueprint, Python, or C++ requirements. -->

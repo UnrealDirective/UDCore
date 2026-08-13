@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPOSITORY_ROOT="$(cd "$SCRIPT_ROOT/../.." && pwd)"
+
+if [[ "$#" -eq 0 ]]; then
+	if [[ "$(uname -s)" != "Darwin" ]]; then
+		echo "Usage: run-local-release-gate.sh <UE_5.6> <UE_5.7> <UE_5.8>" >&2
+		exit 2
+	fi
+	ENGINE_ROOTS=(
+		"/Users/Shared/Epic Games/UE_5.6"
+		"/Users/Shared/Epic Games/UE_5.7"
+		"/Users/Shared/Epic Games/UE_5.8"
+	)
+else
+	ENGINE_ROOTS=("$@")
+fi
+
+if [[ "${#ENGINE_ROOTS[@]}" -ne 3 ]]; then
+	echo "Provide the UE 5.6, 5.7, and 5.8 engine roots in that order." >&2
+	exit 2
+fi
+
+EXPECTED_VERSIONS=("UE_5.6" "UE_5.7" "UE_5.8")
+for INDEX in 0 1 2; do
+	if [[ "$(basename "${ENGINE_ROOTS[$INDEX]}")" != "${EXPECTED_VERSIONS[$INDEX]}" ]]; then
+		echo "Expected ${EXPECTED_VERSIONS[$INDEX]} at argument $((INDEX + 1)): ${ENGINE_ROOTS[$INDEX]}" >&2
+		exit 2
+	fi
+done
+
+cd "$REPOSITORY_ROOT"
+ALLOW_DIRTY_RELEASE="${DIRECTIVE_UTILITIES_ALLOW_DIRTY_RELEASE:-0}"
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]] && [[ "$ALLOW_DIRTY_RELEASE" != "1" ]]; then
+	echo "Release certification requires a clean working tree. Set DIRECTIVE_UTILITIES_ALLOW_DIRTY_RELEASE=1 for development validation." >&2
+	exit 1
+fi
+
+python3 -m unittest \
+	Tests/Packaging/test_package_fab.py \
+	Tests/Release/test_check_release.py \
+	Tests/Release/test_record_release_evidence.py
+python3 Tools/Release/check_release.py
+python3 Tools/Packaging/package_fab.py --check
+git diff --check
+
+if rg -n -i 'co-authored-by:|generated (with|by)|chatgpt|openai|claude|copilot|delve|seamless|robust|leverage|comprehensive|streamline|—|–' \
+	--glob '!Build/**' --glob '!Binaries/**' --glob '!Intermediate/**' \
+	--glob '!Tools/Release/run-local-release-gate.*' .; then
+	echo "Release text contains an attribution or generated-content marker." >&2
+	exit 1
+fi
+
+Tools/Release/verify-fab-artifacts.sh "${ENGINE_ROOTS[@]}"
+
+for ENGINE_ROOT in "${ENGINE_ROOTS[@]}"; do
+	Tests/RuntimeHost/Scripts/run-unix.sh "$ENGINE_ROOT" Development
+done
+
+PERFORMANCE_ROOT="$REPOSITORY_ROOT/Build/Performance/ReleaseGate"
+PERFORMANCE_PROJECT="$REPOSITORY_ROOT/Build/RuntimeHost/UE_5.8/Development/Project/DirectiveUtilitiesRuntimeHost.uproject"
+Tests/Performance/run-runtime-benchmarks.sh \
+	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/warmup.csv"
+BASELINE_RUNS=()
+for BASELINE_INDEX in 1 2 3; do
+	BASELINE_RUN="$PERFORMANCE_ROOT/baseline-run-$BASELINE_INDEX.csv"
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$BASELINE_RUN"
+	BASELINE_RUNS+=("$BASELINE_RUN")
+done
+python3 Tools/Release/aggregate_performance_baselines.py \
+	--output "$PERFORMANCE_ROOT/baseline.csv" "${BASELINE_RUNS[@]}"
+if Tests/Performance/run-runtime-benchmarks.sh \
+	"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-1.csv" \
+	"$PERFORMANCE_ROOT/baseline.csv"; then
+	cp "$PERFORMANCE_ROOT/candidate-attempt-1.csv" "$PERFORMANCE_ROOT/candidate.csv"
+else
+	echo "The first performance candidate failed. Two clean retries are required." >&2
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-2.csv" \
+		"$PERFORMANCE_ROOT/baseline.csv"
+	Tests/Performance/run-runtime-benchmarks.sh \
+		"${ENGINE_ROOTS[2]}" "$PERFORMANCE_PROJECT" "$PERFORMANCE_ROOT/candidate-attempt-3.csv" \
+		"$PERFORMANCE_ROOT/baseline.csv"
+	cp "$PERFORMANCE_ROOT/candidate-attempt-3.csv" "$PERFORMANCE_ROOT/candidate.csv"
+fi
+
+Tests/RuntimeHost/Scripts/run-unix.sh "${ENGINE_ROOTS[2]}" Shipping
+EVIDENCE_ARGUMENTS=()
+if [[ "$ALLOW_DIRTY_RELEASE" == "1" ]]; then
+	EVIDENCE_ARGUMENTS+=(--allow-dirty)
+fi
+python3 Tools/Release/record_release_evidence.py \
+	--output "$REPOSITORY_ROOT/Build/ReleaseEvidence/$(uname -s)/manifest.json" \
+	"${EVIDENCE_ARGUMENTS[@]}"
+echo "Local release gate passed."

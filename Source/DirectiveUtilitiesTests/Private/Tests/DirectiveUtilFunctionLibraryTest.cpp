@@ -1,7 +1,9 @@
 // Copyright (c) 2026 Unreal Directive. Licensed under the MIT License.
 
 #include "Libraries/DirectiveUtilFunctionLibrary.h"
+#include "Async/Async.h"
 #include "Engine/World.h"
+#include "HAL/PlatformProcess.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/App.h"
 #include "UObject/Package.h"
@@ -245,6 +247,111 @@ bool FDirectiveUtilFunctionLibraryTest::RunTest(const FString& Parameters)
 		RecursiveDerived.Contains(UDirectiveUtilFunctionLibrary::StaticClass()));
 	TestFalse("GetChildClasses should not include the base class itself",
 		RecursiveDerived.Contains(UBlueprintFunctionLibrary::StaticClass()));
+
+	double ElapsedMilliseconds = 123.0;
+	TestFalse(
+		"StartStopwatch should reject NAME_None",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(NAME_None));
+	TestFalse(
+		"StopStopwatch should reject NAME_None",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(NAME_None, ElapsedMilliseconds));
+	TestEqual("StopStopwatch should reset elapsed time for NAME_None", ElapsedMilliseconds, 0.0);
+
+	const FName MissingStopwatchKey(TEXT("DirectiveUtilMissingStopwatch"));
+	ElapsedMilliseconds = 123.0;
+	TestFalse(
+		"StopStopwatch should reject a missing key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(MissingStopwatchKey, ElapsedMilliseconds));
+	TestEqual("StopStopwatch should reset elapsed time for a missing key", ElapsedMilliseconds, 0.0);
+
+	const FName BasicStopwatchKey(TEXT("DirectiveUtilBasicStopwatch"));
+	TestTrue(
+		"StartStopwatch should start an unused key",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(BasicStopwatchKey));
+	TestFalse(
+		"StartStopwatch should preserve an active key by default",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(BasicStopwatchKey));
+	TestTrue(
+		"StopStopwatch should stop an active key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(BasicStopwatchKey, ElapsedMilliseconds));
+	TestTrue("StopStopwatch should return a non-negative duration", ElapsedMilliseconds >= 0.0);
+	TestFalse(
+		"StopStopwatch should consume the active key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(BasicStopwatchKey, ElapsedMilliseconds));
+
+	const FName RestartStopwatchKey(TEXT("DirectiveUtilRestartStopwatch"));
+	TestTrue(
+		"StartStopwatch should start the restart test key",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(RestartStopwatchKey));
+	TestTrue(
+		"StartStopwatch should replace an active key when requested",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(RestartStopwatchKey, true));
+	TestTrue(
+		"StopStopwatch should stop a restarted key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(RestartStopwatchKey, ElapsedMilliseconds));
+
+	const FName FirstOverlapKey(TEXT("DirectiveUtilFirstOverlapStopwatch"));
+	const FName SecondOverlapKey(TEXT("DirectiveUtilSecondOverlapStopwatch"));
+	TestTrue(
+		"StartStopwatch should start the first overlapping key",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(FirstOverlapKey));
+	TestTrue(
+		"StartStopwatch should start the second overlapping key",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(SecondOverlapKey));
+	TestTrue(
+		"StopStopwatch should stop the first overlapping key out of order",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(FirstOverlapKey, ElapsedMilliseconds));
+	TestTrue(
+		"StopStopwatch should stop the second overlapping key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(SecondOverlapKey, ElapsedMilliseconds));
+
+	const FName TimedStopwatchKey(TEXT("DirectiveUtilTimedStopwatch"));
+	TestTrue(
+		"StartStopwatch should start the elapsed-time test key",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(TimedStopwatchKey));
+	FPlatformProcess::SleepNoStats(0.01f);
+	TestTrue(
+		"StopStopwatch should stop the elapsed-time test key",
+		UDirectiveUtilFunctionLibrary::StopStopwatch(TimedStopwatchKey, ElapsedMilliseconds));
+	TestTrue("StopStopwatch should measure elapsed real time in milliseconds", ElapsedMilliseconds >= 5.0);
+
+	const FName CrossThreadStopwatchKey(TEXT("DirectiveUtilCrossThreadStopwatch"));
+	TestTrue(
+		"StartStopwatch should start a key that will stop on another thread",
+		UDirectiveUtilFunctionLibrary::StartStopwatch(CrossThreadStopwatchKey));
+	double CrossThreadElapsedMilliseconds = 0.0;
+	TFuture<bool> CrossThreadStop = Async(EAsyncExecution::ThreadPool, [&CrossThreadElapsedMilliseconds, CrossThreadStopwatchKey]()
+	{
+		return UDirectiveUtilFunctionLibrary::StopStopwatch(
+			CrossThreadStopwatchKey,
+			CrossThreadElapsedMilliseconds);
+	});
+	TestTrue("StopStopwatch should find a key started on another thread", CrossThreadStop.Get());
+	TestTrue("Cross-thread stopwatch duration should be non-negative", CrossThreadElapsedMilliseconds >= 0.0);
+
+	const UFunction* StartStopwatchFunction = UDirectiveUtilFunctionLibrary::StaticClass()->FindFunctionByName(
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilFunctionLibrary, StartStopwatch));
+	const UFunction* StopStopwatchFunction = UDirectiveUtilFunctionLibrary::StaticClass()->FindFunctionByName(
+		GET_FUNCTION_NAME_CHECKED(UDirectiveUtilFunctionLibrary, StopStopwatch));
+	TestNotNull("StartStopwatch should be reflected", StartStopwatchFunction);
+	TestNotNull("StopStopwatch should be reflected", StopStopwatchFunction);
+	for (const UFunction* StopwatchFunction : { StartStopwatchFunction, StopStopwatchFunction })
+	{
+		if (!StopwatchFunction)
+		{
+			continue;
+		}
+
+		TestTrue("Stopwatch functions should be Blueprint callable", StopwatchFunction->HasAnyFunctionFlags(FUNC_BlueprintCallable));
+		TestFalse("Stopwatch functions should not be Blueprint pure", StopwatchFunction->HasAnyFunctionFlags(FUNC_BlueprintPure));
+		TestFalse("Stopwatch functions should be available at runtime", StopwatchFunction->HasAnyFunctionFlags(FUNC_EditorOnly));
+#if WITH_EDITOR
+		TestEqual(
+			"Stopwatch functions should use the profiling category",
+			StopwatchFunction->GetMetaData(TEXT("Category")),
+			FString(TEXT("Directive Utilities|Utility|Profiling")));
+#endif
+	}
 
 	TArray<UClass*> NonRecursiveDerived;
 	UDirectiveUtilFunctionLibrary::GetChildClasses(UBlueprintFunctionLibrary::StaticClass(), false, NonRecursiveDerived);

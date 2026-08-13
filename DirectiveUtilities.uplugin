@@ -1,18 +1,24 @@
 {
 	"FileVersion": 3,
-	"Version": 6,
-	"VersionName": "2.1.0",
+	"Version": 7,
+	"VersionName": "2.2.0",
 	"FriendlyName": "Directive Utilities",
 	"Description": "An open-source Unreal Engine plugin that provides runtime and editor utility nodes for developers.",
 	"Category": "Unreal Directive",
 	"CreatedBy": "Unreal Directive",
 	"CreatedByURL": "https://unrealdirective.com",
-	"MarketplaceURL": "https://unrealdirective.com",
+	"DocsURL": "https://github.com/UnrealDirective/DirectiveUtilities/tree/main/Documentation",
+	"MarketplaceURL": "",
 	"SupportURL": "https://github.com/UnrealDirective/DirectiveUtilities/issues",
 	"CanContainContent": false,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": false,
 	"Installed": false,
+	"SupportedTargetPlatforms": [
+		"Win64",
+		"Mac",
+		"Linux"
+	],
 	"Modules": [
 		{
 			"Name": "DirectiveUtilitiesRuntime",
@@ -64,7 +70,10 @@
 	"Plugins": [
 		{
 			"Name": "EditorScriptingUtilities",
-			"Enabled": true
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		},
 		{
 			"Name": "EnhancedInput",

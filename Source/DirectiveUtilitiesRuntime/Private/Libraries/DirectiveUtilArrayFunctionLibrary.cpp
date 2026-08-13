@@ -5,8 +5,11 @@
 
 #include "Algo/BinarySearch.h"
 #include "Algo/Sort.h"
+#include "Containers/BitArray.h"
 #include "Containers/ScriptArray.h"
+#include "Kismet/KismetArrayLibrary.h"
 #include "Misc/ComparisonUtility.h"
+#include "UObject/Class.h"
 
 namespace
 {
@@ -65,6 +68,7 @@ namespace
 	{
 		int32 SourceIndex;
 		int32 Count;
+		int32 HashNext = INDEX_NONE;
 	};
 
 	struct FWeightedSampleCandidate
@@ -102,6 +106,38 @@ namespace
 				const int32 GroupIndex = OutGroups.Num();
 				OutGroups.Add({SourceIndex, 1});
 				GroupIndices.Add(Key, GroupIndex);
+			}
+			return;
+		}
+
+		const FStructProperty* StructProperty = CastField<FStructProperty>(InnerProperty);
+		const UScriptStruct::ICppStructOps* StructOps = StructProperty ? StructProperty->Struct->GetCppStructOps() : nullptr;
+		if (StructProperty && (!StructOps || !StructOps->HasIdentical()))
+		{
+			TMap<uint32, int32> GroupHeads;
+			GroupHeads.Reserve(Num);
+			for (int32 SourceIndex = 0; SourceIndex < Num; ++SourceIndex)
+			{
+				const void* Value = SourceHelper.GetRawPtr(SourceIndex);
+				FString ExportedValue;
+				InnerProperty->ExportTextItem_Direct(ExportedValue, Value, nullptr, nullptr, PPF_None);
+				const uint32 Hash = GetTypeHash(ExportedValue);
+				const int32* Head = GroupHeads.Find(Hash);
+				int32 GroupIndex = Head ? *Head : INDEX_NONE;
+				while (GroupIndex != INDEX_NONE &&
+					!InnerProperty->Identical(Value, SourceHelper.GetRawPtr(OutGroups[GroupIndex].SourceIndex)))
+				{
+					GroupIndex = OutGroups[GroupIndex].HashNext;
+				}
+
+				if (GroupIndex != INDEX_NONE)
+				{
+					++OutGroups[GroupIndex].Count;
+					continue;
+				}
+
+				const int32 NewGroupIndex = OutGroups.Add({SourceIndex, 1, Head ? *Head : INDEX_NONE});
+				GroupHeads.Add(Hash, NewGroupIndex);
 			}
 			return;
 		}
@@ -203,6 +239,22 @@ void UDirectiveUtilArrayFunctionLibrary::Array_RemoveDuplicates(TArray<int32>& T
 	checkNoEntry();
 }
 
+void UDirectiveUtilArrayFunctionLibrary::Array_AppendOptimized(
+	TArray<int32>& TargetArray,
+	const TArray<int32>& SourceArray)
+{
+	checkNoEntry();
+}
+
+bool UDirectiveUtilArrayFunctionLibrary::Array_InsertOptimized(
+	TArray<int32>& TargetArray,
+	const TArray<int32>& SourceArray,
+	const int32 Index)
+{
+	checkNoEntry();
+	return false;
+}
+
 void UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveDuplicates(
 	void* TargetArray,
 	const FArrayProperty* ArrayProperty)
@@ -233,6 +285,140 @@ void UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveDuplicates(
 		SourceIndices.Add(Group.SourceIndex);
 	}
 	CopyValues(ArrayHelper, InnerProp, SourceIndices, TargetArray, ArrayProperty);
+}
+
+void UDirectiveUtilArrayFunctionLibrary::GenericArray_AppendOptimized(
+	void* TargetArray,
+	const FArrayProperty* TargetArrayProperty,
+	const void* SourceArray,
+	const FArrayProperty* SourceArrayProperty)
+{
+	if (!TargetArray
+		|| !SourceArray
+		|| !HaveMatchingElementTypes(TargetArrayProperty, SourceArrayProperty))
+	{
+		return;
+	}
+
+	FScriptArrayHelper TargetArrayHelper(TargetArrayProperty, TargetArray);
+	FScriptArrayHelper SourceArrayHelper(SourceArrayProperty, SourceArray);
+	const int32 SourceCount = SourceArrayHelper.Num();
+	if (SourceCount == 0)
+	{
+		return;
+	}
+
+	constexpr int32 MaxIndex = TNumericLimits<int32>::Max() - 1;
+	const int32 AddCount = FMath::Min(
+		SourceCount,
+		MaxIndex - UKismetArrayLibrary::GetLastIndex(TargetArrayHelper));
+	if (AddCount > 0)
+	{
+		FProperty* InnerProperty = TargetArrayProperty->Inner;
+		const bool bCanBulkCopy = InnerProperty->HasAnyPropertyFlags(CPF_IsPlainOldData);
+		const int32 StartIndex = bCanBulkCopy
+			? TargetArrayHelper.AddUninitializedValues(AddCount)
+			: TargetArrayHelper.AddValues(AddCount);
+		if (bCanBulkCopy)
+		{
+			FMemory::Memcpy(
+				TargetArrayHelper.GetRawPtr(StartIndex),
+				SourceArrayHelper.GetRawPtr(0),
+				static_cast<SIZE_T>(AddCount) * InnerProperty->GetElementSize());
+		}
+		else
+		{
+			for (int32 SourceIndex = 0; SourceIndex < AddCount; ++SourceIndex)
+			{
+				InnerProperty->CopySingleValueToScriptVM(
+					TargetArrayHelper.GetRawPtr(StartIndex + SourceIndex),
+					SourceArrayHelper.GetRawPtr(SourceIndex));
+			}
+		}
+	}
+
+	if (AddCount < SourceCount)
+	{
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("Attempted append to array '%s' beyond the maximum supported capacity!"),
+				*TargetArrayProperty->GetName()),
+			ELogVerbosity::Warning,
+			UKismetArrayLibrary::ReachedMaximumContainerSizeWarning);
+	}
+}
+
+bool UDirectiveUtilArrayFunctionLibrary::GenericArray_InsertOptimized(
+	void* TargetArray,
+	const FArrayProperty* TargetArrayProperty,
+	const void* SourceArray,
+	const FArrayProperty* SourceArrayProperty,
+	const int32 Index)
+{
+	if (!TargetArray
+		|| !SourceArray
+		|| !HaveMatchingElementTypes(TargetArrayProperty, SourceArrayProperty))
+	{
+		return false;
+	}
+
+	FScriptArrayHelper TargetArrayHelper(TargetArrayProperty, TargetArray);
+	FScriptArrayHelper SourceArrayHelper(SourceArrayProperty, SourceArray);
+	const int32 TargetCount = TargetArrayHelper.Num();
+	const int32 SourceCount = SourceArrayHelper.Num();
+	if (Index < 0 || Index > TargetCount)
+	{
+		return false;
+	}
+	if (SourceCount == 0)
+	{
+		return false;
+	}
+	if (SourceCount > TNumericLimits<int32>::Max() - TargetCount)
+	{
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("Attempted insert into array '%s' beyond the maximum supported capacity!"),
+				*TargetArrayProperty->GetName()),
+			ELogVerbosity::Warning,
+			UKismetArrayLibrary::ReachedMaximumContainerSizeWarning);
+		return false;
+	}
+
+	FProperty* InnerProperty = TargetArrayProperty->Inner;
+	const bool bSourceIsTarget = TargetArray == SourceArray;
+	TargetArrayHelper.InsertValues(Index, SourceCount);
+
+	if (bSourceIsTarget)
+	{
+		for (int32 SourceIndex = 0; SourceIndex < SourceCount; ++SourceIndex)
+		{
+			const int32 ShiftedSourceIndex = SourceIndex < Index
+				? SourceIndex
+				: SourceIndex + SourceCount;
+			InnerProperty->CopySingleValueToScriptVM(
+				TargetArrayHelper.GetRawPtr(Index + SourceIndex),
+				TargetArrayHelper.GetRawPtr(ShiftedSourceIndex));
+		}
+	}
+	else if (InnerProperty->HasAnyPropertyFlags(CPF_IsPlainOldData))
+	{
+		FMemory::Memcpy(
+			TargetArrayHelper.GetRawPtr(Index),
+			SourceArrayHelper.GetRawPtr(0),
+			static_cast<SIZE_T>(SourceCount) * InnerProperty->GetElementSize());
+	}
+	else
+	{
+		for (int32 SourceIndex = 0; SourceIndex < SourceCount; ++SourceIndex)
+		{
+			InnerProperty->CopySingleValueToScriptVM(
+				TargetArrayHelper.GetRawPtr(Index + SourceIndex),
+				SourceArrayHelper.GetRawPtr(SourceIndex));
+		}
+	}
+
+	return true;
 }
 
 int32 UDirectiveUtilArrayFunctionLibrary::GenericArray_PreviousIndex(
@@ -312,6 +498,20 @@ bool UDirectiveUtilArrayFunctionLibrary::Array_PopFirst(TArray<int32>& TargetArr
 }
 
 bool UDirectiveUtilArrayFunctionLibrary::Array_RemoveAtSwap(TArray<int32>& TargetArray, const int32 Index)
+{
+	checkNoEntry();
+	return false;
+}
+
+int32 UDirectiveUtilArrayFunctionLibrary::Array_RemoveAtIndices(
+	TArray<int32>& TargetArray,
+	const TArray<int32>& Indices)
+{
+	checkNoEntry();
+	return 0;
+}
+
+bool UDirectiveUtilArrayFunctionLibrary::Array_RemoveAllOccurrences(TArray<int32>& TargetArray, const int32& Item)
 {
 	checkNoEntry();
 	return false;
@@ -487,6 +687,155 @@ bool UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtSwap(
 		ArrayHelper.SwapValues(Index, LastIndex);
 	}
 	ArrayHelper.RemoveValues(LastIndex, 1);
+	return true;
+}
+
+int32 UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAtIndices(
+	void* TargetArray,
+	const FArrayProperty* ArrayProperty,
+	const TArray<int32>& Indices)
+{
+	if (!TargetArray || !ArrayProperty || Indices.IsEmpty())
+	{
+		return 0;
+	}
+
+	FScriptArrayHelper ArrayHelper(ArrayProperty, TargetArray);
+	const int32 ElementCount = ArrayHelper.Num();
+	if (ElementCount == 0)
+	{
+		return 0;
+	}
+
+	TBitArray<> RemoveFlags;
+	RemoveFlags.Init(false, ElementCount);
+	int32 RemovedCount = 0;
+	for (const int32 Index : Indices)
+	{
+		if (ArrayHelper.IsValidIndex(Index) && !RemoveFlags[Index])
+		{
+			RemoveFlags[Index] = true;
+			++RemovedCount;
+		}
+	}
+	if (RemovedCount == 0)
+	{
+		return 0;
+	}
+
+	int32 WriteIndex = 0;
+	while (!RemoveFlags[WriteIndex])
+	{
+		++WriteIndex;
+	}
+
+	const FProperty* InnerProperty = ArrayProperty->Inner;
+	const bool bCanBulkMove = InnerProperty->HasAnyPropertyFlags(CPF_IsPlainOldData);
+	const int32 ElementSize = InnerProperty->GetElementSize();
+	int32 ReadIndex = WriteIndex + 1;
+	while (ReadIndex < ElementCount)
+	{
+		while (ReadIndex < ElementCount && RemoveFlags[ReadIndex])
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunStart = ReadIndex;
+		while (ReadIndex < ElementCount && !RemoveFlags[ReadIndex])
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunCount = ReadIndex - RunStart;
+		if (RunCount == 0)
+		{
+			continue;
+		}
+
+		if (bCanBulkMove)
+		{
+			FMemory::Memmove(
+				ArrayHelper.GetRawPtr(WriteIndex),
+				ArrayHelper.GetRawPtr(RunStart),
+				static_cast<SIZE_T>(RunCount) * ElementSize);
+		}
+		else
+		{
+			for (int32 RunIndex = 0; RunIndex < RunCount; ++RunIndex)
+			{
+				InnerProperty->CopySingleValue(
+					ArrayHelper.GetRawPtr(WriteIndex + RunIndex),
+					ArrayHelper.GetRawPtr(RunStart + RunIndex));
+			}
+		}
+		WriteIndex += RunCount;
+	}
+
+	ArrayHelper.RemoveValues(WriteIndex, RemovedCount);
+	return RemovedCount;
+}
+
+bool UDirectiveUtilArrayFunctionLibrary::GenericArray_RemoveAllOccurrences(
+	void* TargetArray,
+	const FArrayProperty* ArrayProperty,
+	const void* Item)
+{
+	if (!TargetArray || !ArrayProperty || !Item)
+	{
+		return false;
+	}
+
+	FScriptArrayHelper ArrayHelper(ArrayProperty, TargetArray);
+	const FProperty* InnerProperty = ArrayProperty->Inner;
+	const int32 ElementCount = ArrayHelper.Num();
+	int32 WriteIndex = UKismetArrayLibrary::GenericArray_Find(TargetArray, ArrayProperty, Item);
+	if (WriteIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	int32 ReadIndex = WriteIndex + 1;
+	const bool bCanBulkMove = InnerProperty->HasAnyPropertyFlags(CPF_IsPlainOldData);
+	const int32 ElementSize = InnerProperty->GetElementSize();
+	while (ReadIndex < ElementCount)
+	{
+		while (ReadIndex < ElementCount && InnerProperty->Identical(Item, ArrayHelper.GetRawPtr(ReadIndex)))
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunStart = ReadIndex;
+		while (ReadIndex < ElementCount && !InnerProperty->Identical(Item, ArrayHelper.GetRawPtr(ReadIndex)))
+		{
+			++ReadIndex;
+		}
+
+		const int32 RunCount = ReadIndex - RunStart;
+		if (RunCount == 0)
+		{
+			continue;
+		}
+
+		if (bCanBulkMove)
+		{
+			FMemory::Memmove(
+				ArrayHelper.GetRawPtr(WriteIndex),
+				ArrayHelper.GetRawPtr(RunStart),
+				static_cast<SIZE_T>(RunCount) * ElementSize);
+		}
+		else
+		{
+			for (int32 RunIndex = 0; RunIndex < RunCount; ++RunIndex)
+			{
+				InnerProperty->CopySingleValue(
+					ArrayHelper.GetRawPtr(WriteIndex + RunIndex),
+					ArrayHelper.GetRawPtr(RunStart + RunIndex));
+			}
+		}
+		WriteIndex += RunCount;
+	}
+
+	ArrayHelper.RemoveValues(WriteIndex, ElementCount - WriteIndex);
 	return true;
 }
 

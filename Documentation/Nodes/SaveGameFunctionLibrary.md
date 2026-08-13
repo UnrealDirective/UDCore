@@ -15,7 +15,7 @@ Slot operations accept flat file names. Path separators and relative paths are r
 static TArray<FString> GetAllSaveSlotNames();
 ```
 
-Returns the names of all existing save slots in the project's default save directory. This enumerates the engine's default file-based save directory (Saved/SaveGames) and does not cover platform-specific save systems such as console storage.
+Returns the names of all existing save slots known to the engine save game system. Uses `ISaveGameSystem::GetSaveGameNames` so the result matches Does Save Slot Exist, Delete Save Slot, and Rename Save Slot. Falls back to the default Saved/SaveGames directory only when the active backend cannot enumerate slots.
 
 **Returns:** The save slot names (without extension).
 
@@ -31,7 +31,7 @@ Returns the last-modified timestamp of a save slot, if it exists.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | SlotName | `const FString&` | The save slot name. |
-| OutTimestamp | `FDateTime&` | [out] The slot's last-modified time (local), or a default time if it does not exist. |
+| OutTimestamp | `FDateTime&` | [out] The slot's last-modified time (local), converted from the file system's UTC timestamp using the timezone rules for that instant. |
 
 **Returns:** True if the slot exists.
 
@@ -105,7 +105,7 @@ Deletes a save slot. Goes through the engine's save game system, so unlike enume
 static bool RenameSaveSlot(const FString& OldSlotName, const FString& NewSlotName, int32 UserIndex = 0);
 ```
 
-Renames a save slot by copying its data to the new name and then deleting the original. Fails without mutating anything unless both names are valid, the names differ, the old slot exists, and the new slot does not. On failure the original slot is never lost. Goes through the engine's save game system, so unlike enumeration it also works on platform save backends.
+Renames a save slot by copying its data to the new name and then deleting the original. Fails without mutating anything unless both names are valid, the names differ, the old slot exists, and the new slot does not. Case-only renames (Slot to slot) rewrite the existing slot instead of reporting a collision. On failure the original slot is never lost. Goes through the engine's save game system so it stays consistent with Does Save Slot Exist and Get All Save Slot Names.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

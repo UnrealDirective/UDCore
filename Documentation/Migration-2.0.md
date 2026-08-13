@@ -77,4 +77,5 @@ find/replace missed.
 
 `SortStringArray` and `GetSortedStringArray` are deprecated (UE 5.6+ ships a
 built-in `Sort String Array` node) and will be removed in the next major
-version. See the [CHANGELOG](../CHANGELOG.md) for the full 2.0 release notes.
+version. See the [CHANGELOG](https://github.com/UnrealDirective/DirectiveUtilities/blob/main/CHANGELOG.md)
+for the full 2.0 release notes.

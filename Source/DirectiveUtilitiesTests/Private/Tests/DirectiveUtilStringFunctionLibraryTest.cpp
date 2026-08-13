@@ -264,11 +264,24 @@ bool FDirectiveUtilStringFunctionLibraryTest::RunTest(const FString& Parameters)
     TestFalse("IsValidFileName should reject a reserved character", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("a:b")));
     TestFalse("IsValidFileName should reject the current-directory segment", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT(".")));
     TestFalse("IsValidFileName should reject the parent-directory segment", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("..")));
+    TestFalse("IsValidFileName should reject the reserved device name CON", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("CON")));
+    TestFalse("IsValidFileName should reject CON with an extension", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("CON.sav")));
+    TestFalse("IsValidFileName should reject NUL case-insensitively", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("nul")));
+    TestFalse("IsValidFileName should reject COM1", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("COM1")));
+    TestFalse("IsValidFileName should reject LPT9", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("LPT9")));
+    TestFalse("IsValidFileName should reject a trailing dot", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("trailing.")));
+    TestFalse("IsValidFileName should reject a run of dots", UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("...")));
+    TestTrue("IsValidFileName should accept console, which is not a reserved device name",
+        UDirectiveUtilStringFunctionLibrary::IsValidFileName(TEXT("console")));
 
     {
         const FString Sanitized = UDirectiveUtilStringFunctionLibrary::SanitizeFileName(TEXT("../a/b?.sav"));
         TestTrue("SanitizeFileName should produce a name that IsValidFileName accepts",
             UDirectiveUtilStringFunctionLibrary::IsValidFileName(Sanitized));
+        const FString SanitizedReserved = UDirectiveUtilStringFunctionLibrary::SanitizeFileName(TEXT("CON"));
+        TestTrue("SanitizeFileName should rewrite a reserved device name into a valid file name",
+            UDirectiveUtilStringFunctionLibrary::IsValidFileName(SanitizedReserved)
+            && SanitizedReserved == TEXT("_CON"));
         const FString Replaced = UDirectiveUtilStringFunctionLibrary::SanitizeFileName(TEXT("a/b"), TEXT("_"));
         TestTrue("SanitizeFileName should substitute the replacement character for stripped characters",
             Replaced.Contains(TEXT("_")));

@@ -22,6 +22,12 @@ class FabPackagingTest(unittest.TestCase):
 
         self.assertNotIn("EngineVersion", descriptor)
         self.assertFalse(descriptor["Installed"])
+        self.assertEqual(
+            set(descriptor["SupportedTargetPlatforms"]),
+            set(package_fab.SUPPORTED_PLATFORMS),
+        )
+        self.assertEqual(descriptor["DocsURL"], package_fab.DOCUMENTATION_URL)
+        self.assertEqual(descriptor["MarketplaceURL"], "")
 
     def test_dirty_repository_is_rejected(self) -> None:
         with patch.object(package_fab.subprocess, "run") as run:
@@ -63,6 +69,10 @@ class FabPackagingTest(unittest.TestCase):
             )
             with zipfile.ZipFile(archive_path) as archive:
                 names = archive.namelist()
+                files = [name for name in names if not name.endswith("/")]
+                filter_plugin = archive.read(
+                    "DirectiveUtilities/Config/FilterPlugin.ini"
+                ).decode("utf-8")
 
         top_level_names = {name.split("/", 1)[0] for name in names}
         path_parts = {part for name in names for part in Path(name).parts}
@@ -83,9 +93,16 @@ class FabPackagingTest(unittest.TestCase):
                 "DirectiveUtilities/DirectiveUtilities.uplugin",
                 "DirectiveUtilities/Source/DirectiveUtilitiesRuntime/"
                 "DirectiveUtilitiesRuntime.Build.cs",
-                "DirectiveUtilities/README.md",
-                "DirectiveUtilities/LICENSE",
+                "DirectiveUtilities/Documentation/README.md",
             }.issubset(names)
+        )
+        self.assertFalse(
+            {
+                "DirectiveUtilities/CHANGELOG.md",
+                "DirectiveUtilities/LICENSE",
+                "DirectiveUtilities/README.md",
+                "DirectiveUtilities/Resources/UDCoreIcon.svg",
+            }.intersection(names)
         )
         self.assertFalse(
             any(
@@ -94,6 +111,17 @@ class FabPackagingTest(unittest.TestCase):
                 for name in names
             )
         )
+        self.assertEqual(
+            [
+                directory
+                for directory in names
+                if directory.endswith("/")
+                and not any(file.startswith(directory) for file in files)
+            ],
+            ["DirectiveUtilities/Content/"],
+        )
+        for excluded_entry in package_fab.FAB_EXCLUDED_FILTER_ENTRIES:
+            self.assertNotIn(excluded_entry, filter_plugin)
         self.assertTrue(
             package_fab.FORBIDDEN_DIRECTORY_NAMES.isdisjoint(path_parts)
         )

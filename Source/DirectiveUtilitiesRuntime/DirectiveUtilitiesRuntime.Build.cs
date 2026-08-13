@@ -27,6 +27,7 @@ public class DirectiveUtilitiesRuntime : ModuleRules
 				"Slate",
 				"SlateCore",
 				"AIModule",
+				"NavigationSystem",
 				"EnhancedInput",
 				"ApplicationCore",
 			}

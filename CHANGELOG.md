@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-11
+
+### Added
+- Added `Append Array Optimized`, a wildcard array node that bulk-copies plain-data elements and retains Unreal's property-aware path for managed values.
+- Added `Insert Array Optimized`, a wildcard array node that inserts a source array with one structural move.
+- Added `Remove At Indices`, a stable wildcard array node that removes multiple indices in one pass.
+- Added `Remove All Occurrences`, a stable wildcard array node that removes matching values in one pass, with same-build comparisons against Unreal's `Remove Item`.
+- Added keyed runtime stopwatches for measuring elapsed real time in milliseconds from Blueprints.
+- Added transform variants for grid, hex, circle, arc, and spline point generation, plus facing transforms from locations.
+- Added distance-weighted sampling of location and transform arrays, including closed loops.
+- Added hex coordinate queries for rectangular grids, rings, ranges, lines, and cell corners.
+- Added Perlin noise offsets for location and transform arrays.
+- Added transform easing and element-wise location/transform array easing with optional per-element alphas.
+- Added `Linear` to `EDirectiveUtilEaseType` (appended so existing Blueprint ordinals stay stable).
+- Added `EDirectiveUtilSplineSpacingMode` (Fixed/Even) and `EDirectiveUtilRadialOrientation` for generated transforms.
+- Added spline sampling by count, coordinate space, and start/end distance range.
+- Added a local release gate for Python checks, Fab validation, UE 5.6-5.8 editor and packaged tests, Shipping coverage, performance regression checks, and release-text scanning.
+- `Repeat with Interval` accepts `Count = -1` to repeat until Cancel; `Remaining` stays `-1` while running.
+
+### Changed
+- Callable array, random-stream, and collection-generator nodes no longer carry ineffective `BlueprintThreadSafe` metadata. Pure functions retain thread-safe metadata where Unreal can use it.
+- `Generate Points Along Spline` keeps `Include Endpoint` as the third pin; Spacing Mode and later options follow it so existing Blueprint and C++ call sites keep their meaning.
+- Point, transform, grid, and multi-cell hex generators use execution pins so their allocation cost stays explicit in Blueprint graphs.
+- Keyed stopwatches share synchronized state across threads.
+- Math formatting, statistics, easing, and random implementations build in focused translation units without changing the public Blueprint library.
+
+### Fixed
+- `IsNotEmpty` accepts a Blueprint text literal (`AutoCreateRefTerm`).
+- `LerpAngle` returns A at Alpha 0 and no longer wraps the result, so extrapolation does not jump the seam.
+- `DeltaAngle` returns +180 for an exactly opposite pair regardless of how the inputs are spelled.
+- `AngleBetweenVectors` returns 0 for a zero or non-finite vector instead of 90.
+- `RangeFalloff` is full strength at the origin when both radii are 0.
+- `EaseAlpha` Back curves are exactly 0 and 1 at the endpoints.
+- Save-slot names reject Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) and trailing dots or spaces.
+- `RenameSaveSlot` treats a case-only name change as a rewrite of the existing slot instead of reporting a collision.
+- `GetSaveSlotTimestamp` converts UTC to local using the timezone rules for that instant.
+- `GetAllSaveSlotNames` enumerates through `ISaveGameSystem` so it agrees with the other slot nodes.
+- Fab packages omit repository release files, unused source artwork, and empty local directories while retaining the required code-plugin structure.
+- Material queries include any actor with a static mesh component, including custom and Blueprint actor classes.
+- Input mapping removal and active-state queries no longer load missing soft assets, and swaps load only the new context after controller validation.
+- Distinct and most-common grouping avoid quadratic scans for reflected structs that use field equality without a native hash.
+- Push Override Materials To Source copies only explicit component overrides into valid source slots.
+- Movement tasks fail cleanly when a world has no navigation system instead of emitting engine warnings.
+- Plugin metadata now declares its target platforms, documentation, and editor-only dependency scope.
+- Generated collections reject requests above 1,000,000 elements before allocating or iterating.
+- Infinite interval repeats wrap their Blueprint index to zero after `MAX_int32` without signed overflow.
+- Delta-angle and angle-interpolation nodes remove any number of full turns consistently on UE 5.6-5.8.
+- Wildcard append, insert, indexed removal, and value removal now run through compiled Blueprint VM tests for Boolean, string, object, and struct arrays.
+- Local release checks reject warning-bearing reports, retain Development and Shipping results separately, run packaged Shipping behavior checks, compile generated Fab archives, and record commit-bound evidence.
+
 ## [2.1.0] - 2026-07-22
 
 ### Added
@@ -138,7 +188,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Gameplay Tag nodes that query the tag manager no longer claim worker-thread safety.
 - Duplicate asset searches return each matching asset path once when directories overlap.
 - Async action factories handle null world contexts without emitting engine-level warnings.
-- CI runs the Directive Utilities automation suite for every supported engine version.
 
 ## [1.3] and earlier
 

@@ -119,6 +119,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Directive Utilities|Utility")
 	static bool GetCommandLineOption(const FString& Key, FString& OutValue);
 
+	/**
+	 * Starts a keyed stopwatch using monotonic real time.
+	 * @param Key The name used to stop this stopwatch.
+	 * @param bRestartIfRunning Whether to replace an active stopwatch with the same key.
+	 * @returns True when the stopwatch was started.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Directive Utilities|Utility|Profiling", meta = (DisplayName = "Start Stopwatch", Keywords = "timer profiling benchmark elapsed milliseconds"))
+	static bool StartStopwatch(FName Key, bool bRestartIfRunning = false);
+
+	/**
+	 * Stops a keyed stopwatch and returns its elapsed real time.
+	 * @param Key The name passed to Start Stopwatch.
+	 * @param ElapsedMilliseconds The elapsed time in milliseconds, or zero when the key is not active.
+	 * @returns True when an active stopwatch was found.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Directive Utilities|Utility|Profiling", meta = (DisplayName = "Stop Stopwatch", Keywords = "timer profiling benchmark elapsed milliseconds"))
+	static bool StopStopwatch(FName Key, double& ElapsedMilliseconds);
+
 	/** Core of Has Command Line Switch that checks an explicit command line. */
 	static bool HasCommandLineSwitch(const TCHAR* CommandLine, const FString& Switch);
 

@@ -445,6 +445,44 @@ int32 UDirectiveUtilStringFunctionLibrary::Crc32Bytes(const TArray<uint8>& Bytes
 	return static_cast<int32>(FCrc::MemCrc32(Bytes.GetData(), Bytes.Num()));
 }
 
+namespace
+{
+	bool IsReservedDeviceFileName(const FString& FileName)
+	{
+		FString Stem = FileName;
+		int32 DotIndex = INDEX_NONE;
+		if (FileName.FindChar(TEXT('.'), DotIndex))
+		{
+			Stem = FileName.Left(DotIndex);
+		}
+
+		while (Stem.EndsWith(TEXT(".")) || Stem.EndsWith(TEXT(" ")))
+		{
+			Stem.LeftChopInline(1);
+		}
+		if (Stem.IsEmpty())
+		{
+			return false;
+		}
+
+		static const TCHAR* ReservedNames[] = {
+			TEXT("CON"), TEXT("PRN"), TEXT("AUX"), TEXT("CLOCK$"), TEXT("NUL"),
+			TEXT("COM1"), TEXT("COM2"), TEXT("COM3"), TEXT("COM4"), TEXT("COM5"),
+			TEXT("COM6"), TEXT("COM7"), TEXT("COM8"), TEXT("COM9"),
+			TEXT("LPT1"), TEXT("LPT2"), TEXT("LPT3"), TEXT("LPT4"), TEXT("LPT5"),
+			TEXT("LPT6"), TEXT("LPT7"), TEXT("LPT8"), TEXT("LPT9")
+		};
+		for (const TCHAR* ReservedName : ReservedNames)
+		{
+			if (Stem.Equals(ReservedName, ESearchCase::IgnoreCase))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 bool UDirectiveUtilStringFunctionLibrary::IsValidFileName(const FString& String)
 {
 	return !String.IsEmpty()
@@ -456,7 +494,16 @@ bool UDirectiveUtilStringFunctionLibrary::IsValidFileName(const FString& String)
 
 FString UDirectiveUtilStringFunctionLibrary::SanitizeFileName(const FString& String, const FString& Replacement)
 {
-	return FPaths::MakeValidFileName(String, Replacement.IsEmpty() ? TEXT('\0') : Replacement[0]);
+	FString Result = FPaths::MakeValidFileName(String, Replacement.IsEmpty() ? TEXT('\0') : Replacement[0]);
+	while (Result.EndsWith(TEXT(".")) || Result.EndsWith(TEXT(" ")))
+	{
+		Result.LeftChopInline(1);
+	}
+	if (IsReservedDeviceFileName(Result))
+	{
+		Result = FString(TEXT("_")) + Result;
+	}
+	return Result;
 }
 
 int32 UDirectiveUtilStringFunctionLibrary::FindBestStringMatch(const FString& Input, const TArray<FString>& Candidates, float& OutSimilarity, const bool bCaseSensitive)

@@ -23,9 +23,10 @@ class DIRECTIVEUTILITIESRUNTIME_API UDirectiveUtilSaveGameFunctionLibrary : publ
 public:
 
 	/**
-	 * Returns the names of all existing save slots in the project's default save directory.
-	 * @note This enumerates the engine's default file-based save directory (Saved/SaveGames); it does not
-	 * cover platform-specific save systems (e.g. console storage).
+	 * Returns the names of all existing save slots known to the engine save game system.
+	 * Uses ISaveGameSystem::GetSaveGameNames so the result matches DoesSaveSlotExist /
+	 * DeleteSaveSlot / RenameSaveSlot. Falls back to the default Saved/SaveGames directory
+	 * only when the active backend cannot enumerate slots.
 	 * @returns The save slot names (without extension).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Directive Utilities|SaveGame")
@@ -35,7 +36,7 @@ public:
 	 * Returns the last-modified timestamp of a save slot, if it exists.
 	 * @param SlotName - The save slot name.
 	 * @param OutTimestamp - [out] The slot's last-modified time (local), or a default time if it does not exist.
-	 * Converted from the file system's UTC timestamp to local time.
+	 * Converted from the file system's UTC timestamp using the timezone rules for that instant.
 	 * @returns True if the slot exists.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Directive Utilities|SaveGame")
@@ -82,8 +83,9 @@ public:
 	/**
 	 * Renames a save slot by copying its data to the new name and then deleting the original.
 	 * Fails without mutating anything unless both names are valid, the names differ, the old slot
-	 * exists, and the new slot does not. On failure the original slot is never lost. Goes through
-	 * the engine's save game system, so unlike enumeration it also works on platform save backends.
+	 * exists, and the new slot does not. Case-only renames (Slot -> slot) rewrite the existing
+	 * slot instead of reporting a collision. On failure the original slot is never lost. Goes through
+	 * the engine's save game system so it stays consistent with DoesSaveSlotExist and GetAllSaveSlotNames.
 	 * @param OldSlotName - The existing save slot name.
 	 * @param NewSlotName - The new save slot name.
 	 * @param UserIndex - The platform user index the save belongs to.

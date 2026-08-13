@@ -11,6 +11,7 @@
 #include "AssetToolsModule.h"
 #include "Editor.h"
 #include "IAssetTools.h"
+#include "Misc/App.h"
 #include "Misc/AssetRegistryInterface.h"
 #include "Modules/ModuleManager.h"
 #include "Runtime/Launch/Resources/Version.h"
@@ -157,6 +158,11 @@ EDirectiveUtilSuccessStatus UDirectiveUtilEditorAssetLibrary::FixUpRedirectorsIn
 	if (Redirectors.Num() == 0)
 	{
 		return EDirectiveUtilSuccessStatus::Success;
+	}
+	if (FApp::IsUnattended())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Redirector fix-up requires an interactive editor session."));
+		return EDirectiveUtilSuccessStatus::Failure;
 	}
 
 	AssetTools.FixupReferencers(Redirectors, false, ERedirectFixupMode::DeleteFixedUpRedirectors);
